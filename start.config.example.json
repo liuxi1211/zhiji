@@ -1,0 +1,26 @@
+{
+  "_说明": "本文件为模板，start.js 首次运行会自动复制为 start.config.json。start.config.json 不入库，每台机器各留一份。",
+
+  "_javaHome": "留空 = 自动探测。探测不到时填本机 JDK 目录（必须含 bin/java 与 bin/javac，是 JDK 不是 JRE）。各平台示例见下方 _示例。",
+  "javaHome": "",
+
+  "_mavenCommand": "留空 = 项目有 mvnw 则用 mvnw，否则用 PATH 上的 mvn。也可填绝对路径，如 D:\\\\javaApp\\\\apache-maven-3.9.9\\\\bin\\\\mvn.cmd",
+  "mavenCommand": "",
+
+  "_npmCommand": "npm 命令，通常保持默认。若用 pnpm/yarn 可改为对应命令",
+  "npmCommand": "npm",
+
+  "_ports": "端口。后端需与 src/main/resources/application.yml 的 server.port 一致",
+  "backendPort": 8080,
+  "frontendPort": 5173,
+
+  "_autoKillPort": "启动时若端口被占用，是否自动结束占用进程。false 则报错退出",
+  "autoKillPort": true,
+
+  "_示例": {
+    "javaHome_Windows": "D:\\javaApp\\jdk",
+    "javaHome_macOS_arm64": "/opt/homebrew/opt/openjdk@21",
+    "javaHome_macOS_官方包": "/Library/Java/JavaVirtualMachines/temurin-21.jdk/Contents/Home",
+    "javaHome_Linux": "/usr/lib/jvm/java-21-openjdk-amd64"
+  }
+}

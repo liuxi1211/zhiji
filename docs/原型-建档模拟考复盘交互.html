@@ -1,0 +1,485 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>知己 · 面试陪练 — 建档 / 模拟考 / 复盘 交互原型</title>
+<style>
+  :root{
+    --bg:#FAF9F6; --card:#FFFFFF; --border:#E7E4DD; --ink:#1F2937; --sub:#6B7280;
+    --brand:#0F766E; --brand-dark:#0B5A54; --brand-soft:#E6F2F0; --brand-line:#B8D8D3;
+    --amber:#B45309; --amber-soft:#FCF3E3;
+    --blue:#2563EB; --blue-soft:#EAF1FD;
+    --gray:#6B7280; --gray-soft:#F3F4F6;
+  }
+  *{box-sizing:border-box;margin:0;padding:0;}
+  body{background:var(--bg);color:var(--ink);font:15px/1.7 -apple-system,"PingFang SC","Microsoft YaHei",sans-serif;padding-bottom:80px;}
+  .wrap{max-width:760px;margin:0 auto;padding:0 16px;}
+  header{padding:22px 0 10px;}
+  .logo-row{display:flex;align-items:center;gap:12px;}
+  .logo-mark{width:46px;height:46px;border-radius:11px;background:var(--brand);color:#fff;display:flex;align-items:center;justify-content:center;font-size:23px;font-weight:700;flex:none;}
+  .logo-text h1{font-size:21px;letter-spacing:2px;}
+  .logo-text p{font-size:12.5px;color:var(--sub);}
+  nav{display:flex;gap:8px;margin:16px 0 6px;}
+  nav button{flex:1;padding:9px 0;border-radius:99px;border:1px solid var(--border);background:var(--card);color:var(--sub);font-size:14px;cursor:pointer;}
+  nav button.on{background:var(--brand);border-color:var(--brand);color:#fff;font-weight:600;}
+  .hint{background:var(--brand-soft);border:1px solid var(--brand-line);color:var(--brand-dark);border-radius:10px;padding:10px 14px;font-size:13px;margin:12px 0 16px;}
+  .sec-title{font-size:13px;color:var(--sub);margin:20px 0 10px;display:flex;align-items:center;gap:10px;}
+  .sec-title::after{content:"";flex:1;height:1px;background:var(--border);}
+  .btn{border-radius:8px;padding:8px 16px;font-size:13.5px;cursor:pointer;border:1px solid var(--border);background:#fff;color:var(--ink);}
+  .btn.primary{background:var(--brand);border-color:var(--brand);color:#fff;font-weight:600;}
+  .btn.ghost{background:var(--brand-soft);border-color:var(--brand-line);color:var(--brand-dark);}
+  .btn.plain{color:var(--sub);}
+  .btn[disabled]{opacity:.45;cursor:not-allowed;}
+  .story{display:grid;grid-template-columns:repeat(auto-fit,minmax(215px,1fr));gap:8px;margin-bottom:18px;}
+  .sb{background:var(--card);border:1px solid var(--border);border-radius:10px;padding:10px 12px;display:flex;gap:9px;}
+  .sb-no{width:20px;height:20px;border-radius:99px;background:var(--brand-soft);color:var(--brand-dark);font-size:12px;font-weight:700;display:flex;align-items:center;justify-content:center;flex:none;margin-top:2px;}
+  .sb-t{font-size:13px;font-weight:600;line-height:1.5;}
+  .sb-r{font-size:12px;color:var(--sub);margin-top:3px;line-height:1.6;}
+  .chat{background:var(--card);border:1px solid var(--border);border-radius:12px;padding:14px 16px;margin-bottom:10px;}
+  .msg{display:flex;gap:10px;margin-bottom:12px;}
+  .msg .who{flex:none;font-size:11.5px;border-radius:99px;padding:1px 9px;height:fit-content;margin-top:3px;}
+  .msg.ai .who{background:var(--brand-soft);color:var(--brand-dark);}
+  .msg.me .who{background:var(--gray-soft);color:var(--gray);}
+  .msg .bub{flex:1;min-width:0;font-size:13.5px;line-height:1.7;background:#FDFCFA;border:1px solid var(--border);border-radius:10px;padding:8px 12px;}
+  .msg.me .bub{background:var(--brand-soft);border-color:var(--brand-line);}
+  .mtag{font-size:11.5px;color:var(--sub);margin-bottom:3px;}
+  .mtag.switch{color:var(--amber);font-weight:600;}
+  .dots{display:flex;gap:5px;align-items:center;margin-bottom:10px;font-size:12px;color:var(--sub);}
+  .dots i{width:7px;height:7px;border-radius:99px;background:var(--gray-soft);}
+  .dots i.on{background:var(--brand);}
+  .prof-row{display:flex;align-items:flex-start;gap:8px;background:var(--card);border:1px solid var(--border);border-radius:10px;padding:10px 12px;margin-bottom:8px;}
+  .prof-row.del .pt{text-decoration:line-through;color:#9CA3AF;}
+  .prof-row.added{border-style:dashed;}
+  .pt{flex:1;min-width:0;font-size:13.5px;line-height:1.6;}
+  .edit-tag{font-size:11.5px;color:var(--blue);background:var(--blue-soft);border-radius:99px;padding:0 8px;margin-left:6px;}
+  .reason{display:block;font-size:12px;color:var(--amber);margin-top:4px;}
+  .pact{display:flex;gap:6px;flex:none;}
+  .pbtn{font-size:12px;border:1px solid var(--border);background:#fff;border-radius:6px;padding:3px 10px;cursor:pointer;color:var(--sub);}
+  .pbtn.on{background:var(--brand-soft);border-color:var(--brand-line);color:var(--brand-dark);font-weight:600;}
+  .pbtn.danger.on{background:var(--amber-soft);border-color:#EAD9A6;color:var(--amber);}
+  .lay3{display:grid;grid-template-columns:repeat(auto-fit,minmax(180px,1fr));gap:8px;margin-bottom:10px;}
+  .lay{background:var(--card);border:1px solid var(--border);border-radius:10px;padding:12px 14px;}
+  .lay b{font-size:20px;color:var(--brand-dark);}
+  .lay .lt{font-size:13px;font-weight:600;}
+  .lay .ld{font-size:12px;color:var(--sub);margin-top:4px;line-height:1.6;}
+  .opt{border:1px solid var(--border);background:#fff;border-radius:99px;padding:7px 14px;font-size:13px;cursor:pointer;color:var(--sub);}
+  .opt.on{background:var(--brand);border-color:var(--brand);color:#fff;font-weight:600;}
+  .map-row{display:flex;align-items:flex-start;gap:8px;background:var(--card);border:1px solid var(--border);border-radius:10px;padding:10px 12px;margin-bottom:8px;font-size:13px;}
+  .conf{flex:none;font-size:11.5px;border-radius:99px;padding:1px 9px;margin-top:1px;}
+  .conf-h{background:var(--brand-soft);color:var(--brand-dark);}
+  .conf-m{background:var(--amber-soft);color:var(--amber);}
+  .conf-n{background:var(--gray-soft);color:var(--gray);}
+  .mkrow{display:flex;gap:6px;flex-wrap:wrap;}
+  .mk{font-size:12px;border:1px solid var(--border);background:#fff;border-radius:6px;padding:3px 10px;cursor:pointer;color:var(--sub);}
+  .mk.on{background:var(--brand);border-color:var(--brand);color:#fff;font-weight:600;}
+  .dl{display:flex;gap:8px;align-items:flex-start;background:var(--card);border:1px solid var(--border);border-radius:10px;padding:10px 12px;margin-bottom:8px;font-size:13px;line-height:1.6;}
+  .dl .dt{flex:none;font-size:11.5px;border-radius:99px;padding:1px 9px;background:var(--blue-soft);color:var(--blue);margin-top:1px;}
+  .dl .dt.warn{background:var(--amber-soft);color:var(--amber);}
+  .dl .dt.good{background:var(--brand-soft);color:var(--brand-dark);}
+  .rep{background:var(--card);border:1px solid var(--border);border-radius:12px;padding:14px 16px;margin-bottom:10px;}
+  .rep .rk{display:flex;gap:8px;flex-wrap:wrap;margin:8px 0;}
+  .rk span{font-size:12px;border-radius:99px;padding:2px 10px;}
+  .rk .good{background:var(--brand-soft);color:var(--brand-dark);}
+  .rk .bad{background:var(--amber-soft);color:var(--amber);}
+  .rk .mid{background:var(--blue-soft);color:var(--blue);}
+  .coach{font-size:12.5px;color:var(--brand-dark);background:var(--brand-soft);border-radius:8px;padding:7px 11px;margin-top:8px;}
+  .coach.amber{background:var(--amber-soft);color:var(--amber);}
+  textarea.ans{width:100%;min-height:90px;border:1px solid var(--border);border-radius:8px;background:#fff;padding:10px 12px;font-size:13.5px;font-family:inherit;line-height:1.7;color:var(--ink);resize:vertical;}
+  textarea.ans:focus{outline:none;border-color:var(--brand-line);}
+  .ans-meta{display:flex;justify-content:space-between;align-items:center;font-size:12px;color:var(--sub);margin:6px 0 10px;}
+  .timer{font-variant-numeric:tabular-nums;font-size:12.5px;font-weight:600;color:var(--amber);}
+  .actions{display:flex;gap:8px;flex-wrap:wrap;margin-top:6px;}
+  .note{font-size:12px;color:var(--sub);padding:6px 2px;line-height:1.7;}
+  .toast{position:fixed;left:50%;bottom:28px;transform:translateX(-50%);background:#1F2937;color:#fff;font-size:13.5px;border-radius:99px;padding:10px 22px;box-shadow:0 6px 24px rgba(0,0,0,.18);opacity:0;transition:opacity .3s;pointer-events:none;max-width:88vw;text-align:center;z-index:9;}
+  .toast.show{opacity:1;}
+  footer{margin-top:34px;font-size:12px;color:#9CA3AF;text-align:center;line-height:1.8;}
+  @media(max-width:640px){
+    body{font-size:14.5px;}
+    nav button{font-size:13px;padding:8px 0;}
+    .story{grid-template-columns:1fr;}
+  }
+</style>
+</head>
+<body>
+<div class="wrap">
+  <header>
+    <div class="logo-row">
+      <div class="logo-mark">知</div>
+      <div class="logo-text">
+        <h1>知己 · 面试陪练</h1>
+        <p>闭环另外三段：建档 / 模拟考 / 复盘 — storyboard + 可点交互 v0.1（示例数据：小王 · 5 年 Java）</p>
+      </div>
+    </div>
+  </header>
+  <nav>
+    <button id="tab-onb" class="on" data-act="tab" data-arg="onb">建档</button>
+    <button id="tab-mock" data-act="tab" data-arg="mock">模拟考</button>
+    <button id="tab-rev" data-act="tab" data-arg="rev">复盘</button>
+  </nav>
+  <main id="view"></main>
+  <footer>
+    静态原型：AI 回复与报告均为脚本演示；语音转写用浏览器 Web Speech API（Chrome 可试，本地文件页可能拿不到麦克风，打字一样能走完流程）。<br>
+    学练主循环原型见：原型-学习路径交互.html。三段的设计决策写在每段顶部的 Storyboard 卡片里。
+  </footer>
+</div>
+<div class="toast" id="toast"></div>
+<script>
+const $v=document.getElementById('view');
+const S={
+  view:'onb',
+  onb:0,
+  pf:null,
+  ans:{},
+  persona:null,
+  mockStage:'setup',
+  mockStep:0,
+  mockLeft:1200,
+  mockTimer:null,
+  revStage:0,
+  revMarks:{},
+  cand:'none',
+};
+
+const onbStory=[
+  ['两个入口，都不考试','粘简历 30 秒；没简历就聊。冷启动不答题 — 面试本来就是面对面聊的开放题，测量藏在后面的练习里'],
+  ['每轮只问一个问题','3~5 轮聊完事实层：年限岗位 → 技术栈深浅 → 项目展开 → 目标和时间。进度点可见，随时可跳过，不做成问卷卷'],
+  ['项目细节顺带收集','聊项目时追问「你负责哪块、有数字吗」— 这些回答直接变成模拟考的追问素材'],
+  ['画像逐条拍板','AI 整理技能清单，用户逐条确认：不熟的删（写原因）、漏的加、措辞改。确认过的清单才是一切的地基'],
+  ['JD 是更强的信号','目标 JD 贴进来和画像做 diff：JD 要但简历没有的，问一句「进主攻还是先放弃」'],
+];
+
+const chatScript=[
+  {who:'ai',text:'先聊基本盘：几年了？最近主要在做什么方向？'},
+  {who:'me',text:'5 年 Java，最近两年主要做搜索和 AI 检索，带 3 个人。'},
+  {who:'ai',text:'好。技术栈过一遍 — ES、Redis、MQ 这些，哪些天天用，哪些只是用过？',skip:true},
+  {who:'me',text:'ES 和 Redis 天天用，Kafka 只是接入过，没深玩。'},
+  {who:'ai',text:'挑个项目讲讲：你负责哪一块？上线后有什么数字吗？有数字最好，没有回头补。',skip:true},
+  {who:'me',text:'商品详情系统，我负责缓存和检索侧，QPS 峰值 8k，缓存命中 97%。'},
+  {who:'ai',text:'最后两件事：目标 JD 贴给我；每天能给我多少时间、备几周？'},
+  {who:'me',input:true,hint:'示例：目标电商中台高级 Java，每晚 1.5 小时，备 6 周'},
+];
+
+const profileDraft=[
+  {t:'搜索引擎与检索架构（ES / Lucene）· 5 年，集群治理与升级主导过',ed:'搜索引擎与检索架构（ES / Lucene）· 5 年，但集群升级是参与不是主导'},
+  {t:'AI 检索与 Agent（RAG / 混合检索）· 半年，项目在跑',ed:'AI 检索（RAG / 混合检索）· 半年，跑通过一条链路'},
+  {t:'Kafka · 生产者消费者接入过',ed:'Kafka · 接入过生产者消费者，没碰过流式语义'},
+  {t:'MySQL / PolarDB · 索引设计与慢查询治理',ed:'MySQL / PolarDB · 索引会设计，慢查询治理做过两次'},
+  {t:'Spring 与插件化框架 · 二次开发过',ed:'Spring · 用得熟，插件化框架只读过源码'},
+  {t:'分布式 · 一致性 / 限流 / 场景题',ed:'分布式 · 一致性和限流做过，场景题没系统练过'},
+];
+
+const mockStory=[
+  ['考前 30 秒说明','范围只出本周练过的考点 + 2 个简历钩子；人格二选一：温和教练 / 压力面。不打无准备之仗，也不无限准备'],
+  ['链条是骨架，不是剧本','AI 在「评分要点」的 rubric 范围内改写问法、调换顺序 — 背链子没用，理解才行'],
+  ['每答必判，四况分流','对→下钻；缺（对但浅）→继续钻，追问在给补证据的机会；错/空→立即停，温和教练同层变体再问，压力面切题。错和空不硬钻 — 第 1 层崩了第 2 层就是噪音'],
+  ['中途打断换话题','真实面试最坑的是话题突然切换，练「被打断后 10 秒内接住」— 没有竞品做这个'],
+  ['分是公式算的','LLM 只做对齐判断：命中要点必须引用用户原话，引不出来算未命中。评级走确定性规则 — LLM 从不碰分数，评分要点预制进考点库'],
+  ['三把尺子出综合评定','因果链 / 证据密度 / 扛追问层数 → 单考点四档 → 加权及格率 + 简历主张存活率 + 教练总评。连续两场存活率 <50% 触发简历降级'],
+  ['卡壳直接进回炉','报告末尾自动生成下周任务：哪些考点进复测、哪个元弱点要专项补、简历要不要动'],
+];
+
+const mockScript=[
+  {who:'ai',tag:'主问题 · 来自简历钩子「分片规划与路由」',text:'看你简历写了 ES 集群治理。说说你们集群的规模，分片数当时是怎么定的？'},
+  {who:'me',hint:'先把规模和定分片的依据讲 2 分钟'},
+  {who:'ai',tag:'追问 · 第 1 层（原链问法已改写）',text:'假如数据量涨到 10 倍，你这套规划还成立吗？打算怎么办？'},
+  {who:'me',hint:'这一问考的是预案：reindex / split / 双写迁移，接你双集群灰度的案例'},
+  {who:'ai',tag:'打断 · 换话题',switch:true,text:'好，这个先到这。换个事 — 线上一个服务的线程池把 CPU 打满了，你怎么排查？'},
+  {who:'me',hint:'被打断别慌：10 秒内接住，按「现象 → 监控 → dump → 定位」讲'},
+  {who:'ai',tag:'追问 · 第 1 层',text:'查出来是 IO 等待太高，参数你怎么调？依据是什么？'},
+  {who:'me',hint:'说出「压测 + 拐点」的过程，别背公式'},
+  {who:'ai',end:true,text:'行，今天就到这。我出一份报告，两秒。'},
+];
+
+const revStory=[
+  ['录题要顺手','面完试人最累，只做粘贴（或口述转文字）这一件事 — 要填的越多，回来的越少'],
+  ['AI 映射，人确认','每道真题映射到考点，人只做确认和改判。题频权重从「全网信号」变成「你目标岗位的真实信号」'],
+  ['映射不上就是生长点','题库里没有的真题进候选池，标来源「真实面试」— 题库从真面试里往外长'],
+  ['变更先看 diff 再应用','路径怎么变、简历建议动哪条，列清楚再确认。降级必须带「写回去」的终点'],
+];
+
+const revInput=[
+  {q:'1. 你们 ES 深分页怎么处理的？search_after 原理说一下',map:'深分页：from+size 为什么不行，search_after 怎么接',conf:'h',confT:'匹配 · 高'},
+  {q:'2. 线上线程池把 CPU 打满了，怎么排查',map:'线程池参数线上怎么定',conf:'h',confT:'匹配 · 高'},
+  {q:'3. Kafka 怎么保证消息不丢',map:null},
+  {q:'4. G1 的回收流程讲一下',map:'（JVM 域考点库未建 — 先记频率，库排期提前）',conf:'m',confT:'匹配 · 中'},
+];
+
+function toast(msg){const el=document.getElementById('toast');el.textContent=msg;el.classList.add('show');clearTimeout(toast._t);toast._t=setTimeout(()=>el.classList.remove('show'),2800);}
+function ansOk(key,n){return S.ans[key]&&S.ans[key].trim().length>=n;}
+
+function storyStrip(items){
+  return '<div class="sec-title">Storyboard · 这一段的设计决策</div><div class="story">'+items.map((s,i)=>'<div class="sb"><div class="sb-no">'+(i+1)+'</div><div><div class="sb-t">'+s[0]+'</div><div class="sb-r">'+s[1]+'</div></div></div>').join('')+'</div>';
+}
+function aiMsg(m){
+  return '<div class="msg ai"><span class="who">面试官</span><div class="bub">'+(m.tag?'<div class="mtag'+(m.switch?' switch':'')+'">'+m.tag+'</div>':'')+m.text+(m.skip?'<div style="margin-top:6px"><span class="mk" data-act="ob-skip">跳过这题</span></div>':'')+'</div></div>';
+}
+function meMsg(t){
+  return '<div class="msg me"><span class="who">小王</span><div class="bub">'+t+'</div></div>';
+}
+function repCard(t,act,rk,coach){
+  return '<div class="rep"><div style="font-weight:600;font-size:14px">'+t+'<span style="font-size:12px;color:var(--sub);font-weight:400;margin-left:8px">'+act+'</span></div><div class="rk">'+rk.map(r=>'<span class="'+r[0]+'">'+r[1]+'</span>').join('')+'</div><div class="coach'+(coach.length>60?' amber':'')+'">教练：'+coach+'</div></div>';
+}
+
+function pfInit(){S.pf=profileDraft.map(()=>({act:null,reason:''}));}
+function pfCount(){return S.pf.filter(p=>p.act).length;}
+function profRow(i){
+  const d=profileDraft[i],p=S.pf[i];
+  const cls='prof-row'+(p.act==='del'?' del':'')+(d.added?' added':'');
+  const t=p.act==='edit'?d.ed:d.t;
+  let inner='<div class="pt">'+t+(p.act==='edit'?'<span class="edit-tag">已改</span>':'');
+  if(p.act==='del'){
+    if(p.reason){inner+='<span class="reason">放弃原因：'+p.reason+'</span>';}
+    else{inner+='<span class="reason">选个放弃原因：<span class="mk" data-act="pf-reason" data-arg="'+i+':写多了">写多了</span> <span class="mk" data-act="pf-reason" data-arg="'+i+':不熟">不熟</span> <span class="mk" data-act="pf-reason" data-arg="'+i+':不想被问">不想被问</span></span>';}
+  }
+  inner+='</div>';
+  let btns='<div class="pact"><button class="pbtn'+(p.act==='keep'?' on':'')+'" data-act="pf" data-arg="'+i+':keep">留</button>';
+  if(!d.added){
+    btns+='<button class="pbtn danger'+(p.act==='del'?' on':'')+'" data-act="pf" data-arg="'+i+':del">删</button>';
+    btns+='<button class="pbtn'+(p.act==='edit'?' on':'')+'" data-act="pf" data-arg="'+i+':edit">改</button>';
+  }
+  btns+='</div>';
+  return '<div class="'+cls+'">'+inner+btns+'</div>';
+}
+
+function renderOnb(){
+  let h=storyStrip(onbStory);
+  if(S.onb===0){
+    h+='<div class="sec-title">第 1 步 · 入口</div>';
+    h+='<div class="hint">原则：入口永远没有考试。事实（年限 / 岗位 / 技术栈）用户自己说，比答题测更快更准。</div>';
+    h+='<div class="lay3"><div class="lay"><div class="lt">有简历</div><div class="ld">整份粘贴，AI 抽完要点再找你确认几句</div><div class="actions" style="margin-top:10px"><button class="btn primary" data-act="ob-go" data-arg="1">粘好了，开聊</button></div></div>';
+    h+='<div class="lay"><div class="lt">没有简历</div><div class="ld">直接聊几句：年限、做什么、用过什么，聊完一样建档</div><div class="actions" style="margin-top:10px"><button class="btn ghost" data-act="ob-go" data-arg="1">直接聊</button></div></div></div>';
+  }
+  else if(S.onb===1){
+    h+='<div class="sec-title">第 2 步 · 对话建档（演示：5 轮看 4 轮）</div>';
+    h+='<div class="dots">进度 <i class="on"></i><i class="on"></i><i class="on"></i><i class="on"></i><i></i> · 每轮一个问题，随时可跳过</div>';
+    h+='<div class="chat">';
+    chatScript.forEach(m=>{
+      if(m.who==='ai')h+=aiMsg(m);
+      else if(m.input){
+        h+='<div class="note" style="margin:2px 0 8px">轮到你 — 打字或点「口述」转文字</div>';
+        h+='<textarea class="ans" data-ans-key="chat" placeholder="'+m.hint+'">'+(S.ans['chat']||'')+'</textarea>';
+        h+='<div class="ans-meta"><span id="cnt-chat">'+(S.ans['chat']?S.ans['chat'].trim().length+' 字':'还没说')+'</span><button class="btn" data-act="voice" data-arg="chat">口述</button></div>';
+      }
+      else h+=meMsg(m.text);
+    });
+    h+='</div>';
+    h+='<div class="actions"><button class="btn primary" data-need="chat" '+(ansOk('chat',10)?'':'disabled ')+'data-act="ob-go" data-arg="2">发送，整理技能画像</button></div>';
+  }
+  else if(S.onb===2){
+    if(!S.pf)pfInit();
+    h+='<div class="sec-title">第 3 步 · 技能画像逐条拍板（地基，必须你确认）</div>';
+    h+='<div class="hint">AI 从简历和刚才的对话里整理出 '+profileDraft.length+' 条。逐条拍板：不熟的删（写原因）、漏的补、措辞不准的改。</div>';
+    profileDraft.forEach((d,i)=>{h+=profRow(i);});
+    h+='<div class="actions"><button class="btn ghost" data-act="pf-add">补一条</button><button class="btn primary" data-act="ob-go" data-arg="3">就这份，生成路径（已确认 '+pfCount()+'/'+profileDraft.length+'）</button></div>';
+  }
+  else{
+    h+='<div class="sec-title">第 4 步 · 建档完成 → 路径骨架</div>';
+    h+='<div class="lay3">';
+    h+='<div class="lay"><div class="lt">底线层 <b>14</b> 条</div><div class="ld">不管简历写没写，5 年 Java 都会被问。排最前，快速过。</div></div>';
+    h+='<div class="lay"><div class="lt">主攻层 <b>31</b> 条</div><div class="ld">简历写了就会被追问。按难度渐进排好，每条配真实案例锚点。</div></div>';
+    h+='<div class="lay"><div class="lt">放弃层 <b>8</b> 条</div><div class="ld">明确不学，每条写明原因：Lucene API 细节 / ZAB 推导 / Seata 源码…</div></div>';
+    h+='</div>';
+    h+='<div class="dl"><span class="dt">JD diff</span><span>JD 要求「Kafka 可靠性」，画像里只是接入过 → 已加进主攻层尾部（低优先级，随进度上调）</span></div>';
+    h+='<div class="dl"><span class="dt">标定</span><span>每晚 1.5h × 6 周 ≈ 63 小时 — 主攻层按这个预算裁剪，第 1 周的卡片已经排好</span></div>';
+    h+='<div class="note">骨架生成是结构化的，秒出、成本可忽略；每个考点的讲解 / 追问 / 案例从考点库按需取用，点开才渲染。</div>';
+    h+='<div class="actions"><button class="btn primary" data-act="ob-done">去学练原型看每日循环</button><button class="btn plain" data-act="ob-restart">重走一遍</button></div>';
+  }
+  return h;
+}
+
+function renderMockRun(){
+  let msgs='';let acts='';
+  for(let k=0;k<4;k++){
+    if(k>S.mockStep)break;
+    msgs+=aiMsg(mockScript[2*k]);
+    if(k<S.mockStep)msgs+=meMsg(S.ans['m'+k]||'（这段是你口述的答案，已留档）');
+  }
+  if(S.mockStep<4){
+    const hint=mockScript[2*S.mockStep+1];
+    const key='m'+S.mockStep;
+    msgs+='<div class="note" style="margin:2px 0 8px">'+hint.hint+'</div>';
+    msgs+='<textarea class="ans" data-ans-key="'+key+'" placeholder="口述或打字。真实版语音转写自动进这里。">'+(S.ans[key]||'')+'</textarea>';
+    msgs+='<div class="ans-meta"><span id="cnt-'+key+'">'+(S.ans[key]?S.ans[key].trim().length+' 字':'说满一分钟再发 — 面试里沉默也是内容')+'</span><button class="btn" data-act="voice" data-arg="'+key+'">口述</button></div>';
+    acts='<div class="actions"><button class="btn primary" data-need="'+key+'" '+(ansOk(key,10)?'':'disabled ')+'data-act="mock-send">发送</button><button class="btn plain" data-act="mock-stop">喊停，直接出报告</button></div>';
+  }else{
+    msgs+=aiMsg(mockScript[8]);
+    acts='<div class="actions"><button class="btn primary" data-act="mock-report">看报告</button></div>';
+  }
+  return '<div class="sec-title">模拟考进行中 · <span class="timer" id="mock-timer">20:00</span></div><div class="chat">'+msgs+'</div>'+acts;
+}
+
+function reportHTML(){
+  return '<div class="sec-title">报告 · 综合评定</div>'
+  +'<div class="dl"><span class="dt good">本场评定</span><span>差强人意 — 加权及格率 62% · 简历主张存活率 1/2（分片规划存活，线程池打穿）· 方向覆盖 4/5（容灾未扫到，进下次优先队列）。再低一场就触发简历侧复核</span></div>'
+  +'<div class="hint">元弱点：知识都在，缺数字和案例。四段回答没有一段主动给数字 — 这是模式，不是偶然。下周专项：给练过的考点各补一个真实数字。</div>'
+  +repCard('ES 分片规划与扩容','明天进复测队列',[['mid','答况 · 缺（对但浅）'],['good','因果链完整'],['bad','没给数字'],['mid','扛住 1 / 2 层追问']],'分片 20~40GB 的经验值讲了，但「当时为什么这么定」没有数字撑腰。把你们集群的真实规模和增长曲线补上，这题就是优秀。')
+  +repCard('线程池打满排查','回炉重练',[['bad','答况 · 错'],['bad','断在第 2 步'],['bad','没给数字'],['bad','被打断后接得慢']],'「先看监控再看 dump」方向对，但话题被打断后愣了 20 秒才接住 — 这正是本场要练的。回炉：把排查顺序写成自己的口诀。')
+  +'<div class="dl"><span class="dt good">联动</span><span>2 个考点进复测 · 元弱点专项已排进下周 · 简历侧：存活率 1/2，再低一场触发复核</span></div>'
+  +'<div class="actions"><button class="btn primary" data-act="mock-again">再考一场</button><button class="btn ghost" data-act="to-learn">回学练原型</button></div>';
+}
+
+function renderMock(){
+  let h=storyStrip(mockStory);
+  if(S.mockStage==='setup'){
+    h+='<div class="sec-title">考前说明（30 秒读完）</div>';
+    h+='<div class="hint">范围：本周练过的 9 个考点 + 2 个简历钩子（分片规划 / 线程池定参）。预计 20 分钟，随时可喊停。</div>';
+    h+='<div class="rep"><div style="font-weight:600;font-size:13.5px">面试官人格</div><div class="mkrow" style="margin-top:8px"><button class="opt'+(S.persona==='coach'?' on':'')+'" data-act="persona" data-arg="coach">温和教练</button><button class="opt'+(S.persona==='stress'?' on':'')+'" data-act="persona" data-arg="stress">压力面</button></div><div class="note">'+(S.persona==='stress'?'压力面：追问更密，会打断，语气冷 — 考前抗压演练用。':'温和教练：按节奏追问，答不上给台阶 — 日常每周一场用这个。')+'</div></div>';
+    h+='<div class="actions"><button class="btn primary" '+(S.persona?'':'disabled ')+'data-act="mock-start">开始模拟考</button></div>';
+  }
+  else if(S.mockStage==='run'){h+=renderMockRun();}
+  else{h+=reportHTML();}
+  return h;
+}
+
+function renderRev(){
+  let h=storyStrip(revStory);
+  if(S.revStage===0){
+    h+='<div class="sec-title">第 1 步 · 把被问到的题贴进来</div>';
+    h+='<div class="hint">刚面完最累 — 只做粘贴这一件事。语音口述转文字也行，别的都不填。</div>';
+    h+='<textarea class="ans" style="min-height:130px" data-ans-key="raw">1. 你们 ES 深分页怎么处理的？search_after 原理说一下\n2. 线上线程池把 CPU 打满了，怎么排查\n3. Kafka 怎么保证消息不丢\n4. G1 的回收流程讲一下</textarea>';
+    h+='<div class="actions" style="margin-top:10px"><button class="btn primary" data-act="rev-map">AI 映射到考点</button></div>';
+  }
+  else if(S.revStage===1){
+    h+='<div class="sec-title">第 2 步 · 映射结果（人只做确认）</div>';
+    revInput.forEach(r=>{
+      if(r.map){
+        h+='<div class="map-row"><span class="conf '+(r.conf==='h'?'conf-h':'conf-m')+'">'+r.confT+'</span><div class="pt">'+r.q+'<div class="note">→ '+r.map+'</div></div></div>';
+      }else{
+        h+='<div class="map-row"><span class="conf conf-n">无匹配</span><div class="pt">'+r.q;
+        if(S.cand==='none'){h+='<div class="note">题库里没有这条。<span class="mk" data-act="cand" data-arg="in">入库候选</span> <span class="mk" data-act="cand" data-arg="drop">丢弃</span></div>';}
+        else if(S.cand==='in'){h+='<div class="note">已入候选池：Kafka 消息可靠性 · 来源：真实面试 2026-09-21 · 待校准追问链</div>';}
+        else{h+='<div class="note">已丢弃。真题信号保留在历史里，下次再被问到会再提。</div>';}
+        h+='</div></div>';
+      }
+    });
+    h+='<div class="actions" style="margin-top:10px"><button class="btn primary" data-act="rev-stage" data-arg="2">下一步 · 录答题表现</button></div>';
+  }
+  else if(S.revStage===2){
+    h+='<div class="sec-title">第 3 步 · 这几道你答得怎么样</div>';
+    revInput.forEach((r,i)=>{
+      h+='<div class="map-row"><div class="pt" style="flex:1">'+r.q+'<div class="mkrow" style="margin-top:6px">'
+        +['pass:答上来了','shake:卡壳了','miss:没答上'].map(x=>{const p=x.split(':');return '<button class="mk'+(S.revMarks['q'+i]===p[0]?' on':'')+'" data-act="mk" data-arg="q'+i+':'+p[0]+'">'+p[1]+'</button>';}).join('')
+        +'</div></div></div>';
+    });
+    const all=revInput.every((r,i)=>S.revMarks['q'+i]);
+    h+='<div class="actions" style="margin-top:10px"><button class="btn primary" '+(all?'':'disabled ')+'data-act="rev-stage" data-arg="3">生成变更 diff</button></div>';
+  }
+  else if(S.revStage===3){
+    h+='<div class="sec-title">第 4 步 · 变更确认（应用前先看清改什么）</div>';
+    const m1=S.revMarks['q0'],m2=S.revMarks['q1'];
+    h+='<div class="dl"><span class="dt good">题频</span><span>深分页：真实被问，频率 +1'+(m1==='pass'?'，表现过关，维持优先级':'，表现一般，明天进复测')+'</span></div>';
+    h+='<div class="dl"><span class="dt warn">复测</span><span>线程池：'+(m2==='pass'?'答上来了，进周期抽查池':'明天进复测队列，先回炉第 1 层资料')+'</span></div>';
+    h+='<div class="dl"><span class="dt">排期</span><span>JVM / G1：频率 +1，JVM 域考点库排期提前两周</span></div>';
+    if(S.cand==='in'){h+='<div class="dl"><span class="dt good">题库</span><span>新考点候选「Kafka 消息可靠性」入库，来源标注：真实面试</span></div>';}
+    if(S.revMarks['q2']==='miss'||S.revMarks['q2']==='shake'){
+      h+='<div class="dl"><span class="dt warn">简历建议</span><span>「熟悉 Kafka」建议降级 — 真实面试'+(S.revMarks['q2']==='miss'?'没答上':'卡壳')+'。练会写回：复测过关自动恢复，徽章亮给你看</span></div>';
+    }else{
+      h+='<div class="dl"><span class="dt good">简历建议</span><span>暂无降级建议</span></div>';
+    }
+    h+='<div class="actions" style="margin-top:10px"><button class="btn primary" data-act="rev-apply">应用这些变更</button><button class="btn plain" data-act="rev-reset">重来一遍</button></div>';
+  }
+  else{
+    h+='<div class="hint">已应用。明天的「今日」卡片会体现这几处变化；简历降级在学练那边会以「写回去」徽章的形态出现 — 练会了徽章自己亮。</div>';
+    h+='<div class="actions"><button class="btn ghost" data-act="to-learn">回学练原型</button><button class="btn plain" data-act="rev-reset">再走一遍</button></div>';
+  }
+  return h;
+}
+
+const SR=window.SpeechRecognition||window.webkitSpeechRecognition;
+let rec=null;
+function startVoice(key){
+  if(!SR){toast('当前浏览器不支持语音转写（换 Chrome 试试），先打字吧');return;}
+  if(rec){rec.stop();return;}
+  try{
+    rec=new SR();rec.lang='zh-CN';rec.continuous=true;rec.interimResults=false;
+    rec.onresult=e=>{
+      let s='';
+      for(let i=0;i<e.results.length;i++){if(e.results[i].isFinal)s+=e.results[i][0].transcript;}
+      if(s){S.ans[key]=s;const ta=document.querySelector('[data-ans-key="'+key+'"]');if(ta)ta.value=s;ansChanged(key);}
+    };
+    rec.onend=()=>{rec=null;};
+    rec.onerror=()=>{toast('拿不到麦克风（本地文件页常见），直接打字也一样');};
+    rec.start();
+    toast('在听……面试是说出来的，不是打出来的');
+  }catch(err){toast('语音不可用，直接打字吧');}
+}
+function ansChanged(key){
+  const c=document.getElementById('cnt-'+key);
+  if(c)c.textContent=S.ans[key]?S.ans[key].trim().length+' 字':'';
+  document.querySelectorAll('[data-need="'+key+'"]').forEach(b=>b.disabled=!ansOk(key,10));
+}
+function startMockTimer(){
+  stopMockTimer();
+  S.mockLeft=1200;
+  S.mockTimer=setInterval(()=>{
+    S.mockLeft--;
+    const el=document.getElementById('mock-timer');
+    if(!el){stopMockTimer();return;}
+    if(S.mockLeft<=0){el.textContent='时间到 · 讲完这轮就收';stopMockTimer();}
+    else{el.textContent=Math.floor(S.mockLeft/60)+':'+String(S.mockLeft%60).padStart(2,'0');}
+  },1000);
+}
+function stopMockTimer(){if(S.mockTimer){clearInterval(S.mockTimer);S.mockTimer=null;}}
+
+function handle(act,arg){
+  if(act==='tab'){S.view=arg;stopMockTimer();render();return;}
+  if(act==='to-learn'){window.open('原型-学习路径交互.html','_blank');return;}
+  if(act==='voice'){startVoice(arg);return;}
+  if(S.view==='onb'){
+    if(act==='ob-go'){S.onb=+arg;if(arg==='2'&&!S.pf)pfInit();render();}
+    else if(act==='ob-skip'){toast('跳过也行 — 这条信息回头从简历补');}
+    else if(act==='pf'){const p=arg.split(':');const row=S.pf[+p[0]];row.act=row.act===p[1]?null:p[1];render();}
+    else if(act==='pf-reason'){const p=arg.split(':');S.pf[+p[0]].reason=p[1];render();}
+    else if(act==='pf-add'){profileDraft.push({t:'并发 · JUC 常用，AQS 读过源码',ed:'',added:true});S.pf.push({act:'keep',reason:''});render();}
+    else if(act==='ob-done'){window.open('原型-学习路径交互.html','_blank');}
+    else if(act==='ob-restart'){S.onb=0;render();}
+  }
+  else if(S.view==='mock'){
+    if(act==='persona'){S.persona=arg;render();}
+    else if(act==='mock-start'){S.mockStage='run';S.mockStep=0;startMockTimer();render();}
+    else if(act==='mock-send'){S.mockStep++;render();}
+    else if(act==='mock-stop'){stopMockTimer();S.mockStage='report';render();}
+    else if(act==='mock-report'){stopMockTimer();S.mockStage='report';render();}
+    else if(act==='mock-again'){S.mockStage='setup';S.persona=null;render();}
+  }
+  else if(S.view==='rev'){
+    if(act==='rev-map'){S.revStage=1;render();}
+    else if(act==='cand'){S.cand=arg;render();}
+    else if(act==='mk'){const p=arg.split(':');S.revMarks[p[0]]=p[1];render();}
+    else if(act==='rev-stage'){S.revStage=+arg;render();}
+    else if(act==='rev-apply'){S.revStage=4;render();toast('路径已更新 — 真题的信号从今天开始积累');}
+    else if(act==='rev-reset'){S.revStage=0;S.revMarks={};S.cand='none';render();}
+  }
+}
+
+document.addEventListener('click',e=>{
+  const el=e.target.closest('[data-act]');
+  if(!el)return;
+  if(el.disabled)return;
+  handle(el.dataset.act,el.dataset.arg||'');
+});
+document.addEventListener('input',e=>{
+  const ta=e.target.closest('[data-ans-key]');
+  if(!ta)return;
+  const key=ta.dataset.ansKey;
+  S.ans[key]=ta.value;
+  const c=document.getElementById('cnt-'+key);
+  if(c)c.textContent=S.ans[key].trim().length+' 字'+(ansOk(key,10)?'':' · 说满一分钟再发');
+  document.querySelectorAll('[data-need="'+key+'"]').forEach(b=>b.disabled=!ansOk(key,10));
+});
+
+function render(){
+  document.getElementById('tab-onb').classList.toggle('on',S.view==='onb');
+  document.getElementById('tab-mock').classList.toggle('on',S.view==='mock');
+  document.getElementById('tab-rev').classList.toggle('on',S.view==='rev');
+  const y=window.scrollY;
+  if(S.view==='onb')$v.innerHTML=renderOnb();
+  else if(S.view==='mock')$v.innerHTML=renderMock();
+  else $v.innerHTML=renderRev();
+  requestAnimationFrame(()=>window.scrollTo(0,y));
+}
+render();
+</script>
+</body>
+</html>

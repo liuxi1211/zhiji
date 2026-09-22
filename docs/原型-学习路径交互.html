@@ -1,0 +1,571 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>知己 · 面试陪练 — 学习路径交互原型</title>
+<style>
+  :root{
+    --bg:#FAF9F6; --card:#FFFFFF; --border:#E7E4DD; --ink:#1F2937; --sub:#6B7280;
+    --brand:#0F766E; --brand-dark:#0B5A54; --brand-soft:#E6F2F0; --brand-line:#B8D8D3;
+    --amber:#B45309; --amber-soft:#FCF3E3;
+    --blue:#2563EB; --blue-soft:#EAF1FD;
+    --gray:#6B7280; --gray-soft:#F3F4F6;
+  }
+  *{box-sizing:border-box;margin:0;padding:0;}
+  body{background:var(--bg);color:var(--ink);font:15px/1.7 -apple-system,"PingFang SC","Microsoft YaHei",sans-serif;padding-bottom:80px;}
+  .wrap{max-width:760px;margin:0 auto;padding:0 16px;}
+  header{padding:22px 0 10px;}
+  .logo-row{display:flex;align-items:center;gap:12px;}
+  .logo-mark{width:46px;height:46px;border-radius:11px;background:var(--brand);color:#fff;display:flex;align-items:center;justify-content:center;font-size:23px;font-weight:700;flex:none;}
+  .logo-text h1{font-size:21px;letter-spacing:2px;}
+  .logo-text p{font-size:12.5px;color:var(--sub);}
+  .progress-box{margin-top:14px;background:var(--card);border:1px solid var(--border);border-radius:12px;padding:12px 14px;}
+  .progress-top{display:flex;justify-content:space-between;font-size:13px;color:var(--sub);margin-bottom:8px;}
+  .progress-top b{color:var(--ink);}
+  .bar{height:8px;background:var(--gray-soft);border-radius:99px;overflow:hidden;}
+  .bar i{display:block;height:100%;background:var(--brand);border-radius:99px;transition:width .4s;}
+  nav{display:flex;gap:8px;margin:16px 0 18px;}
+  nav button{flex:1;padding:9px 0;border-radius:99px;border:1px solid var(--border);background:var(--card);color:var(--sub);font-size:14px;cursor:pointer;}
+  nav button.on{background:var(--brand);border-color:var(--brand);color:#fff;font-weight:600;}
+  .hint{background:var(--brand-soft);border:1px solid var(--brand-line);color:var(--brand-dark);border-radius:10px;padding:10px 14px;font-size:13px;margin-bottom:16px;}
+  .sec-title{font-size:13px;color:var(--sub);margin:20px 0 10px;display:flex;align-items:center;gap:10px;}
+  .sec-title::after{content:"";flex:1;height:1px;background:var(--border);}
+  .card{background:var(--card);border:1px solid var(--border);border-radius:12px;margin-bottom:10px;overflow:hidden;}
+  .card-head{padding:14px 16px;display:flex;align-items:flex-start;gap:10px;cursor:pointer;}
+  .card-head:hover{background:#FCFBF8;}
+  .grow{flex:1;min-width:0;}
+  .card-meta{display:flex;gap:8px;align-items:center;margin-bottom:5px;flex-wrap:wrap;}
+  .badge{font-size:11.5px;color:var(--brand-dark);background:var(--brand-soft);border-radius:99px;padding:1px 9px;}
+  .chip{font-size:11.5px;border-radius:99px;padding:1px 9px;}
+  .st-new{background:var(--gray-soft);color:var(--gray);}
+  .st-learning{background:var(--blue-soft);color:var(--blue);}
+  .st-review{background:var(--amber-soft);color:var(--amber);}
+  .st-done{background:var(--brand-soft);color:var(--brand-dark);}
+  .st-skip{background:var(--gray-soft);color:#9CA3AF;}
+  .kt-design{background:var(--amber-soft);color:var(--amber);}
+  .kt-story{background:var(--blue-soft);color:var(--blue);}
+  .scaffold{background:#FDFCFA;border:1px solid var(--border);border-radius:8px;padding:4px 12px;margin:6px 0 10px;}
+  .sc-row{display:flex;gap:10px;padding:7px 0;border-bottom:1px dashed var(--border);font-size:13px;flex-wrap:wrap;}
+  .sc-row:last-child{border-bottom:none;}
+  .sc-step{flex:none;font-weight:600;color:var(--brand-dark);min-width:88px;}
+  .sc-expect{flex:1;color:#374151;line-height:1.6;}
+  .card-title{font-size:15.5px;font-weight:600;line-height:1.5;}
+  .why{font-size:12.5px;color:var(--sub);margin-top:4px;}
+  .chev{color:#C4C0B8;font-size:18px;flex:none;margin-top:2px;}
+  .detail{border-top:1px dashed var(--border);padding:14px 16px 16px;background:#FDFCFA;}
+  .crumb{font-size:12px;color:var(--sub);margin-bottom:10px;}
+  .layer{margin-bottom:14px;}
+  .layer-tag{display:inline-block;font-size:11.5px;color:var(--brand-dark);background:var(--brand-soft);border-radius:6px;padding:1px 8px;margin-bottom:6px;}
+  .layer-tag.deep{background:var(--amber-soft);color:var(--amber);}
+  .q{font-size:14.5px;font-weight:600;margin-bottom:6px;}
+  ul.frame{margin:4px 0 8px 18px;font-size:13.5px;color:#374151;}
+  ul.frame li{margin-bottom:3px;}
+  .coach{font-size:12.5px;color:var(--brand-dark);background:var(--brand-soft);border-radius:8px;padding:7px 11px;margin-top:6px;}
+  .coach.amber{background:var(--amber-soft);color:var(--amber);}
+  .case{font-size:12.5px;color:#374151;border:1px dashed var(--brand-line);border-radius:8px;padding:8px 11px;margin:6px 0 14px;background:#fff;}
+  .explain{margin:10px 0 14px;background:#FDF6E3;border:1px solid #EAD9A6;border-radius:10px;padding:12px 14px;}
+  .explain .e-title{font-size:13.5px;font-weight:700;color:#92400E;margin-bottom:6px;}
+  .explain p{font-size:13px;color:#44403C;margin-bottom:6px;}
+  .explain .prereq{margin-top:8px;border-top:1px dashed #EAD9A6;padding-top:8px;}
+  .explain .pr{font-size:12.5px;color:#57534E;margin-bottom:4px;}
+  .explain .pn{font-weight:600;color:#92400E;}
+  .pseudo{white-space:pre-wrap;font-family:Consolas,"Courier New",monospace;font-size:12.5px;line-height:1.9;color:#44403C;background:#FFFDF5;border:1px dashed #EAD9A6;border-radius:6px;padding:10px 12px;margin:6px 0;}
+  .prline{font-size:12.5px;color:var(--sub);margin-bottom:4px;}
+  .prline .link{color:var(--brand-dark);text-decoration:underline;cursor:pointer;margin-right:8px;}
+  .btn{border-radius:8px;padding:8px 16px;font-size:13.5px;cursor:pointer;border:1px solid var(--border);background:#fff;color:var(--ink);}
+  .btn.primary{background:var(--brand);border-color:var(--brand);color:#fff;font-weight:600;}
+  .btn.ghost{background:var(--brand-soft);border-color:var(--brand-line);color:var(--brand-dark);}
+  .btn.plain{color:var(--sub);}
+  .actions{display:flex;gap:8px;flex-wrap:wrap;margin-top:4px;}
+  .practice{margin-top:14px;background:#fff;border:1px solid var(--border);border-radius:10px;padding:13px 15px;}
+  .p-title{font-size:13px;font-weight:700;color:var(--brand-dark);margin-bottom:4px;}
+  .p-desc{font-size:13px;color:var(--sub);margin-bottom:8px;}
+  .practice ol{margin:0 0 10px 20px;font-size:13.5px;}
+  .practice ol li{margin-bottom:4px;}
+  .assess{display:flex;gap:8px;flex-wrap:wrap;}
+  .due{font-size:11.5px;color:var(--amber);}
+  .row{background:var(--card);border:1px solid var(--border);border-radius:12px;padding:13px 16px;margin-bottom:9px;}
+  .row-head{display:flex;align-items:center;gap:10px;cursor:pointer;}
+  .row-head:hover{background:#FCFBF8;border-radius:12px;}
+  .row-info{flex:1;min-width:0;}
+  .row-name{font-size:14.5px;font-weight:600;}
+  .row-sub{font-size:12px;color:var(--sub);margin-top:2px;}
+  .row-num{font-size:12.5px;color:var(--sub);flex:none;}
+  .row .bar{width:110px;flex:none;}
+  .mini{border-top:1px dashed var(--border);margin-top:10px;padding-top:10px;}
+  .mini-row{display:flex;align-items:center;gap:10px;padding:6px 4px;font-size:13.5px;border-radius:8px;}
+  .mini-row .no{color:#C4C0B8;font-size:12px;width:18px;flex:none;}
+  .mini-row .t{flex:1;}
+  .note{font-size:12px;color:var(--sub);padding:6px 4px;}
+  .skip-card{background:var(--card);border:1px solid var(--border);border-radius:12px;padding:13px 16px;margin-bottom:9px;}
+  .skip-card .t{font-weight:600;font-size:14.5px;}
+  .skip-card .r{font-size:13px;color:var(--sub);margin-top:4px;}
+  .toast{position:fixed;left:50%;bottom:28px;transform:translateX(-50%);background:#1F2937;color:#fff;font-size:13.5px;border-radius:99px;padding:10px 22px;box-shadow:0 6px 24px rgba(0,0,0,.18);opacity:0;transition:opacity .3s;pointer-events:none;max-width:88vw;text-align:center;z-index:9;}
+  .toast.show{opacity:1;}
+  .hint-blur{filter:blur(7px);cursor:pointer;transition:filter .25s;}
+  .hint-blur.on{filter:none;}
+  .peek-bar{display:flex;justify-content:space-between;align-items:center;gap:10px;background:var(--gray-soft);border:1px dashed var(--border);border-radius:8px;padding:7px 12px;font-size:12.5px;color:var(--sub);margin-bottom:10px;}
+  .peek-bar .lk{color:var(--brand-dark);text-decoration:underline;cursor:pointer;flex:none;}
+  .peeked-tag{display:inline-block;font-size:11.5px;color:var(--amber);background:var(--amber-soft);border-radius:99px;padding:1px 9px;margin-left:8px;}
+  .timer{font-variant-numeric:tabular-nums;font-size:12.5px;font-weight:600;color:var(--amber);}
+  textarea.ans{width:100%;min-height:110px;border:1px solid var(--border);border-radius:8px;background:#fff;padding:10px 12px;font-size:13.5px;font-family:inherit;line-height:1.7;color:var(--ink);resize:vertical;}
+  textarea.ans:focus{outline:none;border-color:var(--brand-line);}
+  .ans-meta{display:flex;justify-content:space-between;align-items:center;font-size:12px;color:var(--sub);margin:6px 0 10px;}
+  .btn[disabled]{opacity:.45;cursor:not-allowed;}
+  .btn.mic{padding:6px 12px;font-size:12.5px;}
+  .btn.mic.rec{background:var(--amber-soft);border-color:#EAD9A6;color:var(--amber);}
+  .flow-card{background:var(--card);border:1px solid var(--border);border-radius:12px;padding:13px 16px;display:flex;align-items:center;gap:10px;cursor:pointer;}
+  .flow-card:hover{background:#FCFBF8;}
+  @media(max-width:640px){
+    body{font-size:14.5px;}
+    nav button{font-size:13px;padding:8px 0;}
+    .row-head{flex-wrap:wrap;}
+    .row .bar{width:70px;}
+    .card-head{padding:12px 13px;}
+    .detail{padding:12px 13px 14px;}
+  }
+  footer{margin-top:34px;font-size:12px;color:#9CA3AF;text-align:center;line-height:1.8;}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <header>
+    <div class="logo-row">
+      <div class="logo-mark">知</div>
+      <div class="logo-text">
+        <h1>知己 · 面试陪练</h1>
+        <p>简历驱动的个性化备考 — 交互原型 v0.2（数据：本人简历画像，8 条技能 / 3 个项目）</p>
+      </div>
+    </div>
+    <div class="progress-box">
+      <div class="progress-top"><span>总进度 · 已掌握 <b id="doneNum">2</b> / 76 个考点</span><span>连续学习 6 天</span></div>
+      <div class="bar"><i id="doneBar" style="width:2.6%"></i></div>
+    </div>
+  </header>
+  <nav>
+    <button id="tab-today" class="on" onclick="switchView('today')">今日</button>
+    <button id="tab-path" onclick="switchView('path')">路径</button>
+    <button id="tab-skip" onclick="switchView('skip')">放弃</button>
+  </nav>
+  <main id="view"></main>
+  <footer>
+    静态原型：AI 反馈用「自评按钮」模拟，真实版由 AI 面试官按追问链下钻、按闭环完整性给教练反馈。<br>
+    v0.2 机制变更：合卷练强制闭卷（资料真收起，偷看会记下来）；先作答（打字 / 口述转文字）才能自评；追问提示模糊显影；今日卡对齐企划书「3 新 + 2 复测」规格。<br>
+    v0.3 题型收敛：题型统一为 sub_type——默认八股（追问下钻）/ 设计演进链（从最简版逐层加条件，合卷练全链连讲 20 分钟）/ 项目叙事（AI 起草标准故事、用户确认事实，指标清单全命中）。追问层用稳定键 layer_key 标识，不再靠数组下标。<br>
+    交互回答的问题：题库不是一次性铺开的试卷 — 日常只看「今日卡片」，全局去「路径」，内容按需加载。
+  </footer>
+</div>
+<div class="toast" id="toast"></div>
+
+<script>
+const skills=[
+  {id:'s1',name:'搜索引擎与检索架构',short:'ES / Lucene',total:6},
+  {id:'s2',name:'AI 检索与 Agent',short:'RAG / MCP / 混合检索',total:12},
+  {id:'s3',name:'Java 并发与 JVM',short:'AQS / 线程池 / G1',total:10},
+  {id:'s4',name:'Spring 与工程化',short:'IOC / 事务 / 插件化',total:7},
+  {id:'s5',name:'MySQL / PolarDB',short:'MVCC / 锁 / 索引设计',total:9},
+  {id:'s6',name:'Redis / Tair',short:'缓存三兄弟 / 集群 / 大 key',total:8},
+  {id:'s7',name:'分布式与系统设计',short:'一致性 / 限流 / 场景题',total:13},
+  {id:'s8',name:'AI 研发效能',short:'SDD / Harness / MCP 封装',total:5},
+];
+const skillName={}; skills.forEach(s=>skillName[s.id]=s.name);
+const skillDone={s1:1,s5:1};
+let skillOpen={s1:true};
+const TOTAL=skills.reduce((a,s)=>a+s.total,0)+6;
+let doneCount=2;
+let view='today', expanded=null;
+const revealed={}, practiceOpen={}, explainOpen={};
+const answers={}, hintsShown={}, timers={}, peeking={}, solutionOpen={};
+
+const topics={
+  invert:{skill:'s1',order:1,diff:'易',title:'倒排索引是什么，为什么查得快',status:'review',due:'昨天学的',cluster:'检索基础',prereq:[],
+    why:'ES 一切设计的地基，这条答不顺，后面全塌',
+    layers:[
+      {q:'倒排索引和正排的区别？一条文档写进来之后发生了什么？',
+       frame:['正排是「文档 → 词」，倒排是「词 → 文档列表」','分词 → 建词项字典 → 每个词挂上包含它的文档号（posting list）','查得快是因为拿词直接定位，不用扫全量文档'],
+       coach:'这题是送分的，答不出说明资料没看进去。'}
+    ]},
+  nrt:{skill:'s1',order:2,diff:'中',title:'近实时写入：refresh / Translog / flush',status:'learning',cluster:'ES 写入链路',prereq:['invert'],
+    why:'区分「用过 ES」和「理解写入链路」的第一道分水岭，几乎必问',
+    layers:[
+      {q:'为什么 ES 写入一条文档，要等大约 1 秒才能搜到？',
+       frame:['写入先进内存 buffer，同时写 Translog 保平安','refresh 把 buffer 生成一个新段（segment），段可搜 —— 到这一步才「可见」','flush 才真正落盘并清 Translog；refresh 只管「变得可搜」，不管落盘'],
+       coach:'口诀：refresh 管可见，flush 管落盘。'},
+      {q:'追问：refresh_interval 调大调小各影响什么？你线上怎么定的？',
+       hint:'吞吐与可见延迟的取舍：调大省 CPU、可见变慢，调小反之。你的场景增量可见要求秒级，默认 1s 够用；全量重建时调大。'},
+      {q:'追问：translog 的 durability 设 request 还是 async？压测过吗？丢数据边界在哪？',
+       hint:'资深压测题。接你的实验：request 每次写盘安全但慢，async 可能丢节点崩溃前几秒 —— 用压测数字说话。'}
+    ],
+    caseBox:'案例锚点：你的 translog durability 压测对比（全景图实验①）—— 回答第 3 层时必须带上。',
+    explain:{
+      title:'从零讲：ES 为什么做不到「写完立刻能搜」',
+      paras:[
+        '先想一个原始问题：在数据库里改一行，马上查就能查到。ES 为什么做不到？因为 ES 为了搜得快，不是把文档堆在一起完事，而是先分词、建成倒排索引；索引写在「段（segment）」这种结构里，段一旦生成不可修改。',
+        '那每来一条文档就直接生成一个段行不行？不行——文档零零散散地进来，段会碎成渣。所以写入先进内存缓冲区攒一攒。',
+        '攒着有个新问题：机器一断电，内存里的就全没了。所以每写一条，同时往磁盘追加一条日志（Translog），相当于数据库的 binlog——崩了靠它重放找回。',
+        '最后一步：攒够一波（默认 1 秒），把内存缓冲区生成一个新段，这一步叫 refresh。段一生成就能被搜到了——这就是「近实时」：不是不想实时，是攒这一波的设计换来的吞吐。',
+        '对上术语就三句话：refresh = 变得可搜；Translog = 断电保险；flush = 段真正落硬盘、清日志。'
+      ],
+      prereq:[
+        {name:'倒排索引',mini:'「词 → 文档列表」的字典结构，就是本技能第 1 个考点——建议先看那条的讲解。'},
+        {name:'段不可变',mini:'段生成后不再修改，删和改都是打标记、合并时才真正清理——这就是为什么要「生成新段」而不是「改旧段」。'}
+      ]}},
+  deeppage:{skill:'s1',order:3,diff:'中',title:'深分页：from+size 为什么不行，search_after 怎么接',status:'new',cluster:'查询与深分页',prereq:['invert'],
+    why:'简历写了「深分页治理」—— 写了就是授权问',
+    layers:[
+      {q:'from+size 深翻页为什么会被拒绝？max_result_window 背后是什么问题？',
+       frame:['每个分片都要取出 from+size 条，协调节点汇总再排序 —— 翻得越深，各分片吐得越多','成本 = 翻到的深度 × 分片数，随深度线性涨','不是不能做，是代价不划算，所以用 max_result_window 兜底'],
+       coach:'答到「分布式下翻页的放大效应」就及格了。'},
+      {q:'追问：search_after 为什么能绕开？它要求什么前提？',
+       hint:'用上一页的排序值做游标，每分片只取 after 之后的 size 条；前提：排序值唯一且稳定（加 _id 兜底）、只允许顺序翻。'},
+      {q:'追问：业务非要跳到第 5000 页怎么办？',
+       hint:'先挑战需求：搜索场景没有人为翻 100 页负责；真要随机跳，换快照方案 —— 先问需求再谈技术。'}
+    ]},
+  shard:{skill:'s1',order:4,diff:'难',title:'分片数怎么定：规划、路由与扩容',status:'new',cluster:'分片与集群',prereq:[],
+    why:'简历写了「分片规划与路由」，集群治理是你的主场',
+    layers:[
+      {q:'一个新索引，分片数和副本数怎么定？依据是什么？',
+       frame:['单分片 20~40GB 经验值，按总量和增长预留','过多 = 小分片碎片化 + 集群压力大；过少 = 扩容被迫重建','副本看可用性和读吞吐'],
+       coach:'说出「按数据量算，不是拍脑袋」即可。'},
+      {q:'追问：自定义 routing 解决什么问题？副作用是什么？',
+       hint:'把相关文档打进同一分片，避免跨分片 scatter；副作用是数据倾斜。'},
+      {q:'追问：分片数定错了，线上怎么补救？',
+       hint:'split / shrink 或 reindex + 别名切换 —— 接你双集群灰度切换的案例。'}
+    ]},
+  bm25:{skill:'s1',order:5,diff:'中',title:'BM25 相关性打分：k1 和 b 各管什么',status:'done',cluster:'相关性打分',prereq:['invert'],
+    why:'相关性调优的地基，上一轮已过关',
+    layers:[
+      {q:'k1 和 b 分别控制什么？你的场景怎么调的？',
+       frame:['k1 管词频饱和速度，b 管文档长度归一','用 _explain 看打分变化再调','型号搜索场景 b 调低，弱化长短文档差异'],
+       coach:'已掌握，进周期抽查池。'}
+    ]},
+  upgrade:{skill:'s1',order:6,diff:'难',title:'ES 集群版本升级：灰度与回滚',status:'new',cluster:'分片与集群',prereq:['shard'],
+    why:'简历写了「主导集群升级」—— 简历上最贵的钩子之一',
+    layers:[
+      {q:'一次大版本升级，完整步骤是什么？',
+       frame:['兼容性检查 → 搭双集群 → 数据迁移 → 双写/灰度切流 → 观察 → 回收旧集群'],
+       coach:'这题接项目叙事：讲 3 分钟故事，不是背步骤清单。'},
+      {q:'追问：灰度期间双集群数据一致性怎么保证？',
+       hint:'双写 + 对账 + 以主库 binlog 为准回放。'},
+      {q:'追问：切流后发现问题，回滚窗口怎么判断？哪一步之后就回不去了？',
+       hint:'旧集群还在写入、还能追平之前都算窗口内 —— 说出你当时的判断标准。'}
+    ]},
+  redisbreak:{skill:'s6',order:2,diff:'中',title:'缓存击穿：热点 key 过期瞬间的雪崩现场',status:'new',cluster:'缓存三兄弟',prereq:[],
+    why:'简历写了「穿透/击穿/雪崩三层防护」，三兄弟必抽一个',
+    layers:[
+      {q:'击穿和穿透、雪崩分别是什么？击穿为什么单独拎出来讲？',
+       frame:['穿透：查不存在的数据，缓存永远不命中','击穿：一个热点 key 过期瞬间，大量请求直砸 DB','雪崩：大批 key 同时过期或缓存整体挂了','击穿单独讲是因为它有专门解法：互斥重建 / 逻辑过期'],
+       coach:'三兄弟各一句话分清，就赢过一半人。'},
+      {q:'追问：互斥重建和逻辑过期，你选哪个？线上怎么定的？',
+       hint:'互斥重建保一致但卡请求；逻辑过期不卡但有短暂脏读 —— 按业务容忍度选。'},
+      {q:'追问：逻辑过期的「脏窗口」业务不接受怎么办？',
+       hint:'热点 key 永不过期 + MQ 广播失效 —— 接你详情系统的方案。'}
+    ],
+    explain:{
+      title:'从零讲：三个「穿」字辈到底在说什么',
+      paras:[
+        '一切的前提：读请求先查缓存，缓存没有（未命中）才去查数据库——缓存是替数据库挡流量的盾。',
+        '穿透：查一条根本不存在的数据（比如攻击者拿 id=-1 扫库），缓存里永远不会有，每次都砸穿到数据库。对策：把「不存在」也缓存住，或入口就拦。',
+        '击穿：一个特别热的 key 过期那一瞬间，成千上万请求同时发现缓存没了，同时砸向数据库——在热点上打穿一个洞。对策：只放一个请求去重建（互斥），或者让热点干脆不过期（逻辑过期）。',
+        '雪崩：一大批 key 同一时刻集体过期（比如设了同一个 TTL），或者缓存集群整个挂掉，全部流量压垮数据库。对策：过期时间加随机抖动、多级缓存、限流兜底。',
+        '分辨口诀：穿透 = 查不存在的；击穿 = 一个热点过期；雪崩 = 一大片同时失效。'
+      ],
+      prereq:[
+        {name:'为什么先查缓存',mini:'数据库扛不住全量读流量，缓存用内存替它扛——所有缓存问题共用这个前提。'}
+      ]}},
+  threadpool:{skill:'s3',order:3,diff:'中',title:'线程池参数线上怎么定',status:'review',due:'3 天前练的',cluster:'并发实战',prereq:[],
+    why:'简历写了「线程池参数线上定参」，标准授权题',
+    layers:[
+      {q:'核心线程数、队列、拒绝策略，你线上怎么定的？',
+       frame:['IO 密集和 CPU 密集分开算','压测定参：从小到大试，看队列堆积和 RT 拐点','拒绝策略按业务：可丢的记日志丢弃，不可丢的进 MQ 重试'],
+       coach:'关键是讲出「压测 + 拐点」的过程，不是背公式。'}
+    ]},
+  detailDesign:{skill:'s7',order:1,ktype:'design',diff:'难',title:'设计一个百万并发商品详情系统',status:'new',cluster:'场景设计·电商核心',prereq:['redisbreak'],
+    why:'设计演进链——从最简版开始，每层条件升级，逼出一个高端方案',
+    explain:{
+      title:'从零讲：详情页为什么扛不住——一切从 DB 扛不住读开始',
+      paras:[
+        '先看最原始的问题：详情页是读多写少的典型——一百个人看，才有一个人下单。DB 每秒扛几万次读就到极限了，而大促的读请求是几十万每秒。',
+        '读扛不住，答案就一个字：缓存。把商品数据放进内存，读速度上来几个数量级。所以所有详情页方案的第 0 步都是「加缓存」。',
+        '但一层缓存有极限：单分片 QPS 有上限、带宽有成本、一致性有延迟。后面每一层追问，都是在给「最简版」打补丁——补丁打完，就是你听过的所有高端方案。'],
+      prereq:[
+        {name:'缓存击穿',mini:'热点 key 过期瞬间打穿 DB——本考点第 3 层问题的源头，建议先看那条。'}]},
+    layers:[
+      {q:'最简版：给你一台 DB、一台缓存，把详情页跑起来。动手前先问我三个问题。',
+       stage:'最简版',
+       frame:['先问约束：QPS 多少？读写比？SKU 量级？一致性要求？——澄清是设计题第一步','cache aside：读缓存，未命中回源 DB','能跑就行，不过度设计'],
+       coach:'最简版考的是「不过度设计」的判断力。'},
+      {q:'条件升级：QPS 涨到 10w，页面 100KB——哪里先崩？',
+       stage:'量级',
+       hint:'先算账：100KB × 10w QPS = 10GB/s 带宽——DB 和缓存集群都扛不住源站直出。引出 CDN 卸载 90% + 静动态分离（价格库存走实时接口 / 描述静态化）+ 多级缓存'},
+      {q:'条件升级：大促零点，热点商品把缓存集群单分片打满了，怎么办？',
+       stage:'热点',
+       hint:'热点探测 + 本地缓存兜底 + 热点 key 散片；说出各层分别扛多少 QPS'},
+      {q:'条件升级：运营改了价格，要求全站 5 秒内可见，架构怎么变？',
+       stage:'一致性',
+       hint:'binlog 订阅 → MQ 广播失效 → 本地缓存同步过期；说清各环节延迟构成'},
+      {q:'条件升级：压测发现缓存集群整体不可用，怎么让详情页还有损可用？',
+       stage:'容灾',
+       hint:'本地缓存兜底 + 静态降级页 + 限流保核心；说出有损的边界在哪'},
+      {q:'复盘取舍：为什么价格不走页面静态化？为什么失效用 binlog 订阅而不是双写？',
+       stage:'取舍',
+       hint:'每答一个「为什么不用 X」理由必须成立——取舍意识是资深和高级的分水岭'}
+    ],
+    caseBox:'你的王牌：商品详情系统（QPS 8k / 缓存命中 97%）——第 2 层算账和第 6 层取舍必须用真实数字',
+    solution:{
+      title:'完整答案 · 簇「场景设计·电商核心」的 reference_solution',
+      code:'读路径   : CDN(静态资源) → 网关 → L1 本地缓存 → L2 集群缓存 → DB\n价格库存 : 独立实时接口；binlog → MQ → 失效广播（5s 内全站可见）\n热点     : 热点探测 → 热点 key 本地驻留 + 集群散片\n容灾     : L1 兜底 → 静态降级页 → 限流保核心（有损边界：可接受旧数据 ≤60s）\n取舍记录 : 价格不走页面静态化（实时性）；失效走 binlog 订阅非双写（少一份数据链路）',
+      note:'这是簇级完美答案——每层追问的 expect 都是从它切片，评分要点按它标深度等级。看懂它再合卷练，检验才是真的；进合卷练它自动收起。'},
+    practiceNote:'合上资料，全链连讲 20 分钟：从最简设计讲到极端场景——这就是一场浓缩的设计面。模拟考会按方向横扫：容量 / 热点 / 一致性 / 容灾 / 取舍，每方向问一层，弱点方向才纵深，没扫到的方向进下次优先队列——方向不会丢，只会延后'},
+  narrativeDetail:{skill:'s7',order:2,ktype:'story',diff:'中',title:'讲讲你的商品详情系统：把简历上两行字讲成 3 分钟',status:'new',cluster:'项目叙事',prereq:[],
+    why:'项目叙事——AI 按你的建档素材起草标准故事，你确认事实、练熟它',
+    layers:[
+      {q:'把你的商品详情系统讲成 3 分钟完整故事',
+       frame:['背景：电商商品详情页，读多写少，峰值 QPS 8k','目标：大促稳定性 + 秒开体验，我负责缓存与检索侧','方案：多级缓存 + 检索链路——为什么这么选',
+              '冲突：最难的一仗——命中率从 X 到 97% 之间踩过的坑','结果：数字收尾——QPS 8k、命中 97%、大促零事故','复盘：现在回头看你会改什么——面试官最吃这个'],
+       coach:'这是 AI 按你建档素材起草的标准故事（数字待你确认，AI 只组织不编造）。练熟它，然后忘掉稿子——讲你自己的版本。'}
+    ],
+    caseBox:'事实确认：故事里每个数字和细节都来自你的建档素材，AI 只组织不编造——起草后逐条确认过才生效',
+    practiceNote:'对照指标清单自评：数字给没给 / 冲突讲没讲 / 3 分钟收没收住——全部命中才算过（你的项目，你就要全部答到）'},
+};
+
+const todayOrder=['nrt','detailDesign','narrativeDetail'];
+const chipText={new:'待学',learning:'学到一半',review:'待复测',done:'已掌握',skipped:'抽查池'};
+
+function switchView(v){view=v;render();document.getElementById('tab-today').classList.toggle('on',v==='today');document.getElementById('tab-path').classList.toggle('on',v==='path');document.getElementById('tab-skip').classList.toggle('on',v==='skip');}
+function toggleTopic(id){
+  if(expanded===id&&practiceOpen[id]){practiceOpen[id]=false;stopTimer(id);}
+  expanded=expanded===id?null:id;
+  if(!revealed[id])revealed[id]=1;
+  render();
+}
+function revealLayer(id){revealed[id]=Math.min((revealed[id]||1)+1,topics[id].layers.length);render();}
+function togglePractice(id){
+  practiceOpen[id]=!practiceOpen[id];
+  if(practiceOpen[id]){peeking[id]=false;startTimer(id,topics[id].ktype==='design'?1200:180);}
+  else{stopTimer(id);}
+  render();
+}
+function showHint(id,i){hintsShown[id+'-'+i]=1;render();}
+function toggleSolution(id){solutionOpen[id]=!solutionOpen[id];render();}
+function peek(id){peeking[id]=true;render();}
+function unpeek(id){peeking[id]=false;render();}
+function startTimer(id,secs){
+  if(timers[id])return;
+  const t={left:secs||180};
+  const tick=()=>{
+    t.left--;
+    const el=document.getElementById('timer-'+id);
+    if(!el){stopTimer(id);return;}
+    if(t.left<=0){el.textContent='时间到 · 讲完就自评';stopTimer(id);}
+    else{el.textContent=fmtTime(t.left);}
+  };
+  t.iv=setInterval(tick,1000);
+  timers[id]=t;
+}
+function stopTimer(id){if(timers[id]){clearInterval(timers[id].iv);timers[id]=null;}}
+function fmtTime(s){return Math.floor(s/60)+':'+String(s%60).padStart(2,'0');}
+function ansOk(id){return answers[id]&&answers[id].trim().length>=30;}
+function onAnswerInput(id){
+  const ta=document.getElementById('ans-'+id);
+  answers[id]=ta?ta.value:'';
+  const ok=ansOk(id);
+  document.querySelectorAll('[data-assess-for="'+id+'"]').forEach(b=>{if(!b.classList.contains('plain'))b.disabled=!ok;});
+  const c=document.getElementById('cnt-'+id);
+  if(c)c.textContent=answers[id].trim().length+' 字'+(ok?' · 可以自评了':' · 真讲过才有自评资格（至少 30 字）');
+}
+const SR=window.SpeechRecognition||window.webkitSpeechRecognition;
+let rec=null;
+function startVoice(id){
+  if(!SR){toast('当前浏览器不支持语音转写（换 Chrome 试试），先打字吧');return;}
+  if(rec){rec.stop();return;}
+  try{
+    rec=new SR();rec.lang='zh-CN';rec.continuous=true;rec.interimResults=false;
+    const btn=document.getElementById('mic-'+id);
+    if(btn){btn.textContent='在听，点停';btn.classList.add('rec');}
+    rec.onresult=e=>{
+      let s='';
+      for(let i=0;i<e.results.length;i++){if(e.results[i].isFinal)s+=e.results[i][0].transcript;}
+      if(s){
+        answers[id]=s;
+        const ta=document.getElementById('ans-'+id);
+        if(ta)ta.value=s;
+        onAnswerInput(id);
+      }
+    };
+    rec.onend=()=>{rec=null;const b=document.getElementById('mic-'+id);if(b){b.textContent='口述';b.classList.remove('rec');}};
+    rec.onerror=()=>{toast('拿不到麦克风（本地文件页常见），直接打字也一样');};
+    rec.start();
+    toast('在听……面试是说出来的，不是打出来的');
+  }catch(e){toast('语音不可用，直接打字吧');}
+}
+function toggleExplain(id){explainOpen[id]=!explainOpen[id];render();}
+function jumpTo(id){expanded=id;if(!revealed[id])revealed[id]=1;render(true);requestAnimationFrame(()=>{const d=document.querySelector('.detail');if(d)d.scrollIntoView({behavior:'smooth',block:'start'});});}
+function skipTopic(id){topics[id].status='skipped';toast('进了低频抽查池。隔一阵我会突然抽你一道，别以为逃掉了。');render();}
+function assess(id,kind){
+  const t=topics[id];practiceOpen[id]=false;stopTimer(id);
+  if(kind==='pass'){t.status='review';t.due='明天复测';toast('好。明天再抽你一次，过了才算掌握。');}
+  else if(kind==='fail'){t.status='learning';toast('正常。翻回第 1 层资料再看一遍，这张卡明天还在。');}
+  else if(kind==='later'){toast('先看资料也行。这张卡会一直留在今日列表里。');}
+  else if(kind==='rpass'){t.status='done';delete t.due;doneCount++;skillDone[t.skill]=(skillDone[t.skill]||0)+1;toast('过关。进周期抽查池，隔几周我会突然袭击。');}
+  else if(kind==='rweak'){t.status='learning';delete t.due;toast('回炉。从第 1 层资料重新走一遍。');}
+  render();
+}
+let toastTimer=null;
+function toast(msg){const el=document.getElementById('toast');el.textContent=msg;el.classList.add('show');clearTimeout(toastTimer);toastTimer=setTimeout(()=>el.classList.remove('show'),2800);}
+
+function ktypeChip(t){return t.ktype==='design'?'<span class="chip kt-design">设计演进</span>':t.ktype==='story'?'<span class="chip kt-story">项目叙事</span>':'';}
+function chip(status){return '<span class="chip st-'+status+'">'+chipText[status]+'</span>';}
+function detailHTML(id){
+  const t=topics[id],rv=revealed[id]||1,po=practiceOpen[id];
+  const closedBook=po&&!peeking[id];
+  let h='<div class="detail" onclick="event.stopPropagation()">';
+  const pres=(t.prereq||[]).map(pid=>'<span class="link" onclick="jumpTo(\''+pid+'\')">'+topics[pid].title+'</span>').join('');
+  const posts=Object.keys(topics).filter(x=>(topics[x].prereq||[]).includes(id)).map(pid=>'<span class="link" onclick="jumpTo(\''+pid+'\')">'+topics[pid].title+'</span>').join('');
+  h+='<div class="crumb">'+skillName[t.skill]+' · 第 '+t.order+' 个考点 · 难度：'+t.diff+(t.cluster?' · 簇：'+t.cluster:'')+'</div>';
+  if(pres)h+='<div class="prline">'+(t.ktype==='design'?'预备知识点（答砸了先退这里练，题型打通就靠它）：':'前置考点（没懂先退这里）：')+pres+'</div>';
+  if(posts)h+='<div class="prline">后置考点（由全库前置关系反推，不单独存储）：'+posts+'</div>';
+  if(closedBook){
+    h+='<div class="peek-bar"><span>闭卷中 · 资料已收起，凭记忆讲</span><span class="lk" onclick="peek(\''+id+'\')">撑不住？偷看一眼（会记下来）</span></div>';
+  }else{
+  if(t.ktype==='design'&&t.solution){
+    h+='<div class="actions"><button class="btn ghost" onclick="toggleSolution(\''+id+'\')">'+(solutionOpen[id]?'收起完整答案':'看完整答案（含核心伪代码）')+'</button></div>';
+    if(solutionOpen[id]){
+      h+='<div class="explain"><div class="e-title">'+t.solution.title+'</div><pre class="pseudo">'+t.solution.code+'</pre><p>'+t.solution.note+'</p></div>';
+    }
+  }
+  t.layers.forEach((L,i)=>{
+    if(i>=rv)return;
+    h+='<div class="layer">';
+    h+='<div class="layer-tag'+(i>0?' deep':'')+'">'+(t.ktype==='design'?'演进 · '+L.stage:(i===0?'第 1 层 · 主问题':'第 '+(i+1)+' 层 · 追问'+(i===2?'（资深）':'')))+'</div>';
+    h+='<div class="q">'+L.q+'</div>';
+    if(L.frame){h+='<ul class="frame">'+L.frame.map(x=>'<li>'+x+'</li>').join('')+'</ul>';}
+    if(L.hint){const hk=hintsShown[id+'-'+i];h+='<div class="coach amber'+(hk?'':' hint-blur')+'"'+(hk?'':' onclick="showHint(\''+id+'\','+i+')"')+'>'+L.hint+(hk?'':'<br>先自己想 10 秒，点一下显影')+'</div>';}
+    if(L.coach){h+='<div class="coach">教练：'+L.coach+'</div>';}
+    h+='</div>';
+  });
+  if(rv<t.layers.length&&!po){h+='<button class="btn ghost" onclick="revealLayer(\''+id+'\')">'+(t.ktype==='design'?'引出下一层（条件升级）':t.ktype==='story'?'看追问':'展开第 '+(rv+1)+' 层追问')+'</button>';}
+  if(t.explain){
+    h+='<div class="actions"><button class="btn ghost" onclick="toggleExplain(\''+id+'\')">'+(explainOpen[id]?'收起「从零讲」':'这条看不懂？从零讲')+'</button></div>';
+    if(explainOpen[id]){
+      h+='<div class="explain"><div class="e-title">'+t.explain.title+'</div>';
+      t.explain.paras.forEach(p=>{h+='<p>'+p+'</p>';});
+      h+='<div class="prereq">';
+      t.explain.prereq.forEach(p=>{h+='<div class="pr"><span class="pn">前置 · '+p.name+'：</span>'+p.mini+'</div>';});
+      h+='</div></div>';
+    }
+  }
+  if(t.caseBox){h+='<div class="case">'+t.caseBox+'</div>';}
+  }
+  if(po&&peeking[id]){h+='<div class="peek-bar"><span>刚才偷看了，自评请诚实<span class="peeked-tag">已偷看</span></span><span class="lk" onclick="unpeek(\''+id+'\')">收回资料，继续闭卷</span></div>';}
+  if(t.status!=='done'&&t.status!=='skipped'){
+    h+='<div class="actions"><button class="btn primary" onclick="togglePractice(\''+id+'\')">'+(po?'收起合卷练（计时停止）':'开始合卷练')+'</button><button class="btn plain" onclick="skipTopic(\''+id+'\')">我会，跳过</button></div>';
+  }
+  if(po){
+    const qs=t.ktype==='design'?('<li>'+t.title+'</li>'+t.layers.slice(0,Math.max(rv,1)).map(L=>'<li>'+L.q+'</li>').join(''))
+      :t.ktype==='story'?('<li>'+t.title+'</li>')
+      :t.layers.slice(0,Math.max(rv,1)).map(L=>'<li>'+L.q+'</li>').join('');
+    const ok=ansOk(id);
+    const dis=ok?'':'disabled ';
+    h+='<div class="practice"><div class="p-title">'+(t.ktype==='design'?'合卷练 · 全链连讲（闭卷 · 限时）':'合卷练')+' <span class="timer" id="timer-'+id+'">'+(t.ktype==='design'?'20:00':'3:00')+'</span></div>';
+    if(t.ktype==='design'||t.ktype==='story'){h+='<div class="p-desc">'+t.practiceNote+'：</div>';}
+    else if(t.status==='review'){h+='<div class="p-desc">'+(t.due||'之前练过')+' —— 合上资料，把下面这问连着再讲 3 分钟：</div>';}
+    else{h+='<div class="p-desc">合上资料，把下面 '+Math.max(rv,1)+' 问连着讲 3 分钟（口述或打字）：</div>';}
+    h+='<ol>'+qs+'</ol>';
+    h+='<textarea class="ans" id="ans-'+id+'" placeholder="'+(t.ktype==='story'?'把你的故事讲下来（或点口述转文字）。这份答案属于你——两周后和今天的自己对比。':'把刚才讲的写下来（或点口述转文字）。答案会留档 —— 两周后能和今天的自己对比。')+'" oninput="onAnswerInput(\''+id+'\')">'+(answers[id]||'')+'</textarea>';
+    h+='<div class="ans-meta"><span id="cnt-'+id+'">'+(answers[id]?(answers[id].trim().length+' 字'+(ok?' · 可以自评了':' · 真讲过才有自评资格（至少 30 字）')):'还没作答 —— 先开口讲，写下来，最后才配自评')+'</span><button class="btn mic" id="mic-'+id+'" onclick="startVoice(\''+id+'\')">口述</button></div>';
+    h+='<div class="assess">';
+    if(t.status==='review'){h+='<button class="btn primary" '+dis+'data-assess-for="'+id+'" onclick="assess(\''+id+'\',\'rpass\')">过了</button><button class="btn" '+dis+'data-assess-for="'+id+'" onclick="assess(\''+id+'\',\'rweak\')">虚了</button>';}
+    else{h+='<button class="btn primary" '+dis+'data-assess-for="'+id+'" onclick="assess(\''+id+'\',\'pass\')">讲顺了</button><button class="btn" '+dis+'data-assess-for="'+id+'" onclick="assess(\''+id+'\',\'fail\')">卡壳了</button><button class="btn plain" data-assess-for="'+id+'" onclick="assess(\''+id+'\',\'later\')">今天先不练</button>';}
+    h+='</div></div>';
+  }
+  h+='</div>';
+  return h;
+}
+function cardHTML(id){
+  const t=topics[id];
+  let h='<div class="card"><div class="card-head" onclick="toggleTopic(\''+id+'\')"><div class="grow">';
+  h+='<div class="card-meta"><span class="badge">'+skillName[t.skill]+'</span>'+ktypeChip(t)+chip(t.status)+(t.due?'<span class="due">'+t.due+'</span>':'')+'</div>';
+  h+='<div class="card-title">'+t.title+'</div>';
+  h+='<div class="why">为什么考：'+t.why+'</div>';
+  h+='</div><div class="chev">'+(expanded===id?'▾':'›')+'</div></div>';
+  if(expanded===id){h+=detailHTML(id);}
+  h+='</div>';
+  return h;
+}
+
+function renderToday(){
+  const newIds=todayOrder.filter(id=>topics[id].status==='new'||topics[id].status==='learning');
+  const reviewIds=Object.keys(topics).filter(id=>topics[id].status==='review');
+  let h='<div class="hint">题库不是一张大试卷：今天只给你这几张卡，学完即走。今天三种卡一个模式三种语义——知识点走追问下钻，设计演进链从最简版逐层加条件，项目叙事是 AI 起草的标准故事（你确认事实、练熟它）。想看全局去「路径」，明确不学的在「放弃」。</div>';
+  if(reviewIds.length){
+    h+='<div class="sec-title">该复测了（隔天再测，过了才算掌握）</div>';
+    reviewIds.forEach(id=>h+=cardHTML(id));
+  }
+  h+='<div class="sec-title">今天的新考点（先看资料，想深入就点开追问）</div>';
+  if(newIds.length){newIds.forEach(id=>h+=cardHTML(id));}
+  else{h+='<div class="note">今天的卡片清空了。休息，或者去「路径」预览后面的内容。</div>';}
+  h+='<div class="sec-title">闭环另外三段（新原型）</div>';
+  h+='<div class="flow-card" onclick="window.open(\'原型-建档模拟考复盘交互.html\',\'_blank\')"><div style="flex:1"><div class="row-name">建档 · 模拟考 · 复盘 →</div><div class="row-sub">三个 storyboard + 可点交互（每段标注设计决策与针对的风险）</div></div><span class="chev">›</span></div>';
+  return h;
+}
+
+function renderPath(){
+  let h='<div class="hint">路径骨架（考点 + 顺序）在对话建档后一次性生成；内容（讲解 / 追问 / 案例）从考点库按需取用，点开才渲染。所以「题库」不是几百道题的文本堆，而是几百个考点排好的顺序。</div>';
+  h+='<div class="sec-title">按技能主张分组（难度渐进排序）</div>';
+  skills.forEach(s=>{
+    const d=skillDone[s.id]||0;
+    h+='<div class="row"><div class="row-head" onclick="toggleSkill(\''+s.id+'\')">';
+    h+='<div class="row-info"><div class="row-name">'+s.name+'</div><div class="row-sub">'+s.short+'</div></div>';
+    h+='<span class="row-num">'+d+' / '+s.total+'</span><div class="bar"><i style="width:'+(d/s.total*100)+'%"></i></div><span class="chev">'+(skillOpen[s.id]?'▾':'›')+'</span>';
+    h+='</div>';
+    if(skillOpen[s.id]){
+      if(s.id==='s1'||s.id==='s7'){
+        h+='<div class="mini">';
+        Object.keys(topics).filter(id=>topics[id].skill===s.id).sort((a,b)=>topics[a].order-topics[b].order).forEach(id=>{
+          const t=topics[id];
+          h+='<div class="mini-row"><span class="no">'+t.order+'</span><span class="t">'+t.title+ktypeChip(t)+'<span class="due"> · 难度'+t.diff+' · 簇：'+t.cluster+'</span></span>'+chip(t.status)+'</div>';
+        });
+        h+='<div class="note">'+(s.id==='s1'?'骨架已排好（渐进式：易在前）。「从零讲」按主题簇生产——「分片与集群」簇的两个考点共享一篇讲解。练习去「今日」。':'一个模式三种语义：默认八股 / 设计演进链（逐层加条件）/ 项目叙事（AI 标准故事）。演进链前置指向缓存三兄弟——答砸了退回知识点练。')+'</div></div>';
+      }else{
+        h+='<div class="mini"><div class="note">骨架已排好，共 '+s.total+' 个考点 · 内容点开时从考点库加载（原型未含此域数据）</div></div>';
+      }
+    }
+    h+='</div>';
+  });
+  h+='<div class="sec-title">项目叙事考点（来自 3 个项目）</div>';
+  [['元器件搜索系统',''],['商品详情系统','narrativeDetail'],['海外代购系统','']].forEach(p=>{
+    const clk=p[1]?' onclick="jumpTo(\''+p[1]+'\')" style="cursor:pointer"':'';
+    h+='<div class="row"><div class="row-head"'+clk+'><div class="row-info"><div class="row-name">'+p[0]+'</div><div class="row-sub">'+(p[1]?'点这条看项目叙事卡长什么样（题型：项目叙事）':'叙事类：架构演进 / 一次线上故障复盘')+'</div></div><span class="row-num">2 个</span><span class="chev">›</span></div></div>';
+  });
+  return h;
+}
+
+function toggleSkill(id){skillOpen[id]=!skillOpen[id];render();}
+
+function renderSkip(){
+  let h='<div class="hint">这些明确不学。不是丢掉，是不让它们偷你的时间 —— 每条都写明为什么可以放弃。哪天简历或 JD 变了，它们会被重新评估。</div>';
+  const items=[
+    ['Lucene 各版本 API 差异','面试只考设计思想，API 细节不在追问链里 —— 你简历写的是内核与工程实践，不是 API 手册。'],
+    ['ZAB / Paxos 逐条对照推导','Raft 学透就能反哺 ES 选主、Kafka KRaft、Nacos；ZAB 记 3 句差异，Paxos 到「多数派 + 两阶段」概念级即可。'],
+    ['Seata 源码与 TCC 工程细节','简历没写分布式事务框架组件 —— 主攻「搜索链路 DB 与索引最终一致」这条你真做过的。'],
+  ];
+  items.forEach(x=>{h+='<div class="skip-card"><div class="t">'+x[0]+'</div><div class="r">'+x[1]+'</div></div>';});
+  return h;
+}
+
+function render(noRestore){
+  const y=window.scrollY;
+  document.getElementById('doneNum').textContent=doneCount;
+  document.getElementById('doneBar').style.width=(doneCount/TOTAL*100).toFixed(1)+'%';
+  const el=document.getElementById('view');
+  if(view==='today')el.innerHTML=renderToday();
+  else if(view==='path')el.innerHTML=renderPath();
+  else el.innerHTML=renderSkip();
+  if(!noRestore)requestAnimationFrame(()=>window.scrollTo(0,y));
+}
+render();
+</script>
+</body>
+</html>

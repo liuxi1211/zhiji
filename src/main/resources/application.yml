@@ -1,0 +1,35 @@
+server:
+  port: 8080
+
+spring:
+  application:
+    name: zhiji
+  threads:
+    virtual:
+      enabled: true
+  datasource:
+    url: jdbc:sqlite:${zhiji.data-dir:./data}/zhiji.db?journal_mode=WAL&foreign_keys=on&busy_timeout=5000
+    driver-class-name: org.sqlite.JDBC
+    hikari:
+      maximum-pool-size: 5
+      pool-name: zhiji-sqlite-pool
+  sql:
+    init:
+      mode: always
+      schema-locations: classpath:db/schema.sql
+      encoding: UTF-8
+
+zhiji:
+  data-dir: ./data
+
+mybatis-plus:
+  configuration:
+    map-underscore-to-camel-case: true
+  global-config:
+    banner: false
+    db-config:
+      id-type: assign_id
+
+logging:
+  level:
+    com.zhiji: DEBUG

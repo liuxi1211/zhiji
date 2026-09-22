@@ -1,0 +1,66 @@
+# ---------- 构建产物 ----------
+target/
+!.mvn/wrapper/maven-wrapper.jar
+!.mvn/wrapper/maven-wrapper.properties
+build/
+out/
+*.class
+*.jar
+*.war
+*.ear
+
+# ---------- 日志 ----------
+*.log
+logs/
+log/
+
+# ---------- 本机开发配置：每台机器路径不同，不入库 ----------
+# 模板 start.config.example.json 是入库的，改模板即可全局生效
+start.config.json
+
+# ---------- SQLite 数据库文件与上传的素材：不入库 ----------
+data/
+uploads/
+*.db
+*.db-shm
+*.db-wal
+*.db-journal
+*.sqlite
+*.sqlite3
+
+# ---------- 运行时与临时文件 ----------
+tmp/
+temp/
+*.tmp
+*.bak
+*.pid
+
+# ---------- 环境变量与密钥：不入库 ----------
+.env
+.env.*
+!.env.example
+*.pem
+*.key
+
+# ---------- IDE：IntelliJ IDEA ----------
+.idea/
+*.iml
+*.ipr
+*.iws
+
+# ---------- IDE：Eclipse / VS Code ----------
+.vscode/
+.settings/
+.classpath
+.project
+.factorypath
+*.launch
+
+# ---------- 操作系统 ----------
+.DS_Store
+Thumbs.db
+desktop.ini
+
+# ---------- 其他 ----------
+*.orig
+*.rej
