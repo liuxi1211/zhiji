@@ -4,10 +4,10 @@ import { RouterView, useRoute } from 'vue-router'
 
 const route = useRoute()
 
-/** C 端主导航：对应企划书的五环节闭环 */
+/** C 端主导航：对应核心模块定义第二节的六功能（建档在"我的"内） */
 const tabs = [
-  { name: 'today', path: '/today', label: '今日' },
-  { name: 'path', path: '/path', label: '路径' },
+  { name: 'map', path: '/map', label: '地图' },
+  { name: 'gacha', path: '/gacha', label: '抽卡' },
   { name: 'exam', path: '/exam', label: '模拟考' },
   { name: 'review', path: '/review', label: '复盘' },
   { name: 'profile', path: '/profile', label: '我的' }
@@ -15,7 +15,7 @@ const tabs = [
 
 const activeTab = computed(() => {
   const matched = tabs.find((t) => route.path.startsWith(t.path))
-  return matched?.name ?? 'today'
+  return matched?.name ?? 'map'
 })
 </script>
 

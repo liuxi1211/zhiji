@@ -1,5 +1,6 @@
 package com.zhiji.config;
 
+import com.zhiji.common.exception.BizException;
 import java.util.LinkedHashMap;
 import java.util.Map;
 import org.springframework.dao.DataIntegrityViolationException;
@@ -26,19 +27,28 @@ import org.springframework.web.bind.annotation.RestControllerAdvice;
 @RestControllerAdvice
 public class GlobalExceptionHandler {
 
+    @ExceptionHandler(BizException.class)
+    public ResponseEntity<Map<String, Object>> handleBiz(BizException e) {
+        Map<String, Object> body = base(HttpStatus.valueOf(e.getStatus()), e.getCode(), e.getMessage());
+        if (e.getFields() != null) {
+            body.put("fields", e.getFields());
+        }
+        return ResponseEntity.status(e.getStatus()).body(body);
+    }
+
     @ExceptionHandler(MethodArgumentNotValidException.class)
     public ResponseEntity<Map<String, Object>> handleValidation(MethodArgumentNotValidException e) {
         Map<String, String> fields = new LinkedHashMap<>();
         e.getBindingResult().getFieldErrors()
                 .forEach(fe -> fields.put(fe.getField(), fe.getDefaultMessage()));
-        Map<String, Object> body = base(HttpStatus.BAD_REQUEST, "VALIDATION_FAILED", "参数校验未通过");
+        Map<String, Object> body = base(HttpStatus.BAD_REQUEST, "COMMON_VALIDATION", "参数校验未通过");
         body.put("fields", fields);
         return ResponseEntity.badRequest().body(body);
     }
 
     @ExceptionHandler(DuplicateKeyException.class)
     public ResponseEntity<Map<String, Object>> handleDuplicate(DuplicateKeyException e) {
-        return build(HttpStatus.CONFLICT, "DUPLICATE_KEY", "记录已存在（唯一约束冲突）");
+        return build(HttpStatus.CONFLICT, "COMMON_CONFLICT", "记录已存在（唯一约束冲突）");
     }
 
     @ExceptionHandler(DataIntegrityViolationException.class)
@@ -55,18 +65,18 @@ public class GlobalExceptionHandler {
     private ResponseEntity<Map<String, Object>> translate(String raw) {
         String msg = raw == null ? "" : raw;
         if (msg.contains("SQLITE_CONSTRAINT_CHECK") || msg.contains("CHECK constraint failed")) {
-            return build(HttpStatus.BAD_REQUEST, "CHECK_VIOLATION", "字段取值不在允许范围内（CHECK 约束）");
+            return build(HttpStatus.BAD_REQUEST, "COMMON_CHECK_VIOLATION", "字段取值不在允许范围内（CHECK 约束）");
         }
         if (msg.contains("SQLITE_CONSTRAINT_UNIQUE") || msg.contains("UNIQUE constraint failed")) {
-            return build(HttpStatus.CONFLICT, "DUPLICATE_KEY", "记录已存在（唯一约束冲突）");
+            return build(HttpStatus.CONFLICT, "COMMON_CONFLICT", "记录已存在（唯一约束冲突）");
         }
         if (msg.contains("SQLITE_CONSTRAINT_FOREIGNKEY") || msg.contains("FOREIGN KEY constraint failed")) {
-            return build(HttpStatus.BAD_REQUEST, "FOREIGN_KEY_VIOLATION", "引用了不存在的记录（外键约束）");
+            return build(HttpStatus.BAD_REQUEST, "COMMON_FOREIGN_KEY", "引用了不存在的记录（外键约束）");
         }
         if (msg.contains("SQLITE_CONSTRAINT_NOTNULL")) {
-            return build(HttpStatus.BAD_REQUEST, "NOT_NULL_VIOLATION", "必填字段不能为空");
+            return build(HttpStatus.BAD_REQUEST, "COMMON_NOT_NULL", "必填字段不能为空");
         }
-        return build(HttpStatus.BAD_REQUEST, "CONSTRAINT_VIOLATION", "数据不满足约束");
+        return build(HttpStatus.BAD_REQUEST, "COMMON_CONSTRAINT", "数据不满足约束");
     }
 
     private ResponseEntity<Map<String, Object>> build(HttpStatus status, String code, String msg) {

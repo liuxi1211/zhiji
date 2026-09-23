@@ -13,3 +13,24 @@ CREATE TABLE IF NOT EXISTS demo_kp (
 );
 
 CREATE INDEX IF NOT EXISTS idx_demo_kp_sub_type ON demo_kp (sub_type);
+
+-- 知己 · 正式表（自 T1 起按开发计划逐模块追加；字段级 DDL 以各模块落库时定稿）
+
+CREATE TABLE IF NOT EXISTS sys_staff (
+    id            INTEGER PRIMARY KEY AUTOINCREMENT,
+    username      TEXT    NOT NULL UNIQUE,
+    password_hash TEXT    NOT NULL,
+    role          TEXT    NOT NULL CHECK (role IN ('admin','editor')),
+    status        TEXT    NOT NULL DEFAULT 'active' CHECK (status IN ('active','disabled')),
+    created_at    TEXT    NOT NULL DEFAULT (datetime('now')),
+    last_login_at TEXT
+);
+
+CREATE TABLE IF NOT EXISTS sys_customer (
+    id            INTEGER PRIMARY KEY AUTOINCREMENT,
+    username      TEXT    NOT NULL UNIQUE,
+    password_hash TEXT    NOT NULL,
+    status        TEXT    NOT NULL DEFAULT 'active' CHECK (status IN ('active','disabled')),
+    registered_at TEXT    NOT NULL DEFAULT (datetime('now')),
+    last_login_at TEXT
+);

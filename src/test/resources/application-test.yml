@@ -1,0 +1,9 @@
+zhiji:
+  data-dir: ${java.io.tmpdir}
+  auth:
+    jwt-secret: test-secret-test-secret-test-secret-000
+    captcha-enabled: false
+
+logging:
+  level:
+    com.zhiji: INFO

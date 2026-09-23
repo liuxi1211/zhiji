@@ -1,0 +1,11 @@
+<script setup lang="ts">
+// 知识地图：语料归一与按簇建设（决策清单 D21），对应 kp_canonical / 语料簇（draft 态 kp_cluster）。
+// 三层视图（域 → 簇 → 归一题）+ 归一确认 + 簇操作 + 按簇批量成稿。
+// 待后端 pipeline 模块接口就绪后接入，功能详设见 docs/B端管理台PRD.md 第九节。
+</script>
+
+<template>
+  <el-card shadow="never">
+    <el-empty description="知识地图待后端 pipeline 模块接口就绪后接入" />
+  </el-card>
+</template>
