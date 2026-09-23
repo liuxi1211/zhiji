@@ -3,6 +3,23 @@ zhiji:
   auth:
     jwt-secret: test-secret-test-secret-test-secret-000
     captcha-enabled: false
+  llm:
+    timeout-seconds: 15
+    providers:
+      ark:
+        base-url: https://ark.example.invalid/api/coding/v3
+        api-key: test-key
+
+spring:
+  ai:
+    model:
+      chat: none
+      embedding: none
+      image: none
+      moderation: none
+      audio:
+        speech: none
+        transcription: none
 
 logging:
   level:

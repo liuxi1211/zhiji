@@ -4,9 +4,24 @@ server:
 spring:
   application:
     name: zhiji
+  profiles:
+    # 未显式激活 profile 时默认 local：本地开发自动加载 config/application-local.properties（涉密配置只留本地、不入库）。
+    # 显式激活别的 profile（测试 test、部署 prod 等）后本地文件不参与——测试不会被本机密钥污染，部署侧仍走环境变量。
+    default: local
   threads:
     virtual:
       enabled: true
+  ai:
+    model:
+      # 关闭 Spring AI 自动装配：provider 由 llm 模块按 zhiji.llm.providers 手动构建，
+      # 避免启动即要求全局 api-key，且支持一进程多 provider。
+      chat: none
+      embedding: none
+      image: none
+      moderation: none
+      audio:
+        speech: none
+        transcription: none
   datasource:
     url: jdbc:sqlite:${zhiji.data-dir:./data}/zhiji.db?journal_mode=WAL&foreign_keys=on&busy_timeout=5000
     driver-class-name: org.sqlite.JDBC
@@ -22,10 +37,27 @@ spring:
 zhiji:
   data-dir: ./data
   auth:
+    # 开发占位值，仅够本机跑通；公网/共享环境在 config/application-local.properties 里换成随机串
     jwt-secret: dev-secret-please-change-in-production-0123456789abcdef
     token-ttl-days: 7
     captcha-ttl-minutes: 5
     captcha-enabled: true
+  llm:
+    timeout-seconds: 15
+    # provider 连接信息：base-url 是"部署形态"在此统一维护，api-key 绝不入库、绝不进设置页。
+    # 真实密钥写在运行目录的 config/application-local.properties（复制 .example 模板，不入库，见该模板头部说明），
+    # 或用环境变量（ZHIJI_LLM_ARK_KEY 等）；两者同时存在时本地文件优先。
+    # 三家都提供 OpenAI 兼容端点，加 provider 只加一条配置，不改业务代码。
+    providers:
+      ark:
+        base-url: https://ark.cn-beijing.volces.com/api/coding/v3
+        api-key: ${ZHIJI_LLM_ARK_KEY:}
+      deepseek:
+        base-url: https://api.deepseek.com/v1
+        api-key: ${ZHIJI_LLM_DEEPSEEK_KEY:}
+      glm:
+        base-url: https://open.bigmodel.cn/api/paas/v4
+        api-key: ${ZHIJI_LLM_GLM_KEY:}
 
 mybatis-plus:
   configuration:

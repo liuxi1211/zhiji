@@ -80,6 +80,89 @@ export interface ApiError {
   fields?: Record<string, string>
 }
 
+/** LLM 调用入口（用途）：业务按用途调用，不认具体模型名（核心模块定义 4.2） */
+export type LlmPurpose =
+  | 'judge_practice'
+  | 'judge_gacha'
+  | 'judge_exam'
+  | 'profile_draft'
+  | 'narrative_draft'
+  | 'exam_summary'
+  | 'variant_rewrite'
+  | 'split_fallback'
+  | 'cluster_dedup'
+  | 'ai_compose'
+  | 'embedding'
+
+/** 单条模型路由目标：provider 名对应后端 zhiji.llm.providers 的 key */
+export interface LlmRouteTargetView {
+  provider: string
+  model: string
+  temperature: number | null
+  maxTokens: number | null
+  embedding: boolean
+}
+
+export interface LlmLimitsView {
+  judgeDaily: number
+  variantRewriteDaily: number
+  perProfileDailyTotal: number
+  siteDailyTotal: number
+}
+
+export interface LlmSettingsView {
+  routes: Record<string, LlmRouteTargetView>
+  limits: LlmLimitsView
+  providers: string[]
+}
+
+export interface LlmConnectivityItem {
+  purpose: string
+  provider: string
+  model: string
+  embedding: boolean
+  ok: boolean
+  detail: string
+}
+
+export interface LlmConnectivityReport {
+  allOk: boolean
+  items: LlmConnectivityItem[]
+}
+
+export interface LlmUsageRow {
+  purpose: string
+  purposeName: string
+  /** 该入口全站当日计数（所有档案合计） */
+  callCount: number
+  /** 该入口单档案当日最高计数——单档案限额按此口径比较 */
+  peakProfileCount: number
+  limitKey: 'JUDGE' | 'VARIANT' | 'NONE'
+  /** 单档案限额；无独立限额的入口为 null */
+  limit: number | null
+  /** 软上限（判定类）：超限提示但不阻断 */
+  soft: boolean
+  exceeded: boolean
+}
+
+export interface LlmDailyPoint {
+  date: string
+  callCount: number
+}
+
+export interface LlmUsageView {
+  date: string
+  purposes: LlmUsageRow[]
+  todayTotal: number
+  siteDailyTotal: number
+  circuitOpen: boolean
+  /** 单档案当日合计的最高值（对应全局兜底熔断阈值） */
+  peakProfileTotal: number
+  perProfileDailyTotal: number
+  perProfileExceeded: boolean
+  recent7d: LlmDailyPoint[]
+}
+
 /**
  * 判定命中的要点快照：全量要点集（含未命中项），
  * 档位公式吃命中分布，内容校对后历史判定才可重算、可比（核心模块定义 4.1）。

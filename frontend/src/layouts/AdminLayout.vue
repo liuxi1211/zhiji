@@ -16,7 +16,7 @@ interface AdminMenuGroup {
   items: AdminMenuItem[]
 }
 
-// B 端菜单注册表：新增页面先在 docs/B端管理台PRD.md 页面总览表登记，再在此加一行；
+// B 端菜单注册表：新增页面先在 docs/prd/B端管理台PRD.md 页面总览表登记，再在此加一行；
 // roles 为空表示 admin/editor 均可见，仅 admin 可见的组按登录角色过滤（D18）。
 const menuGroups: AdminMenuGroup[] = [
   {

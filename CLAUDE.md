@@ -43,6 +43,10 @@ cd frontend && npm run typecheck # 仅类型检查
 | 向量库 | 刻意不引：同题归一的语料量级在万级以内，进程内向量 + 暴力余弦足够（知识库PRD 九-3）；量级超限或出现在线语义检索需求时再评估，**不要顺手引 Milvus / Qdrant 等** |
 | Spring Security | 刻意不引：轻量拦截器 + JWT + 当前用户上下文（基础架构PRD 第三节）；需要 OAuth2 / 方法级权限时再评估，**不要顺手引入** |
 
+> **llm 模块是唯一的例外：刻意引入 Spring AI 2.0**（T2，决策清单 D28）。理由：全计划唯一外部服务依赖，需统一屏蔽 provider（火山方舟 / DeepSeek / GLM 走 OpenAI 兼容端点），换服务商只改配置。约束：**provider 调用逻辑一律走 `llm.api`（LlmClient），业务模块不得直连 Spring AI 或自带 HTTP 调用**；密钥只走本地 `config/application-local.properties` / 环境变量，**不进库、不进设置页、不入库、不进 jar**；新增 LLM 入口（用途）在 `LlmPurpose` 枚举登记（自动进常量组下发）。
+
+> 涉密配置的落点（所有模块通用）：真实密钥写运行目录的 `config/application-local.properties`（由 `config/application-local.properties.example` 模板复制而来，`config/*.properties` 已在 .gitignore 排除、只放行模板）。开发时自动加载（`spring.profiles.default=local`），显式激活其他 profile（测试 `test`、部署 `prod`）时不参与——**不要在 `src/main/resources` 里放任何密钥，那里会被打进 jar**。
+
 > 测试基建（T0 已引入）：spring-boot-starter-test（JUnit 5 + MockMvc），`mvn test` 是合法验收命令；测试用独立 SQLite 测试库，不 mock 数据层。常量组走后端注解扫描 + `GET /api/constants` 下发（基础架构PRD 第二节），前端 label 免维护。
 
 ---
@@ -142,18 +146,19 @@ jdbc:sqlite:./data/zhiji.db?journal_mode=WAL&foreign_keys=on&busy_timeout=5000
 
 按设计文档的落地顺序，下一步是——**任务拆分与顺序的真相源是 [开发计划](docs/开发计划.md)（决策清单 D24：B 端先行、基础公共最前置，每任务「PRD → 建表 → 后端 → 前端 → 测试 → 验收」）**：
 
-- 当前任务：**T2 技能库模块**（skill_domain 建表 + B 端技能库页，设计见核心模块定义 3.1 与 B端管理台PRD 第四节）；T0/T1 已完成（基础架构PRD 定稿、账号认证上线）
-- 随后：T2 技能库 → T3 知识库（10 样板）→ T4 知识卡分享 → T5 llm 支撑 → T6 素材库 → T7 知识地图 → T8 按簇成稿 → T9 校对流转（里程碑：50 个知识点 B 端闭环）→ T10-T16 C 端（各域 PRD 先行）→ T17 收尾
+- 当前任务：**T3 技能库**（T0/T1/T2 已完成——T2 llm 支撑：Spring AI 2.0 模型接入、按 purpose 路由、限额与全站熔断、连通性自检与用量对照、B 端系统配置页）。设计见核心模块定义 4.2 与 B端管理台PRD 第十节
+- 随后：T3 技能库 → T4 知识库（10 样板）→ T5 知识卡分享 → T6 素材库 → T7 知识地图 → T8 按簇成稿 → T9 校对流转（里程碑：50 个知识点 B 端闭环）→ T10-T16 C 端（各域 PRD 先行）→ T17 收尾
 
 合规清单（备案 / HTTPS / 隐私说明 / 备份）公网开放时再办、不阻塞开发，见核心模块定义第七节。
 
 涉及数据库、接口契约的改动，**先读对应设计文档再动手**（参考顺序：企划书 → 核心模块定义 → 各域 PRD）：
 
 - 表归属矩阵、枚举契约、判定 JSON 契约 → [核心模块定义](docs/核心模块定义.md) 附录 A（**现阶段只写需求 PRD，不建独立研发设计文档**；字段级 DDL 以 kb 模块落 schema.sql 时为准）
-- 内容资产要求、判定规则细节 → [知识库PRD](docs/知识库PRD.md)
+- 内容资产要求、判定规则细节 → [知识库PRD](docs/prd/知识库PRD.md)
 - 产品流程与判定规则 → [项目企划书](docs/项目企划书.md)
-- B 端页面功能详设 → [B端管理台PRD](docs/B端管理台PRD.md)
-- 基础公共契约（统一响应 / 常量组 / 权限矩阵 / 测试）→ [基础架构PRD](docs/基础架构PRD.md)
+- B 端页面功能详设 → [B端管理台PRD](docs/prd/B端管理台PRD.md)
+- 基础公共契约（统一响应 / 常量组 / 权限矩阵 / 测试）→ [基础架构PRD](docs/prd/基础架构PRD.md)
+- 技能域字典与技能条目组装 → [技能库PRD](docs/prd/技能库PRD.md)
 - 开发任务拆分与顺序（T0-T17）→ [开发计划](docs/开发计划.md)
 - 决策索引与待观察事项（现行口径一律以上方核心文档为准）→ [文档审核决策清单](docs/文档审核决策清单.md)
 
@@ -162,5 +167,5 @@ jdbc:sqlite:./data/zhiji.db?journal_mode=WAL&foreign_keys=on&busy_timeout=5000
 ### 开发工作流（2026-09-22 拍板，2026-09-23 收紧）
 
 - **以 [核心模块定义](docs/核心模块定义.md) 为开发任务的基础**，按其模块清单逐个开发，每个模块是一段独立任务。
-- **业务域会陆续抽出独立 PRD**：知识库已抽出 [知识库PRD](docs/知识库PRD.md)、B 端已抽出 [B端管理台PRD](docs/B端管理台PRD.md)；后续模拟考、抽卡等域在开发该模块前同样抽出独立 PRD 详细完善。开发某模块时，先看核心模块定义该模块一节，再看对应域 PRD（若已抽出）。
+- **业务域会陆续抽出独立 PRD，统一收口在 docs/prd/ 目录（2026-09-23 拍板，决策清单 D25）**：知识库已抽出 [知识库PRD](docs/prd/知识库PRD.md)、B 端已抽出 [B端管理台PRD](docs/prd/B端管理台PRD.md)、技能库已抽出 [技能库PRD](docs/prd/技能库PRD.md)；后续模拟考、抽卡等域在开发该模块前同样抽出独立 PRD 详细完善。开发某模块时，先看核心模块定义该模块一节，再看对应域 PRD（若已抽出）。
 - **拍板决策的迁移规则（2026-09-23 收紧）**：所有拍板结论以三份核心文档（项目企划书 / 知识库PRD / 核心模块定义）与各域 PRD 的现行口径为准；[文档审核决策清单](docs/文档审核决策清单.md) 只承担**决策索引与未决事项追踪**（每条一句话结论 + 现行口径落点），**不承载现行口径、不写长篇过程分析**——发现两者冲突时，以核心文档为准并回改决策清单。

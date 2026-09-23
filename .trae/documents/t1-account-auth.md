@@ -2,7 +2,7 @@
 
 ## Summary
 
-实现开发计划 T1：账号认证模块（account 包）+ 基础公共基建。按 [基础架构PRD](d:\ideaProject\zhiji\docs\基础架构PRD.md) 与 [核心模块定义 2.7/3.4](d:\ideaProject\zhiji\docs\核心模块定义.md)、[B端管理台PRD 第十一节](d:\ideaProject\zhiji\docs\B端管理台PRD.md) 实现：
+实现开发计划 T1：账号认证模块（account 包）+ 基础公共基建。按 [基础架构PRD](d:\ideaProject\zhiji\docs\prd\基础架构PRD.md) 与 [核心模块定义 2.7/3.4](d:\ideaProject\zhiji\docs\核心模块定义.md)、[B端管理台PRD 第十一节](d:\ideaProject\zhiji\docs\prd\B端管理台PRD.md) 实现：
 
 1. **common 基建**：常量组系统（注解 + 扫描 + 接口下发）、BizException、JWT 工具、口令哈希、AuthContext、AuthInterceptor、图形验证码；
 2. **account 模块**（四层）：sys_staff / sys_customer 双表、客户注册/登录（验证码）、后台登录、双树拦截器（权限矩阵照表拦截）、B 端账号管理接口；
@@ -54,7 +54,7 @@
 | `account/api/StaffAuthController.java` | `POST /api/auth/staff/login`、`GET /api/auth/staff/me` |
 | `account/api/AccountAdminController.java` | `GET /api/admin/accounts`、`POST /api/admin/accounts`、`POST /api/admin/accounts/{id}/status`、`POST /api/admin/accounts/{id}/reset-password` |
 | `config/AdminBootstrap.java`（新） | `ApplicationRunner`：sys_staff 为空时创建 `admin / admin123`（role=admin），WARN 日志提示修改初始口令 |
-| `src/main/resources/db/schema.sql`（追加） | `sys_staff`（username UNIQUE、password_hash、role CHECK(admin/editor)、status CHECK(active/disabled)、created_at、last_login_at）+ `sys_customer`（username UNIQUE、password_hash、status、registered_at、last_login_at），均 `CREATE TABLE IF NOT EXISTS`；demo 表保留（T3 随 kb 删除） |
+| `src/main/resources/db/schema.sql`（追加） | `sys_staff`（username UNIQUE、password_hash、role CHECK(admin/editor)、status CHECK(active/disabled)、created_at、last_login_at）+ `sys_customer`（username UNIQUE、password_hash、status、registered_at、last_login_at），均 `CREATE TABLE IF NOT EXISTS`；demo 表保留（T4 随 kb 删除） |
 | `src/main/resources/application.yml`（追加） | `zhiji.auth.jwt-secret`（默认开发值，生产必改）、`zhiji.auth.token-ttl-days: 7`、`zhiji.auth.captcha-ttl-minutes: 5` |
 
 ### C. 测试（新建 `src/test/java/com/zhiji/` + `src/test/resources/application-test.yml`）

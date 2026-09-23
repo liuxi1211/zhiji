@@ -10,7 +10,7 @@
 
 | 层 | 选型 |
 |---|---|
-| 后端 | JDK 21 · Spring Boot 4.1.1（Spring Framework 7） · MyBatis-Plus 3.5.17 |
+| 后端 | JDK 21 · Spring Boot 4.1.1（Spring Framework 7） · MyBatis-Plus 3.5.17 · Spring AI 2.0.1（模型接入） |
 | 数据库 | SQLite（单文件、零运维，WAL 模式） |
 | 缓存 | Caffeine 进程内缓存（刻意不引 Redis） |
 | 前端 | Vue 3.5 · Vite 8 · TypeScript 5.8 · Element Plus · Pinia · Vue Router |
@@ -89,12 +89,27 @@ npm run preview    # 预览构建产物
 
 常用临时参数：`--java-home=<路径>`、`--backend-port=<端口>`、`--no-kill`、`--install`。
 
+### 涉密配置（密钥只放本地）
+
+LLM provider 密钥、会话签名密钥这类**涉密项不进代码库、也不进 `src/main/resources`**（那里会被打进 jar 包），统一放在运行目录的 `config/application-local.properties`：
+
+```bash
+cp config/application-local.properties.example config/application-local.properties   # 首次
+# 然后编辑填入真实密钥
+```
+
+- **模板入库、真实配置不入库**：`config/application-local.properties.example` 是模板；`config/*.properties` 已被 `.gitignore` 排除（只放行 `*.example`），`git status` 里看不到真实配置。
+- **自动加载**：`application.yml` 里 `spring.profiles.default=local`，本地开发（`node start.js` / `mvn spring-boot:run` / `java -jar`）无需任何额外参数即生效；显式激活了其他 profile（测试 `test`、部署 `prod`）时该文件不参与，因此**测试不会被本机密钥污染**。
+- **优先级**：本地文件 > 环境变量（`application.yml` 里的 `${VAR:}` 占位）> `application.yml` 默认值。只用环境变量（如 `ZHIJI_LLM_ARK_KEY`）也走得通；模板默认写成 `${ZHIJI_LLM_ARK_KEY:}`，两者可并存。
+- **自检**：启动日志会打印 `LLM provider 密钥就绪情况：ark=已配置, deepseek=未配置…`（只报有无，不打印密钥）；B 端「系统配置 → 连通性自检」可当场验证密钥与网络。
+
 ## 目录结构
 
 ```
 zhiji/
 ├── start.js                    # 跨平台启动脚本
-├── start.config.example.json   # 本机配置模板
+├── start.config.example.json   # 本机配置模板（真实 start.config.json 不入库）
+├── config/                     # 涉密配置：application-local.properties 只放本地（不入库），.example 模板入库
 ├── pom.xml
 ├── docs/                       # 设计文档（参考顺序见下）
 ├── data/                       # SQLite 数据库与上传素材（不入库）
@@ -148,9 +163,10 @@ location /api/ {
 1. [项目企划书](docs/项目企划书.md) — 定位与方法论（为什么做）
 2. [核心模块定义](docs/核心模块定义.md) — 模块边界、依赖方向与四条领域红线；附录 A 为表归属矩阵（23 张）与枚举契约的真相源
 3. 各域 PRD — 功能详设（怎么做）：
-   - [基础架构PRD](docs/基础架构PRD.md) — 基础公共契约：统一响应与错误码、常量组、会话与权限矩阵、测试策略
-   - [知识库PRD](docs/知识库PRD.md) — 内容资产：存什么、怎么问、怎么判、怎么生产、怎么验收
-   - [B端管理台PRD](docs/B端管理台PRD.md) — B 端九页：知识点/簇 CRUD、多源素材导入（形态路由）、候选研判、知识地图（同题归一/按簇建设）、校对流转与账号管理
+   - [基础架构PRD](docs/prd/基础架构PRD.md) — 基础公共契约：统一响应与错误码、常量组、会话与权限矩阵、测试策略
+   - [知识库PRD](docs/prd/知识库PRD.md) — 内容资产：存什么、怎么问、怎么判、怎么生产、怎么验收
+   - [B端管理台PRD](docs/prd/B端管理台PRD.md) — B 端九页：知识点/簇 CRUD、多源素材导入（形态路由）、候选研判、知识地图（同题归一/按簇建设）、校对流转与账号管理
+   - [技能库PRD](docs/prd/技能库PRD.md) — 技能域字典与技能条目组装：简历主张项挂簇、授权锚点与强度承诺
 4. [文档审核决策清单](docs/文档审核决策清单.md) — 决策索引：D1-D24 一句话结论 + 现行口径落点、待观察事项；现行口径一律以上述文档为准
 5. [开发计划](docs/开发计划.md) — 开发任务拆分与顺序（T0-T17）：B 端先行、基础公共最前置；每任务「PRD → 代码 → 测试」
 
@@ -166,12 +182,12 @@ location /api/ {
 - 后端升级至 Spring Boot 4.1.1
 - 前后端工程骨架：C 端五页 + B 端九页（四分组菜单 + 注册表）+ 公共页（客户登录/注册、后台登录、知识卡分享）、API 层、开发代理
 - 跨平台启动脚本
-- 需求设计收口：企划书 / 核心模块定义 / 知识库PRD / B端管理台PRD 四份文档口径统一，决策索引 D1-D24
+- 需求设计收口：企划书 / 核心模块定义与各域 PRD（docs/prd/ 目录）口径统一，决策索引 D1-D28
 
 待办：按 [开发计划](docs/开发计划.md)（决策清单 D24）顺序推进——**B 端先行、基础公共最前置**，每任务「PRD → 建表 → 后端 → 前端 → 测试 → 验收」：
 
-- 当前：**T2 技能库模块**（skill_domain + B 端技能库页；T1 账号认证已完成——双表双入口、JWT 拦截器、账号管理页，测试 9/9 全绿）
-- 随后：T2 技能库 → T3 知识库（10 样板）→ T4 知识卡分享 → T5 llm 支撑 → T6 素材库 → T7 知识地图 → T8 按簇成稿 → T9 校对流转（里程碑：50 个知识点 B 端闭环）
+- 当前：**T3 技能库**（T0/T1/T2 已完成——T1 账号认证：双表双入口、JWT 拦截器、账号管理页；T2 llm 支撑：Spring AI 2.0 模型接入、按用途路由、限额与全站熔断、连通性自检与用量对照、系统配置页，测试全绿）
+- 随后：T4 知识库（10 个知识点）→ T5 知识卡分享 → T6 素材库 → T7 知识地图 → T8 按簇成稿 → T9 校对流转（里程碑：50 个知识点 B 端闭环）
 - 之后：T10-T16 C 端各功能（各域 PRD 先行）→ T17 收尾与内测准备（明细见开发计划）
 
 > `demo` 包与 `demo_kp` 表仅为环境验证用，不属于正式业务。

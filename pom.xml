@@ -21,7 +21,20 @@
     <java.version>21</java.version>
     <mybatis-plus.version>3.5.17</mybatis-plus.version>
     <sqlite.version>3.53.2.0</sqlite.version>
+    <spring-ai.version>2.0.1</spring-ai.version>
   </properties>
+
+  <dependencyManagement>
+    <dependencies>
+      <dependency>
+        <groupId>org.springframework.ai</groupId>
+        <artifactId>spring-ai-bom</artifactId>
+        <version>${spring-ai.version}</version>
+        <type>pom</type>
+        <scope>import</scope>
+      </dependency>
+    </dependencies>
+  </dependencyManagement>
 
   <dependencies>
     <!-- Boot 4 起 spring-boot-starter-web 更名为 spring-boot-starter-webmvc -->
@@ -41,6 +54,12 @@
     <dependency>
       <groupId>com.github.ben-manes.caffeine</groupId>
       <artifactId>caffeine</artifactId>
+    </dependency>
+
+    <!-- Spring AI 2.0：模型接入统一走 OpenAI 兼容适配器（provider 差异只落在 base-url + key + model） -->
+    <dependency>
+      <groupId>org.springframework.ai</groupId>
+      <artifactId>spring-ai-starter-model-openai</artifactId>
     </dependency>
 
     <!-- MyBatis-Plus 针对 Boot 4 的专用 starter（Boot3 版为 mybatis-plus-spring-boot3-starter） -->

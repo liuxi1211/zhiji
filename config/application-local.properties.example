@@ -1,0 +1,39 @@
+# ============================================================================
+# 知己 · 本地涉密配置模板（本模板入库；填了真实值的副本绝不允许入库）
+#
+# 用法：把本文件复制成同目录下的 application-local.properties，填入真实值：
+#     cp config/application-local.properties.example config/application-local.properties
+#
+# 为什么放这里而不是 src/main/resources：
+#   1. src/main/resources 里的配置会被打进 jar 包——密钥一旦进包就跟着产物扩散；
+#   2. Spring Boot 默认会读「运行目录的 config/」目录，放在这里天然不入库、不进 jar；
+#   3. 本目录已由 .gitignore 排除（只放行 *.example 模板），手滑 git add 也带不上去。
+#
+# 什么时候生效（见 src/main/resources/application.yml 的 spring.profiles.default）：
+#   本地开发（node start.js / mvn spring-boot:run / java -jar）未激活其他 profile 时自动加载；
+#   显式激活了别的 profile（测试 test、部署 prod 等）时本文件不参与——
+#   所以测试不会被本机密钥污染，部署侧继续用环境变量或自己的配置。
+#
+# 优先级：本文件 > 环境变量（application.yml 里 ${VAR:} 占位）> application.yml 默认值。
+# ============================================================================
+
+# ---------- 1. LLM provider 密钥（核心模块定义 4.2：密钥不进库、不进设置页） ----------
+# 火山方舟（OpenAI 兼容端点 …/api/coding/v3，coding plan 额度）
+# 模板默认让位给环境变量 ZHIJI_LLM_ARK_KEY；直接写明文密钥也可以（本文件不入库）
+zhiji.llm.providers.ark.api-key=${ZHIJI_LLM_ARK_KEY:}
+# DeepSeek（…/v1）
+zhiji.llm.providers.deepseek.api-key=${ZHIJI_LLM_DEEPSEEK_KEY:}
+# 智谱 GLM（…/api/paas/v4）
+zhiji.llm.providers.glm.api-key=${ZHIJI_LLM_GLM_KEY:}
+
+# ---------- 2. 会话签名密钥（基础架构PRD 3.x：JWT） ----------
+# 不填就用 application.yml 的开发占位值（够本机跑通，不可用于公网）。
+# 公网/共享环境必须换成本机随机串，例如  openssl rand -hex 32
+# 注意：改动后已签发的会话立即失效（所有人需重新登录）。
+#zhiji.auth.jwt-secret=
+
+# ---------- 3. 本机专用覆盖（可选，默认值见 application.yml） ----------
+# 数据目录（SQLite 文件位置，需可写；也可用环境变量 ZHIJI_DATA_DIR）
+#zhiji.data-dir=./data
+# 服务端口
+#server.port=8080

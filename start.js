@@ -663,13 +663,31 @@ function shutdown(exitCode = 0) {
 // 各命令实现
 // ---------------------------------------------------------------------------
 
-function printEnvironment(config, java, maven) {
+function printEnvironment(config, java, maven, needsBackend) {
   log('')
   log(paint('magenta', '  知己 · 本地开发'))
   log(`  JDK    ${java.home}  ${paint('dim', `(Java ${java.major}, 来源: ${java.src})`)}`)
   log(`  Maven  ${maven.cmd}  ${paint('dim', `(来源: ${maven.src})`)}`)
   log(`  端口   后端 ${config.backendPort} / 前端 ${config.frontendPort}`)
+  if (needsBackend) {
+    log(`  密钥   ${localConfigStatus()}`)
+  }
   log('')
+}
+
+/**
+ * 涉密配置只放本地（config/application-local.properties，不入库也不进 jar）：
+ * 起后端前先告诉开发者它在不在，避免"密钥没配"被误当成"代码坏了"。
+ */
+function localConfigStatus() {
+  const local = path.join(ROOT, 'config', 'application-local.properties')
+  if (fs.existsSync(local)) {
+    return `${paint('green', 'config/application-local.properties 已就绪')}`
+  }
+  return (
+    `${paint('yellow', 'config/application-local.properties 缺失')}` +
+    `  ${paint('dim', '（复制 config/application-local.properties.example 并填入密钥）')}`
+  )
 }
 
 async function cmdBuild(config, java, maven) {
@@ -879,6 +897,10 @@ ${paint('cyan', '配置')}
     backendPort / frontendPort   端口
     autoKillPort  端口被占用是否自动结束占用进程
 
+  涉密配置（LLM / 会话密钥）只放本地，不入库也不进 jar：
+    cp config/application-local.properties.example config/application-local.properties
+    本地开发自动加载，无需额外参数（细节见模板头部说明）
+
 ${paint('cyan', '示例')}
   node start.js all
   node start.js build
@@ -933,7 +955,7 @@ async function main() {
   }
 
   // 只起前端时不需要 JDK 信息，但环境回显仍要能打印，这里兜一个占位
-  printEnvironment(config, java ?? { home: '-', major: '-', src: '不需要' }, maven ?? { cmd: '-', src: '不需要' })
+  printEnvironment(config, java ?? { home: '-', major: '-', src: '不需要' }, maven ?? { cmd: '-', src: '不需要' }, needsBackend)
 
   const needFrontendOnly = opts.command === 'frontend'
   if (needFrontendOnly) {
