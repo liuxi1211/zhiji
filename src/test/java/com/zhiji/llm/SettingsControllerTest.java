@@ -91,7 +91,8 @@ class SettingsControllerTest {
         mvc.perform(put("/api/admin/settings/limits").header("Authorization", "Bearer " + adminToken)
                         .contentType(MediaType.APPLICATION_JSON)
                         .content("{\"judgeDaily\":150,\"variantRewriteDaily\":10,"
-                                + "\"perProfileDailyTotal\":250,\"siteDailyTotal\":900}"))
+                                + "\"perProfileDailyTotal\":250,\"siteDailyTotal\":900,"
+                                + "\"siteCircuitEnabled\":false}"))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.limits.judgeDaily").value(150));
 
@@ -185,7 +186,7 @@ class SettingsControllerTest {
             usageService.recordCall(LlmPurpose.JUDGE_PRACTICE.getCode(), 101L);
         }
         usageService.recordCall(LlmPurpose.JUDGE_PRACTICE.getCode(), 102L);
-        configService.saveLimits(new LlmLimits(3, 20, 300, 1000));
+        configService.saveLimits(new LlmLimits(3, 20, 300, 1000, false));
         String adminToken = login("admin", "admin123");
         mvc.perform(get("/api/admin/settings/usage").header("Authorization", "Bearer " + adminToken))
                 .andExpect(status().isOk())

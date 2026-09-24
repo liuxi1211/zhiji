@@ -62,12 +62,6 @@ const adminRoutes: RouteRecordRaw[] = [
         meta: { title: '概览' }
       },
       {
-        path: 'skills',
-        name: 'admin-skills',
-        component: () => import('@/views/admin/SkillsView.vue'),
-        meta: { title: '技能库' }
-      },
-      {
         path: 'kp',
         name: 'admin-kp',
         component: () => import('@/views/admin/KpManageView.vue'),

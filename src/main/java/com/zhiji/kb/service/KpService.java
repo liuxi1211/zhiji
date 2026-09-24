@@ -368,6 +368,36 @@ public class KpService {
         return new KpMetaView(domains, clusters);
     }
 
+    /**
+     * 知识卡分享公开视图（知识库PRD 7.5）：仅输出 active 知识点的库侧内容。
+     * 红线：不含 levelReq / rubric（目标刻度依赖个人职级不渲染，评分要点是判定尺子不外露），
+     * 不含任何个人数据；非 active 统一 404 不泄露存在性。
+     */
+    public ShareKpView shareDetail(long id) {
+        KpMain kp = requireKp(id);
+        if (!ContentStatus.ACTIVE.getCode().equals(kp.getStatus())) {
+            throw BizException.notFound("知识点不存在或已下线");
+        }
+        KpCluster cluster = kp.getClusterId() == null ? null : clusterMapper.selectById(kp.getClusterId());
+        String domainName = cluster == null ? null
+                : clusterMapper.selectDomainName(cluster.getDomainId());
+        List<FollowupLayer> followups = readFollowups(kp.getFollowups()).stream()
+                .filter(l -> !"disabled".equals(l.status()))
+                .toList();
+        return new ShareKpView(kp.getId(), kp.getTitle(), kp.getSubType(), kp.getDifficulty(),
+                readVariants(kp.getVariants()), kp.getNarrativeFramework(), followups,
+                readSamples(kp.getSamples()), domainName,
+                cluster == null ? null : cluster.getName(),
+                cluster == null ? null : cluster.getZeroShotMd(),
+                cluster == null ? null : cluster.getReferenceSolutionMd());
+    }
+
+    public record ShareKpView(long id, String title, String subType, int difficulty,
+            List<String> variants, String narrativeFramework, List<FollowupLayer> followups,
+            Map<String, String> samples, String domainName, String clusterName,
+            String zeroShotMd, String referenceSolutionMd) {
+    }
+
     private KpListItem toListItem(KpListRow row) {
         return new KpListItem(row.getId(), row.getTitle(), row.getDomainId(), row.getDomainName(),
                 row.getClusterId(), row.getClusterName(), row.getSubType(), row.getDifficulty(),

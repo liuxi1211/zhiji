@@ -147,3 +147,47 @@ CREATE TABLE IF NOT EXISTS kp_freq_signal (
 );
 
 CREATE INDEX IF NOT EXISTS idx_kp_freq_kp ON kp_freq_signal (kp_id);
+
+-- T6 素材库（pipeline）：素材文档与候选条目。枚举口径对齐核心模块定义附录 A 8.2；
+-- 版权红线：raw_text 是过程材料，只留素材文档侧供 B 端预览，绝不进 kp_* 内容表。
+
+CREATE TABLE IF NOT EXISTS kp_source_doc (
+    id           INTEGER PRIMARY KEY AUTOINCREMENT,           -- 自增主键
+    batch_id     TEXT    NOT NULL,                            -- 导入批次号（批次是查询维度非实体，批次面板按此聚合）
+    file_name    TEXT    NOT NULL,                            -- 文件名（zip 解包时含相对目录，作来源线索）
+    source_ref   TEXT,                                        -- 来源出处：链接 / 书名·手册章节（D17，随管道向下传递）
+    form         TEXT,                                        -- 内容形态：question_bank 题库 / reading 资料 / interview 面经
+                                                              -- （LLM 识别 + 人工修正；未解析时为空，故不设 CHECK）
+    status       TEXT    NOT NULL DEFAULT 'pending'           -- source_doc_status 状态机：待解析/解析成功/解析失败/已拆题
+                 CHECK (status IN ('pending','parsed','parse_failed','split')),
+    parse_error  TEXT,                                        -- 解析失败原因（扫描件/超限/格式损坏等，显式落状态不静默）
+    raw_text     TEXT,                                        -- 解析文本（过程材料，只进 B 端预览）
+    heading_tree TEXT    NOT NULL DEFAULT '[]',               -- 标题树 JSON [{level,title,line}]（章节切分依据）
+    char_count   INTEGER NOT NULL DEFAULT 0,                  -- 解析文本字符数
+    created_at   TEXT    NOT NULL DEFAULT (datetime('now')),  -- 导入时间
+    updated_at   TEXT    NOT NULL DEFAULT (datetime('now'))   -- 更新时间
+);
+
+CREATE INDEX IF NOT EXISTS idx_kp_source_doc_batch ON kp_source_doc (batch_id);
+CREATE INDEX IF NOT EXISTS idx_kp_source_doc_status ON kp_source_doc (status);
+
+CREATE TABLE IF NOT EXISTS kp_candidate (
+    id              INTEGER PRIMARY KEY AUTOINCREMENT,        -- 自增主键
+    doc_id          INTEGER NOT NULL REFERENCES kp_source_doc (id),  -- 溯源回素材文档
+    batch_id        TEXT    NOT NULL,                         -- 继承批次（免 join 过滤）
+    title           TEXT    NOT NULL,                         -- 候选题面
+    answer_evidence TEXT,                                     -- 答案证据：题库型=答案段 / 资料型=AI 提炼要点 / 面经型=追问记录
+    section_path    TEXT,                                     -- 章节路径（如 "Java集合 > HashMap"）
+    form            TEXT    NOT NULL                             -- 片段级形态（混合文档片段级标签可人工修正）
+                         CHECK (form IN ('question_bank','reading','interview')),
+    status          TEXT    NOT NULL DEFAULT 'pending'           -- candidate_status 状态机（附录 A 8.2）
+                         CHECK (status IN ('pending','matched','converting','converted','merged','discarded')),
+    canonical_id    INTEGER,                                  -- 同题归一指向（kp_canonical 随 T7 落库，先留普通列）
+    confidence      TEXT,                                     -- 拆题置信：high 结构命中 / low LLM 兜底（批量确认策略依据）
+    note            TEXT,                                     -- 人工备注（放弃原因等）
+    created_at      TEXT    NOT NULL DEFAULT (datetime('now')),   -- 入池时间
+    updated_at      TEXT    NOT NULL DEFAULT (datetime('now'))    -- 更新时间
+);
+
+CREATE INDEX IF NOT EXISTS idx_kp_candidate_doc ON kp_candidate (doc_id);
+CREATE INDEX IF NOT EXISTS idx_kp_candidate_status ON kp_candidate (status);

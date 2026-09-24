@@ -23,7 +23,10 @@ public enum LlmPurpose implements ConstantItem {
     SPLIT_FALLBACK("split_fallback", "拆题兜底", LimitKey.NONE, Tier.QUALITY),
     CLUSTER_DEDUP("cluster_dedup", "聚类去重", LimitKey.NONE, Tier.QUALITY),
     AI_COMPOSE("ai_compose", "AI 成稿", LimitKey.NONE, Tier.QUALITY),
-    EMBEDDING("embedding", "向量化", LimitKey.NONE, Tier.EMBED);
+    EMBEDDING("embedding", "向量化", LimitKey.NONE, Tier.EMBED),
+    DOC_FORM_DETECT("doc_form_detect", "素材形态识别", LimitKey.NONE, Tier.QUALITY),
+    QUESTION_GEN("question_gen", "资料反推出题", LimitKey.NONE, Tier.QUALITY),
+    INTERVIEW_EXTRACT("interview_extract", "面经抽题", LimitKey.NONE, Tier.QUALITY);
 
     /** 限额档：判定软上限 / 变体硬上限 / 无独立限额（仅全局兜底）。 */
     public enum LimitKey {

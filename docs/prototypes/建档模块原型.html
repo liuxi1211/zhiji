@@ -1,0 +1,944 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>知己 · C 端原型 — 建档</title>
+<style>
+:root{
+  --primary:#0f6d68; --primary-2:#0d5c57; --primary-soft:#e8f2f1;
+  --copper:#b4741f; --copper-soft:#f7efe1;
+  --ink-900:#14201f; --ink-700:#3b4746; --ink-600:#596565; --ink-500:#6b7776; --ink-400:#98a3a2;
+  --line:#e3e8e7; --paper:#f5f7f6; --surface:#fff;
+  --d1:#8b93a7; --d2:#2e9e6b; --d3:#b98a06; --d4:#d96f28; --d5:#d64545;
+  --mono:ui-monospace,"Cascadia Mono","SF Mono",Consolas,monospace;
+}
+*{box-sizing:border-box;margin:0;padding:0}
+html{-webkit-text-size-adjust:100%}
+body{
+  font-family:-apple-system,BlinkMacSystemFont,"PingFang SC","Hiragino Sans GB","Microsoft YaHei","Segoe UI",sans-serif;
+  background:#e7ecea; color:var(--ink-900); font-size:14px; line-height:1.65;
+}
+.num{font-family:var(--mono);font-variant-numeric:tabular-nums}
+
+/* ============ 画布 ============ */
+.board{max-width:880px;margin:0 auto;padding:56px 24px 120px}
+.board-head{margin-bottom:56px}
+.eyebrow{
+  display:flex;align-items:center;gap:10px;
+  color:var(--copper);font-size:12px;font-weight:600;letter-spacing:.12em;
+}
+.eyebrow::before{content:"";width:24px;height:2px;background:var(--copper)}
+.board-head h1{font-size:34px;font-weight:700;letter-spacing:.02em;margin:14px 0 10px}
+.board-head h1 small{font-size:15px;font-weight:400;color:var(--ink-500);margin-left:12px;letter-spacing:0}
+.lede{max-width:620px;color:var(--ink-600);font-size:14px}
+.lede b{color:var(--ink-900)}
+.legend{list-style:none;display:flex;flex-wrap:wrap;gap:8px 22px;margin-top:18px}
+.legend li{display:flex;align-items:center;gap:7px;font-size:12px;color:var(--ink-500)}
+.sw{width:12px;height:12px;border-radius:3px;flex:none}
+.sw.d1{background:var(--d1)}.sw.d2{background:var(--d2)}.sw.d3{background:var(--d3)}
+.sw.d4{background:var(--d4)}.sw.d5{background:var(--d5)}
+.sw.cu{background:var(--copper)}.sw.pu{background:var(--primary)}
+
+/* ============ 模块头与流程带 ============ */
+.module-head{margin:72px 0 20px}
+.module-head h2{font-size:24px;font-weight:700;margin:10px 0 6px}
+.module-lede{color:var(--ink-600);font-size:13px;max-width:600px}
+.flow-band{
+  display:flex;align-items:stretch;gap:0;
+  background:var(--surface);border:1px solid var(--line);border-radius:14px;
+  padding:18px 20px;margin:20px 0 40px;overflow-x:auto;
+}
+.flow-stop{display:flex;flex-direction:column;gap:4px;min-width:132px;padding-right:14px;position:relative}
+.flow-stop i{
+  font-style:normal;font-family:var(--mono);font-size:11px;color:var(--ink-400);
+  width:20px;height:20px;border:1.5px solid var(--line);border-radius:50%;
+  display:flex;align-items:center;justify-content:center;margin-bottom:4px;
+}
+.flow-stop.key i{border-color:var(--copper);color:var(--copper)}
+.flow-stop b{font-size:12.5px;font-weight:600;color:var(--ink-700);white-space:nowrap}
+.flow-stop span{font-size:11px;color:var(--ink-400);white-space:nowrap}
+.flow-stop:not(:last-child)::after{
+  content:"";position:absolute;right:-1px;top:11px;height:1.5px;width:14px;background:var(--line);
+}
+
+/* ============ 屏幕标注与屏幕框 ============ */
+figure.proto{margin:0 0 56px}
+.cap{display:flex;align-items:baseline;gap:12px;margin:0 4px 12px;flex-wrap:wrap}
+.cap-no{font-family:var(--mono);font-size:12px;color:var(--copper);font-weight:700;letter-spacing:.06em}
+.cap-title{font-size:14px;font-weight:700;color:var(--ink-900)}
+.cap-note{font-size:12px;color:var(--ink-500)}
+.screen{
+  background:var(--surface);border:1px solid var(--line);border-radius:14px;
+  box-shadow:0 24px 48px rgba(20,32,31,.10);overflow:hidden;max-width:760px;
+}
+
+/* ---- 产品顶栏 / 底栏 ---- */
+.app-bar{
+  height:52px;display:flex;align-items:center;gap:12px;padding:0 18px;
+  border-bottom:1px solid var(--line);
+}
+.brand{display:flex;align-items:center;gap:7px}
+.brand-name{font-size:15px;font-weight:700;letter-spacing:.08em}
+.bar-title{font-size:13px;color:var(--ink-500);flex:1}
+.bar-right{display:flex;align-items:center;gap:10px}
+.avatar-dot{
+  width:26px;height:26px;border-radius:50%;background:var(--primary-soft);color:var(--primary);
+  font-size:12px;font-weight:700;display:flex;align-items:center;justify-content:center;
+}
+.tab-bar{
+  height:56px;display:flex;border-top:1px solid var(--line);background:var(--surface);
+}
+.tab{
+  flex:1;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:3px;
+  color:var(--ink-400);font-size:11px;position:relative;
+}
+.tab svg{width:20px;height:20px;stroke:currentColor;fill:none;stroke-width:1.6;stroke-linecap:round;stroke-linejoin:round}
+.tab.on{color:var(--primary);font-weight:600}
+.tab.on::before{content:"";position:absolute;top:0;left:50%;transform:translateX(-50%);width:24px;height:2px;background:var(--primary);border-radius:0 0 2px 2px}
+
+/* ---- 屏内通用 ---- */
+.pg{padding:22px 24px 26px}
+.pg-head{margin-bottom:18px}
+.pg-head .k{color:var(--copper);font-size:11px;font-weight:700;letter-spacing:.14em}
+.pg-head h3{font-size:20px;font-weight:700;margin-top:6px}
+.pg-head p{font-size:12.5px;color:var(--ink-500);margin-top:3px}
+.btn{
+  display:inline-flex;align-items:center;justify-content:center;gap:6px;
+  border-radius:10px;font-size:14px;font-weight:600;padding:10px 20px;border:1px solid transparent;
+  cursor:pointer;font-family:inherit;
+}
+.btn.primary{background:var(--primary);color:#fff}
+.btn.primary:hover{background:var(--primary-2)}
+.btn.ghost{background:var(--surface);border-color:var(--line);color:var(--ink-700)}
+.btn.copper{background:var(--copper);color:#fff}
+.btn.sm{padding:5px 12px;font-size:12.5px;border-radius:8px}
+.btn.text{background:none;color:var(--ink-500);font-weight:500;padding:5px 8px;text-decoration:underline;text-underline-offset:3px}
+.chip{
+  display:inline-flex;align-items:center;gap:4px;border:1px solid var(--line);border-radius:999px;
+  padding:2px 10px;font-size:11.5px;color:var(--ink-600);background:var(--surface);
+}
+.chip.brand{background:var(--primary-soft);border-color:transparent;color:var(--primary)}
+.chip.copper{background:var(--copper-soft);border-color:transparent;color:var(--copper)}
+.note-line{
+  display:flex;align-items:center;gap:10px;background:var(--paper);border-radius:10px;
+  padding:10px 14px;font-size:12.5px;color:var(--ink-600);
+}
+.note-line .dot{width:6px;height:6px;border-radius:50%;background:var(--copper);flex:none}
+
+/* ============ 屏 01 档案管理 ============ */
+.archive-main{border:1px solid var(--line);border-radius:14px;padding:20px;margin-bottom:12px}
+.archive-top{display:flex;align-items:center;gap:10px;margin-bottom:6px}
+.archive-top h4{font-size:17px;font-weight:700;flex:1}
+.archive-sum{display:flex;gap:26px;margin:14px 0 16px;flex-wrap:wrap}
+.archive-sum div b{font-size:20px;font-weight:700}
+.archive-sum div span{display:block;font-size:11.5px;color:var(--ink-500);margin-top:1px}
+.archive-actions{display:flex;gap:10px;align-items:center}
+.archive-row{
+  display:flex;align-items:center;gap:12px;border:1px solid var(--line);border-radius:12px;
+  padding:13px 16px;margin-bottom:10px;
+}
+.archive-row .a-name{font-weight:600;font-size:14px;flex:1}
+.archive-row .a-name small{display:block;font-weight:400;font-size:11.5px;color:var(--ink-500)}
+.archive-new{
+  border:1.5px dashed var(--ink-400);border-radius:12px;padding:13px 16px;
+  display:flex;align-items:center;justify-content:space-between;color:var(--ink-500);font-size:13.5px;
+}
+.status-chip{
+  display:inline-flex;align-items:center;gap:5px;border-radius:999px;padding:2px 10px;font-size:11.5px;font-weight:600;
+}
+.status-chip.fin{background:var(--primary-soft);color:var(--primary)}
+.status-chip.draft{background:var(--copper-soft);color:var(--copper)}
+.status-chip.fin::before,.status-chip.draft::before{content:"";width:5px;height:5px;border-radius:50%;background:currentColor}
+
+/* ============ 步骤条 ============ */
+.steps{display:flex;gap:8px;margin-bottom:20px}
+.steps span{
+  flex:1;text-align:center;font-size:11.5px;color:var(--ink-400);padding:7px 4px;
+  border-bottom:2px solid var(--line);
+}
+.steps span.on{color:var(--primary);border-bottom-color:var(--primary);font-weight:700}
+.steps span.done{color:var(--ink-600);border-bottom-color:var(--ink-400)}
+
+/* ============ 屏 02 来源选择 ============ */
+.src-grid{display:grid;grid-template-columns:1fr 1fr;gap:14px;margin-bottom:18px}
+.src-card{
+  border:1px solid var(--line);border-radius:14px;padding:22px 18px;text-align:center;cursor:pointer;
+}
+.src-card:hover{border-color:var(--primary)}
+.src-card svg{width:34px;height:34px;stroke:var(--primary);fill:none;stroke-width:1.5;stroke-linecap:round;stroke-linejoin:round;margin-bottom:12px}
+.src-card h4{font-size:15.5px;font-weight:700;margin-bottom:4px}
+.src-card p{font-size:12px;color:var(--ink-500)}
+.src-card .sub{margin-top:8px;font-size:11.5px;color:var(--ink-400)}
+.no-exam{
+  display:flex;align-items:center;justify-content:center;gap:8px;
+  border-top:1px dashed var(--line);padding-top:16px;color:var(--ink-600);font-size:12.5px;
+}
+.no-exam b{color:var(--copper)}
+
+/* ============ 屏 03 简历解析 ============ */
+.file-card{
+  display:flex;align-items:center;gap:12px;border:1px solid var(--line);border-radius:12px;
+  padding:14px 16px;margin-bottom:16px;
+}
+.file-ico{width:36px;height:36px;border-radius:9px;background:var(--primary-soft);display:flex;align-items:center;justify-content:center;flex:none}
+.file-ico svg{width:18px;height:18px;stroke:var(--primary);fill:none;stroke-width:1.6}
+.file-card .f-meta{flex:1}
+.file-card .f-meta b{font-size:13.5px}
+.file-card .f-meta span{display:block;font-size:11.5px;color:var(--ink-500)}
+.parse-grid{display:grid;grid-template-columns:1.15fr .85fr;gap:14px;margin-bottom:16px}
+.parse-col h5{font-size:11.5px;font-weight:700;letter-spacing:.1em;color:var(--ink-400);margin-bottom:8px}
+.parse-doc{
+  background:var(--paper);border-radius:10px;padding:14px 16px;font-size:12px;color:var(--ink-600);
+  line-height:1.8;
+}
+.parse-doc em{font-style:normal;background:var(--copper-soft);border-radius:3px;padding:0 3px}
+.parse-facts li{
+  list-style:none;display:flex;justify-content:space-between;gap:10px;
+  padding:9px 2px;border-bottom:1px dashed var(--line);font-size:12.5px;
+}
+.parse-facts li:last-child{border-bottom:0}
+.parse-facts li span{color:var(--ink-500)}
+.parse-facts li b{font-weight:600}
+.parse-facts li b.todo{color:var(--copper)}
+
+/* ============ 屏 04 AI 对话 ============ */
+.chat-wrap{background:var(--paper);border-radius:14px;padding:18px 16px;display:flex;flex-direction:column;gap:12px}
+.msg{max-width:82%;font-size:13px;line-height:1.7}
+.msg.ai{align-self:flex-start;background:var(--surface);border:1px solid var(--line);border-radius:14px 14px 14px 4px;padding:10px 14px;color:var(--ink-700)}
+.msg.me{align-self:flex-end;background:var(--primary);color:#fff;border-radius:14px 14px 4px 14px;padding:10px 14px}
+.case-card{
+  align-self:flex-start;max-width:88%;
+  border:1px dashed var(--copper);background:var(--copper-soft);border-radius:12px;padding:12px 14px;
+}
+.case-card .cc-tag{font-size:11px;font-weight:700;color:var(--copper);letter-spacing:.08em;margin-bottom:6px}
+.case-card b{font-size:13px}
+.case-card ul{list-style:none;margin-top:6px;display:flex;flex-direction:column;gap:3px}
+.case-card li{font-size:12px;color:var(--ink-700)}
+.case-card li i{font-style:normal;color:var(--copper);font-weight:700;margin-right:6px}
+.chat-input{
+  display:flex;gap:8px;margin-top:14px;align-items:center;
+}
+.chat-input .box{
+  flex:1;border:1px solid var(--line);border-radius:999px;padding:9px 16px;font-size:13px;color:var(--ink-400);
+}
+.chat-input .send{
+  width:36px;height:36px;border-radius:50%;background:var(--primary);color:#fff;flex:none;
+  display:flex;align-items:center;justify-content:center;
+}
+.chat-input .send svg{width:16px;height:16px;stroke:#fff;fill:none;stroke-width:2;stroke-linecap:round;stroke-linejoin:round}
+.sug-chips{display:flex;gap:8px;margin-top:12px;flex-wrap:wrap}
+
+/* ============ 状态机轨道 ============ */
+.state-track{
+  display:flex;align-items:center;gap:0;justify-content:center;margin-bottom:20px;
+}
+.st{
+  display:flex;align-items:center;gap:7px;font-size:12.5px;color:var(--ink-400);font-weight:600;
+}
+.st i{font-style:normal;width:18px;height:18px;border-radius:50%;border:1.5px solid var(--line);display:flex;align-items:center;justify-content:center;font-size:10px;font-family:var(--mono)}
+.st.done{color:var(--ink-600)}
+.st.done i{border-color:var(--ink-400);color:var(--ink-600)}
+.st.now{color:var(--primary)}
+.st.now i{border-color:var(--primary);background:var(--primary);color:#fff}
+.st.fin i{border-color:var(--copper);background:var(--copper);color:#fff}
+.st.fin{color:var(--copper)}
+.st-line{width:44px;height:1.5px;background:var(--line);margin:0 10px}
+
+/* ============ 屏 05 技能条拍板 ============ */
+.phase-note{
+  display:flex;gap:10px;align-items:flex-start;background:var(--paper);border-radius:10px;
+  padding:11px 14px;font-size:12.5px;color:var(--ink-600);margin-bottom:16px;
+}
+.phase-note b{color:var(--ink-900)}
+.confirm-progress{display:flex;align-items:center;gap:12px;margin-bottom:20px}
+.confirm-progress .bar{flex:1;height:6px;border-radius:3px;background:var(--line);overflow:hidden}
+.confirm-progress .bar i{display:block;height:100%;background:var(--primary);border-radius:3px}
+.confirm-progress span{font-size:12px;color:var(--ink-500);white-space:nowrap}
+.domain-block{margin-bottom:18px}
+.domain-block h5{
+  font-size:11.5px;font-weight:700;letter-spacing:.12em;color:var(--ink-400);
+  display:flex;align-items:center;gap:8px;margin-bottom:10px;
+}
+.domain-block h5::after{content:"";flex:1;height:1px;background:var(--line)}
+.skill-line{
+  position:relative;border:1px solid var(--line);border-radius:12px;padding:14px 16px 14px 20px;margin-bottom:10px;
+}
+.skill-line::before{
+  content:"";position:absolute;left:8px;top:14px;bottom:14px;width:3px;border-radius:2px;
+  background:repeating-linear-gradient(180deg,var(--copper) 0 5px,transparent 5px 9px);
+}
+.skill-line.ok::before{background:var(--primary)}
+.skill-head{display:flex;align-items:flex-start;gap:10px}
+.skill-head .s-text{flex:1;font-size:13.5px;font-weight:600;line-height:1.6}
+.skill-ops{display:flex;gap:6px;flex:none;padding-top:2px}
+.skill-ops .mini{
+  font-size:11.5px;border:1px solid var(--line);border-radius:7px;padding:3px 9px;color:var(--ink-600);
+  background:var(--surface);cursor:pointer;white-space:nowrap;
+}
+.skill-ops .mini.ok{background:var(--primary);border-color:var(--primary);color:#fff;font-weight:600}
+.anchors{margin-top:10px;padding-top:10px;border-top:1px dashed var(--line)}
+.anchors .a-label{font-size:11px;color:var(--ink-400);margin-bottom:6px}
+.anchors .a-label b{color:var(--primary);font-weight:700}
+.anchor-chips{display:flex;flex-wrap:wrap;gap:6px}
+.anchor-chips .kp{
+  background:var(--primary-soft);color:var(--primary);border-radius:6px;padding:2px 9px;font-size:11.5px;
+}
+.edit-box{
+  margin-top:10px;border:1px solid var(--primary);border-radius:9px;padding:10px 12px;background:var(--paper);
+}
+.edit-box textarea{
+  width:100%;border:0;background:none;font-family:inherit;font-size:13px;line-height:1.6;color:var(--ink-900);
+  resize:none;outline:none;
+}
+.edit-box .e-ops{display:flex;gap:8px;justify-content:flex-end;margin-top:6px}
+.soft-note{margin-top:8px;font-size:11.5px;color:var(--ink-500);display:flex;align-items:center;gap:6px}
+.soft-note i{font-style:normal;background:var(--paper);border-radius:5px;padding:1px 7px;color:var(--ink-500);font-size:11px}
+.add-line{
+  border:1.5px dashed var(--line);border-radius:10px;text-align:center;padding:9px;
+  color:var(--ink-400);font-size:12.5px;cursor:pointer;
+}
+
+/* ============ 屏 06 职级与计划 ============ */
+.level-row{display:grid;grid-template-columns:repeat(5,1fr);gap:8px;margin:14px 0 10px}
+.level-cell{
+  border:1px solid var(--line);border-radius:10px;text-align:center;padding:12px 4px;cursor:pointer;
+}
+.level-cell b{display:block;font-size:14px;font-weight:700;color:var(--ink-700)}
+.level-cell span{font-size:10.5px;color:var(--ink-400)}
+.level-cell.sel{background:var(--primary);border-color:var(--primary)}
+.level-cell.sel b,.level-cell.sel span{color:#fff}
+.level-cell.sel span{opacity:.75}
+.guess-tip{
+  display:flex;align-items:center;gap:9px;font-size:12.5px;color:var(--ink-600);
+  background:var(--copper-soft);border-radius:9px;padding:9px 13px;margin-bottom:14px;
+}
+.guess-tip b{color:var(--copper)}
+.guess-tip .undo{margin-left:auto;font-size:11.5px;color:var(--copper);text-decoration:underline;text-underline-offset:2px}
+.depth-note{font-size:12px;color:var(--ink-500);margin-bottom:20px}
+.depth-note b{color:var(--copper)}
+.plan-card{border:1px solid var(--line);border-radius:12px;padding:16px;margin-bottom:14px}
+.plan-card h5{font-size:12px;font-weight:700;letter-spacing:.08em;color:var(--ink-400);margin-bottom:12px}
+.plan-field{margin-bottom:12px}
+.plan-field label{display:block;font-size:12px;color:var(--ink-600);margin-bottom:5px}
+.plan-field .ipt{
+  width:100%;border:1px solid var(--line);border-radius:8px;padding:8px 12px;font-size:13px;color:var(--ink-900);
+}
+.plan-field .ipt.placeholder{color:var(--ink-400)}
+.chip-row{display:flex;gap:8px;flex-wrap:wrap}
+.chip-row .chip{cursor:pointer}
+.chip-row .chip.sel{background:var(--primary);border-color:var(--primary);color:#fff;font-weight:600}
+
+/* ============ 屏 07 定稿总览 ============ */
+.overview-grid{display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-bottom:16px}
+.ov-card{border:1px solid var(--line);border-radius:12px;padding:15px 16px}
+.ov-card h5{font-size:11.5px;font-weight:700;letter-spacing:.1em;color:var(--ink-400);margin-bottom:8px}
+.ov-card .big{font-size:16px;font-weight:700}
+.ov-card p{font-size:12px;color:var(--ink-500);margin-top:3px}
+.ov-card .num{font-size:13px}
+.case-mini{
+  border:1px dashed var(--line);border-radius:9px;padding:8px 11px;font-size:12px;color:var(--ink-600);margin-top:8px;
+}
+.case-mini b{color:var(--ink-900);font-size:12.5px}
+.case-mini .miss{color:var(--copper)}
+.finish-cta{display:flex;align-items:center;gap:14px}
+.finish-cta p{font-size:11.5px;color:var(--ink-400);flex:1}
+
+/* ============ 口径对照表 ============ */
+.ledger{
+  background:var(--surface);border:1px solid var(--line);border-radius:14px;padding:26px 28px;margin-top:72px;
+}
+.ledger h3{font-size:16px;font-weight:700;margin-bottom:4px}
+.ledger .sub{font-size:12px;color:var(--ink-500);margin-bottom:16px}
+.ledger table{width:100%;border-collapse:collapse;font-size:12.5px}
+.ledger th{
+  text-align:left;font-size:11px;letter-spacing:.1em;color:var(--ink-400);font-weight:700;
+  padding:8px 10px;border-bottom:1.5px solid var(--line);
+}
+.ledger td{padding:9px 10px;border-bottom:1px dashed var(--line);color:var(--ink-600);vertical-align:top}
+.ledger td:first-child{color:var(--ink-900);font-weight:600;width:34%}
+@media (max-width:640px){
+  .parse-grid,.src-grid,.overview-grid{grid-template-columns:1fr}
+  .level-row{grid-template-columns:repeat(5,1fr)}
+  .board{padding:36px 14px 80px}
+}
+</style>
+</head>
+<body>
+<div class="board">
+
+  <!-- ================= 画布头 ================= -->
+  <header class="board-head">
+    <p class="eyebrow">知己 · C 端模块原型</p>
+    <h1>建档<small>Profile · /profile · 对应核心模块定义 2.1</small></h1>
+    <p class="lede">
+      建档是用户进入产品的第一站：最多 <b>3 份简历档案</b>，档案是备考上下文的顶层归属。
+      有简历就上传解析，没有简历就跟 AI 聊；LLM 从简历和对话里<b>两阶段生成技能条</b>（按域起草 → 逐条锚定考点），用户逐条拍板。
+      产出四样东西：技能条集、目标职级、备考计划、项目素材。<b>建档不答题、不摸底，入口永远没有考试。</b>
+    </p>
+    <ul class="legend">
+      <li><span class="sw pu"></span>墨青 · 主色 / 定稿确认</li>
+      <li><span class="sw cu"></span>铜 · 只承担「刻度 / 待拍板」语义</li>
+      <li><span class="sw d1"></span><span class="sw d2"></span><span class="sw d3"></span><span class="sw d4"></span><span class="sw d5"></span>难度五色（1–5，闯关原型使用）</li>
+    </ul>
+  </header>
+
+  <!-- ================= 模块头 + 流程带 ================= -->
+  <section class="module-head">
+    <p class="eyebrow">模块 01 · PROFILE</p>
+    <h2>建档</h2>
+    <p class="module-lede">流程带即状态机：来源 → 对话/解析 → 技能条逐条拍板 → 职级与计划 → 定稿。画像走「草稿 → 确认 → 定稿」状态机，存在未确认条目时不得定稿。</p>
+  </section>
+
+  <div class="flow-band">
+    <div class="flow-stop"><i>1</i><b>来源</b><span>上传简历 / AI 对话</span></div>
+    <div class="flow-stop"><i>2</i><b>解析 · 对话</b><span>简历抽文本 · 项目素材沉淀</span></div>
+    <div class="flow-stop key"><i>3</i><b>技能条拍板</b><span>两阶段生成 · 逐条确认</span></div>
+    <div class="flow-stop"><i>4</i><b>职级 · 计划</b><span>目标职级五档 · 备考计划</span></div>
+    <div class="flow-stop"><i>5</i><b>定稿</b><span>画像进学习地图</span></div>
+  </div>
+
+  <!-- ================= 屏 01 档案管理 ================= -->
+  <figure class="proto">
+    <figcaption class="cap">
+      <span class="cap-no">屏 01</span>
+      <span class="cap-title">档案管理 · /profile「我的」tab</span>
+      <span class="cap-note">账号 1 : 档案 ≤3 · 切换档案即切换备考上下文，进度互不污染</span>
+    </figcaption>
+    <div class="screen">
+      <div class="app-bar">
+        <div class="brand">
+          <svg width="18" height="18" viewBox="0 0 18 18"><rect x="1" y="2" width="3" height="14" rx="1.2" fill="#0f6d68"/><rect x="6" y="5" width="3" height="11" rx="1.2" fill="#0f6d68" opacity=".66"/><rect x="11" y="8" width="3" height="8" rx="1.2" fill="#0f6d68" opacity=".4"/><rect x="16" y="11" width="1" height="5" rx=".5" fill="#0f6d68" opacity=".22"/></svg>
+          <span class="brand-name">知己</span>
+        </div>
+        <span class="bar-title">我的</span>
+        <div class="bar-right"><span class="avatar-dot">张</span></div>
+      </div>
+      <div class="pg">
+        <div class="pg-head">
+          <span class="k">建档 · PROFILE</span>
+          <h3>我的档案</h3>
+          <p>最多 3 份 · 每份档案一份独立的技能条、计划与学习进度</p>
+        </div>
+
+        <div class="archive-main">
+          <div class="archive-top">
+            <h4>Java 后端 · 8 年经验</h4>
+            <span class="status-chip fin">已定稿</span>
+          </div>
+          <p style="font-size:12.5px;color:var(--ink-500)">当前备考上下文 · 生成关卡、闯关、抽卡、模拟考都挂在这份档案下</p>
+          <div class="archive-sum">
+            <div><b class="num">9</b><span>技能条</span></div>
+            <div><b class="num">34</b><span>锚定考点</span></div>
+            <div><b class="num">资深</b><span>目标职级</span></div>
+            <div><b class="num">2</b><span>项目素材</span></div>
+          </div>
+          <div class="archive-actions">
+            <button class="btn primary sm">进入学习地图</button>
+            <button class="btn ghost sm">编辑建档</button>
+            <button class="btn text sm">备考计划</button>
+          </div>
+        </div>
+
+        <div class="archive-row">
+          <div class="a-name">6 年 Java 后端 · 高级<small>画像草稿 · 技能条 5/7 已拍板</small></div>
+          <span class="status-chip draft">草稿</span>
+          <button class="btn ghost sm">继续建档</button>
+        </div>
+        <div class="archive-row">
+          <div class="a-name">社招演练 · 中级<small>已定稿 · 已生成学习地图</small></div>
+          <button class="btn ghost sm">切换上下文</button>
+        </div>
+        <div class="archive-new">
+          <span>＋ 新建档案</span>
+          <span class="num">已建 2 / 3</span>
+        </div>
+
+        <div class="note-line" style="margin-top:16px">
+          <span class="dot"></span>
+          简历主张的升降级建议写回触发它的那份档案——档案之间互不串写。
+        </div>
+      </div>
+      <nav class="tab-bar">
+        <span class="tab"><svg viewBox="0 0 20 20"><circle cx="5" cy="15" r="1.8"/><circle cx="15" cy="5" r="1.8"/><path d="M6.5 13.8 L13.5 6.2"/></svg>地图</span>
+        <span class="tab"><svg viewBox="0 0 20 20"><rect x="5" y="3" width="10" height="13" rx="2"/><path d="M3.5 6.5 v10 a2 2 0 0 0 2 2 H13"/></svg>抽卡</span>
+        <span class="tab"><svg viewBox="0 0 20 20"><rect x="4" y="3" width="12" height="14" rx="2"/><path d="M7 8 h6 M7 11.5 h6"/></svg>模拟考</span>
+        <span class="tab"><svg viewBox="0 0 20 20"><path d="M16 10 a6 6 0 1 1-2-4.5"/><path d="M14.5 2.5 v3.5 h-3.5"/></svg>复盘</span>
+        <span class="tab on"><svg viewBox="0 0 20 20"><circle cx="10" cy="7" r="3.2"/><path d="M4 17 a6.2 6.2 0 0 1 12 0"/></svg>我的</span>
+      </nav>
+    </div>
+  </figure>
+
+  <!-- ================= 屏 02 来源选择 ================= -->
+  <figure class="proto">
+    <figcaption class="cap">
+      <span class="cap-no">屏 02</span>
+      <span class="cap-title">新建档案 · 来源选择</span>
+      <span class="cap-note">有简历传简历，没简历跟 AI 聊——两条路同一份档案 · 无简历用户建默认档案，流程完全相同</span>
+    </figcaption>
+    <div class="screen">
+      <div class="app-bar">
+        <div class="brand">
+          <svg width="18" height="18" viewBox="0 0 18 18"><rect x="1" y="2" width="3" height="14" rx="1.2" fill="#0f6d68"/><rect x="6" y="5" width="3" height="11" rx="1.2" fill="#0f6d68" opacity=".66"/><rect x="11" y="8" width="3" height="8" rx="1.2" fill="#0f6d68" opacity=".4"/><rect x="16" y="11" width="1" height="5" rx=".5" fill="#0f6d68" opacity=".22"/></svg>
+          <span class="brand-name">知己</span>
+        </div>
+        <span class="bar-title">新建档案</span>
+        <div class="bar-right"><span class="avatar-dot">张</span></div>
+      </div>
+      <div class="pg">
+        <div class="steps">
+          <span class="on">① 来源</span>
+          <span>② 技能条拍板</span>
+          <span>③ 职级 · 计划 · 定稿</span>
+        </div>
+        <div class="pg-head">
+          <span class="k">建档 · 第 1 步</span>
+          <h3>从哪里开始？</h3>
+          <p>之后随时可以补另一条路的内容</p>
+        </div>
+
+        <div class="src-grid">
+          <div class="src-card">
+            <svg viewBox="0 0 34 34"><path d="M17 21 V7"/><path d="M11.5 12.5 L17 7 l5.5 5.5"/><path d="M7 22 v4 a3 3 0 0 0 3 3 h14 a3 3 0 0 0 3-3 v-4"/></svg>
+            <h4>上传简历</h4>
+            <p>点击或拖入文件，解析后逐段预览确认</p>
+            <p class="sub">支持常见文档格式 · 扫描件不支持</p>
+          </div>
+          <div class="src-card">
+            <svg viewBox="0 0 34 34"><path d="M6 8 h22 a3 3 0 0 1 3 3 v9 a3 3 0 0 1-3 3 H15 l-6 5 v-5 H6 a3 3 0 0 1-3-3 v-9 a3 3 0 0 1 3-3 z"/><path d="M10 14.5 h14 M10 18.5 h9"/></svg>
+            <h4>跟 AI 聊</h4>
+            <p>年限、岗位、做什么、用过什么，聊 10 分钟就够</p>
+            <p class="sub">聊到的项目细节会自动沉淀为项目素材</p>
+          </div>
+        </div>
+
+        <div class="no-exam">建档<b>不答题、不摸底</b>——这里永远没有考试，放心聊、放心传。</div>
+      </div>
+      <nav class="tab-bar">
+        <span class="tab"><svg viewBox="0 0 20 20"><circle cx="5" cy="15" r="1.8"/><circle cx="15" cy="5" r="1.8"/><path d="M6.5 13.8 L13.5 6.2"/></svg>地图</span>
+        <span class="tab"><svg viewBox="0 0 20 20"><rect x="5" y="3" width="10" height="13" rx="2"/><path d="M3.5 6.5 v10 a2 2 0 0 0 2 2 H13"/></svg>抽卡</span>
+        <span class="tab"><svg viewBox="0 0 20 20"><rect x="4" y="3" width="12" height="14" rx="2"/><path d="M7 8 h6 M7 11.5 h6"/></svg>模拟考</span>
+        <span class="tab"><svg viewBox="0 0 20 20"><path d="M16 10 a6 6 0 1 1-2-4.5"/><path d="M14.5 2.5 v3.5 h-3.5"/></svg>复盘</span>
+        <span class="tab on"><svg viewBox="0 0 20 20"><circle cx="10" cy="7" r="3.2"/><path d="M4 17 a6.2 6.2 0 0 1 12 0"/></svg>我的</span>
+      </nav>
+    </div>
+  </figure>
+
+  <!-- ================= 屏 03 简历解析 ================= -->
+  <figure class="proto">
+    <figcaption class="cap">
+      <span class="cap-no">屏 03</span>
+      <span class="cap-title">简历解析 · 预览确认</span>
+      <span class="cap-note">解析文本只用于起草技能条 · 不进知识库 · 扫描件明确报错不静默</span>
+    </figcaption>
+    <div class="screen">
+      <div class="app-bar">
+        <div class="brand">
+          <svg width="18" height="18" viewBox="0 0 18 18"><rect x="1" y="2" width="3" height="14" rx="1.2" fill="#0f6d68"/><rect x="6" y="5" width="3" height="11" rx="1.2" fill="#0f6d68" opacity=".66"/><rect x="11" y="8" width="3" height="8" rx="1.2" fill="#0f6d68" opacity=".4"/><rect x="16" y="11" width="1" height="5" rx=".5" fill="#0f6d68" opacity=".22"/></svg>
+          <span class="brand-name">知己</span>
+        </div>
+        <span class="bar-title">新建档案</span>
+        <div class="bar-right"><span class="avatar-dot">张</span></div>
+      </div>
+      <div class="pg">
+        <div class="steps">
+          <span class="on">① 来源</span>
+          <span>② 技能条拍板</span>
+          <span>③ 职级 · 计划 · 定稿</span>
+        </div>
+
+        <div class="file-card">
+          <span class="file-ico"><svg viewBox="0 0 18 18"><path d="M4 2 h7 l3.5 3.5 V16 H4 z"/><path d="M11 2 v3.5 h3.5"/></svg></span>
+          <div class="f-meta"><b>张三_Java后端_8年.pdf</b><span>1.2 MB · 解析完成</span></div>
+          <span class="chip brand">✓ 已解析</span>
+        </div>
+
+        <div class="parse-grid">
+          <div class="parse-col">
+            <h5>简历原文（节选）</h5>
+            <div class="parse-doc">
+              8 年 Java 后端经验，主导 3 个 Spring Cloud 微服务项目从 0 到 1……
+              负责电商订单<em>分库分表改造</em>，<em>16 库 256 表</em>，高峰 <em>QPS 3.2 万</em>，
+              查询 P99 从 800ms 降至 120ms……熟悉 Redis 高可用、缓存一致性……
+            </div>
+          </div>
+          <div class="parse-col">
+            <h5>AI 整理 · 待你确认</h5>
+            <ul class="parse-facts">
+              <li><span>工作年限</span><b>8 年</b></li>
+              <li><span>主栈</span><b>Spring Cloud / MySQL / Redis</b></li>
+              <li><span>项目经历</span><b>3 个（可展开）</b></li>
+              <li><span>目标职级</span><b class="todo">未识别 · 下一步让你定</b></li>
+            </ul>
+          </div>
+        </div>
+
+        <div class="note-line" style="margin-bottom:16px">
+          <span class="dot"></span>
+          识别错的内容可以直接改——这份解析文本只是草稿原料，不会原样进任何库。
+        </div>
+        <button class="btn primary" style="width:100%">看起来没错，开始生成技能条</button>
+      </div>
+      <nav class="tab-bar">
+        <span class="tab"><svg viewBox="0 0 20 20"><circle cx="5" cy="15" r="1.8"/><circle cx="15" cy="5" r="1.8"/><path d="M6.5 13.8 L13.5 6.2"/></svg>地图</span>
+        <span class="tab"><svg viewBox="0 0 20 20"><rect x="5" y="3" width="10" height="13" rx="2"/><path d="M3.5 6.5 v10 a2 2 0 0 0 2 2 H13"/></svg>抽卡</span>
+        <span class="tab"><svg viewBox="0 0 20 20"><rect x="4" y="3" width="12" height="14" rx="2"/><path d="M7 8 h6 M7 11.5 h6"/></svg>模拟考</span>
+        <span class="tab"><svg viewBox="0 0 20 20"><path d="M16 10 a6 6 0 1 1-2-4.5"/><path d="M14.5 2.5 v3.5 h-3.5"/></svg>复盘</span>
+        <span class="tab on"><svg viewBox="0 0 20 20"><circle cx="10" cy="7" r="3.2"/><path d="M4 17 a6.2 6.2 0 0 1 12 0"/></svg>我的</span>
+      </nav>
+    </div>
+  </figure>
+
+  <!-- ================= 屏 04 AI 对话建档 ================= -->
+  <figure class="proto">
+    <figcaption class="cap">
+      <span class="cap-no">屏 04</span>
+      <span class="cap-title">AI 对话建档 · 无简历路径</span>
+      <span class="cap-note">聊年限 / 岗位 / 做什么 / 用过什么 · 数字、冲突、结果自动沉淀为项目素材（user_case）</span>
+    </figcaption>
+    <div class="screen">
+      <div class="app-bar">
+        <div class="brand">
+          <svg width="18" height="18" viewBox="0 0 18 18"><rect x="1" y="2" width="3" height="14" rx="1.2" fill="#0f6d68"/><rect x="6" y="5" width="3" height="11" rx="1.2" fill="#0f6d68" opacity=".66"/><rect x="11" y="8" width="3" height="8" rx="1.2" fill="#0f6d68" opacity=".4"/><rect x="16" y="11" width="1" height="5" rx=".5" fill="#0f6d68" opacity=".22"/></svg>
+          <span class="brand-name">知己</span>
+        </div>
+        <span class="bar-title">新建档案</span>
+        <div class="bar-right"><span class="avatar-dot">张</span></div>
+      </div>
+      <div class="pg">
+        <div class="steps">
+          <span class="on">① 来源</span>
+          <span>② 技能条拍板</span>
+          <span>③ 职级 · 计划 · 定稿</span>
+        </div>
+
+        <div class="chat-wrap">
+          <div class="msg ai">先认识一下——做后端几年了？现在的岗位和主要技术栈是什么？</div>
+          <div class="msg me">8 年 Java。Spring Cloud 微服务那一套，MySQL、Redis 用得最多，最近一年在搞 ES 和分库分表。</div>
+          <div class="msg ai">好。挑一个你最有底气的项目：做了什么、最难的地方在哪、结果怎么样？</div>
+          <div class="msg me">电商订单的分库分表改造。切了 16 库 256 表，最难的坑是跨库分页和聚合，高峰 QPS 3.2 万，改造后查询 P99 从 800ms 降到 120ms。</div>
+          <div class="case-card">
+            <div class="cc-tag">已沉淀 · 项目素材</div>
+            <b>订单分库分表改造</b>
+            <ul>
+              <li><i>数字</i>16 库 256 表 · QPS 峰值 3.2 万 · P99 800→120ms</li>
+              <li><i>冲突</i>跨库分页与聚合的两种路由方案取舍</li>
+              <li><i>结果</i>平滑双写迁移上线，零故障切换</li>
+            </ul>
+          </div>
+          <div class="msg ai">聊到这儿骨架有了。我按知识库整理了 9 条技能条，接下来逐条确认——不熟的删掉，漏掉的加上，措辞不准的改掉。</div>
+        </div>
+
+        <div class="chat-input">
+          <div class="box">说点什么……</div>
+          <span class="send"><svg viewBox="0 0 16 16"><path d="M8 13 V3"/><path d="M3.5 7.5 L8 3 l4.5 4.5"/></svg></span>
+        </div>
+        <div class="sug-chips">
+          <span class="chip">说说最近一个项目</span>
+          <span class="chip">平时用过哪些中间件</span>
+          <span class="chip">带过团队吗</span>
+        </div>
+      </div>
+      <nav class="tab-bar">
+        <span class="tab"><svg viewBox="0 0 20 20"><circle cx="5" cy="15" r="1.8"/><circle cx="15" cy="5" r="1.8"/><path d="M6.5 13.8 L13.5 6.2"/></svg>地图</span>
+        <span class="tab"><svg viewBox="0 0 20 20"><rect x="5" y="3" width="10" height="13" rx="2"/><path d="M3.5 6.5 v10 a2 2 0 0 0 2 2 H13"/></svg>抽卡</span>
+        <span class="tab"><svg viewBox="0 0 20 20"><rect x="4" y="3" width="12" height="14" rx="2"/><path d="M7 8 h6 M7 11.5 h6"/></svg>模拟考</span>
+        <span class="tab"><svg viewBox="0 0 20 20"><path d="M16 10 a6 6 0 1 1-2-4.5"/><path d="M14.5 2.5 v3.5 h-3.5"/></svg>复盘</span>
+        <span class="tab on"><svg viewBox="0 0 20 20"><circle cx="10" cy="7" r="3.2"/><path d="M4 17 a6.2 6.2 0 0 1 12 0"/></svg>我的</span>
+      </nav>
+    </div>
+  </figure>
+
+  <!-- ================= 屏 05 技能条拍板 ================= -->
+  <figure class="proto">
+    <figcaption class="cap">
+      <span class="cap-no">屏 05</span>
+      <span class="cap-title">技能条拍板 · 两阶段生成</span>
+      <span class="cap-note">左侧竖线虚→实 = 待拍板→已确认 · 锚定考点即授权数据源 · 未拍板完不能定稿</span>
+    </figcaption>
+    <div class="screen">
+      <div class="app-bar">
+        <div class="brand">
+          <svg width="18" height="18" viewBox="0 0 18 18"><rect x="1" y="2" width="3" height="14" rx="1.2" fill="#0f6d68"/><rect x="6" y="5" width="3" height="11" rx="1.2" fill="#0f6d68" opacity=".66"/><rect x="11" y="8" width="3" height="8" rx="1.2" fill="#0f6d68" opacity=".4"/><rect x="16" y="11" width="1" height="5" rx=".5" fill="#0f6d68" opacity=".22"/></svg>
+          <span class="brand-name">知己</span>
+        </div>
+        <span class="bar-title">新建档案</span>
+        <div class="bar-right"><span class="avatar-dot">张</span></div>
+      </div>
+      <div class="pg">
+        <div class="steps">
+          <span class="done">① 来源 ✓</span>
+          <span class="on">② 技能条拍板</span>
+          <span>③ 职级 · 计划 · 定稿</span>
+        </div>
+
+        <div class="phase-note">
+          <span class="dot" style="margin-top:6px"></span>
+          <span><b>LLM 两阶段生成：</b>① 按技能域起草条目 → ② 逐条锚定知识库考点。<b>锚定集就是授权数据源</b>——学习地图裁剪、模拟考简历主张存活率都认它。幻觉考点会被结构校验拦下，你看到的锚定全部真实存在。</span>
+        </div>
+
+        <div class="state-track">
+          <span class="st done"><i>1</i>草稿</span>
+          <span class="st-line"></span>
+          <span class="st now"><i>2</i>确认</span>
+          <span class="st-line"></span>
+          <span class="st"><i>3</i>定稿</span>
+        </div>
+
+        <div class="confirm-progress">
+          <span class="num" style="font-weight:700;color:var(--primary)">7 / 9</span>
+          <div class="bar"><i style="width:78%"></i></div>
+          <span>全部拍板后才能定稿</span>
+        </div>
+
+        <div class="domain-block">
+          <h5>JAVA 主场景 · 2 条</h5>
+          <div class="skill-line ok">
+            <div class="skill-head">
+              <div class="s-text">8 年 Java 后端，主导 3 个 Spring Cloud 微服务从 0 到 1</div>
+              <div class="skill-ops">
+                <span class="mini ok">已确认</span>
+                <span class="mini">改措辞</span>
+              </div>
+            </div>
+            <div class="anchors">
+              <div class="a-label">锚定 <b>4</b> 个考点</div>
+              <div class="anchor-chips">
+                <span class="kp">Spring Bean 生命周期</span>
+                <span class="kp">循环依赖与三级缓存</span>
+                <span class="kp">Spring Cloud 链路追踪</span>
+                <span class="kp">微服务拆分原则</span>
+              </div>
+            </div>
+          </div>
+          <div class="skill-line">
+            <div class="skill-head">
+              <div class="s-text">主导电商订单分库分表改造（16 库 256 表，高峰 QPS 3.2 万）</div>
+              <div class="skill-ops">
+                <span class="mini">确认</span>
+                <span class="mini">删掉</span>
+              </div>
+            </div>
+            <div class="edit-box">
+              <textarea rows="2">主导电商订单分库分表改造（16 库 256 表，查询 P99 从 800ms 降到 120ms）</textarea>
+              <div class="e-ops">
+                <span class="mini">取消</span>
+                <span class="mini ok">保存措辞</span>
+              </div>
+            </div>
+            <div class="soft-note"><i>数字</i>事实数字取自项目素材原文，只修措辞、不过分改写</div>
+          </div>
+        </div>
+
+        <div class="domain-block">
+          <h5>数据存储 · 2 条</h5>
+          <div class="skill-line">
+            <div class="skill-head">
+              <div class="s-text">熟悉 Redis 高可用，生产环境处理过缓存一致性、热 key 与大 key</div>
+              <div class="skill-ops">
+                <span class="mini">确认</span>
+                <span class="mini">改措辞</span>
+                <span class="mini">删掉</span>
+              </div>
+            </div>
+          </div>
+          <div class="skill-line">
+            <div class="skill-head">
+              <div class="s-text">带过 4 人小团队，负责方案评审与 code review</div>
+              <div class="skill-ops">
+                <span class="mini">确认</span>
+                <span class="mini">删掉</span>
+              </div>
+            </div>
+            <div class="soft-note">这条没有可锚定的考点 <i>软素质条 · 不计入简历主张存活率</i></div>
+          </div>
+          <div class="add-line">＋ 补一条（漏掉的加上）</div>
+        </div>
+
+        <button class="btn primary" style="width:100%">还剩 2 条，拍完去定稿</button>
+      </div>
+      <nav class="tab-bar">
+        <span class="tab"><svg viewBox="0 0 20 20"><circle cx="5" cy="15" r="1.8"/><circle cx="15" cy="5" r="1.8"/><path d="M6.5 13.8 L13.5 6.2"/></svg>地图</span>
+        <span class="tab"><svg viewBox="0 0 20 20"><rect x="5" y="3" width="10" height="13" rx="2"/><path d="M3.5 6.5 v10 a2 2 0 0 0 2 2 H13"/></svg>抽卡</span>
+        <span class="tab"><svg viewBox="0 0 20 20"><rect x="4" y="3" width="12" height="14" rx="2"/><path d="M7 8 h6 M7 11.5 h6"/></svg>模拟考</span>
+        <span class="tab"><svg viewBox="0 0 20 20"><path d="M16 10 a6 6 0 1 1-2-4.5"/><path d="M14.5 2.5 v3.5 h-3.5"/></svg>复盘</span>
+        <span class="tab on"><svg viewBox="0 0 20 20"><circle cx="10" cy="7" r="3.2"/><path d="M4 17 a6.2 6.2 0 0 1 12 0"/></svg>我的</span>
+      </nav>
+    </div>
+  </figure>
+
+  <!-- ================= 屏 06 职级与计划 ================= -->
+  <figure class="proto">
+    <figcaption class="cap">
+      <span class="cap-no">屏 06</span>
+      <span class="cap-title">目标职级 + 备考计划</span>
+      <span class="cap-note">五档：初级 / 中级 / 高级 / 资深 / 专家 · 没说就按年限推测缺省值，随时可改 · 32 岁面中级岗，全套按中级复习，完全合法</span>
+    </figcaption>
+    <div class="screen">
+      <div class="app-bar">
+        <div class="brand">
+          <svg width="18" height="18" viewBox="0 0 18 18"><rect x="1" y="2" width="3" height="14" rx="1.2" fill="#0f6d68"/><rect x="6" y="5" width="3" height="11" rx="1.2" fill="#0f6d68" opacity=".66"/><rect x="11" y="8" width="3" height="8" rx="1.2" fill="#0f6d68" opacity=".4"/><rect x="16" y="11" width="1" height="5" rx=".5" fill="#0f6d68" opacity=".22"/></svg>
+          <span class="brand-name">知己</span>
+        </div>
+        <span class="bar-title">新建档案</span>
+        <div class="bar-right"><span class="avatar-dot">张</span></div>
+      </div>
+      <div class="pg">
+        <div class="steps">
+          <span class="done">① 来源 ✓</span>
+          <span class="done">② 技能条拍板 ✓</span>
+          <span class="on">③ 职级 · 计划 · 定稿</span>
+        </div>
+
+        <div class="pg-head">
+          <span class="k">建档 · 最后一步</span>
+          <h3>尺子定多深？</h3>
+        </div>
+
+        <div class="level-row">
+          <div class="level-cell"><b>初级</b><span>junior</span></div>
+          <div class="level-cell"><b>中级</b><span>mid</span></div>
+          <div class="level-cell"><b>高级</b><span>senior</span></div>
+          <div class="level-cell sel"><b>资深</b><span>staff</span></div>
+          <div class="level-cell"><b>专家</b><span>expert</span></div>
+        </div>
+        <div class="guess-tip">
+          你没提目标职级，按工作年限默认推测「高级」——你改成了「资深」，全套按资深深度练。
+          <span class="undo">改回去</span>
+        </div>
+        <p class="depth-note"><b>目标职级是全链路的深度标尺</b>：过关讲到第几层算够、基础关卡组的组成、模拟考的下钻深度，都由它推导。随时可以改。</p>
+
+        <div class="plan-card">
+          <h5>备考计划</h5>
+          <div class="plan-field">
+            <label>目标岗位</label>
+            <div class="ipt">资深 Java 后端</div>
+          </div>
+          <div class="plan-field">
+            <label>目标 JD（粘贴后用于关卡裁剪，可留空）</label>
+            <div class="ipt placeholder">把心仪岗位的 JD 全文贴进来……</div>
+          </div>
+          <div class="plan-field">
+            <label>备考周期</label>
+            <div class="chip-row">
+              <span class="chip">4 周</span>
+              <span class="chip sel">6 周</span>
+              <span class="chip">8 周</span>
+              <span class="chip">自定义</span>
+            </div>
+          </div>
+          <div class="plan-field" style="margin-bottom:0">
+            <label>每天能投入</label>
+            <div class="chip-row">
+              <span class="chip">30 分钟</span>
+              <span class="chip sel">1 小时</span>
+              <span class="chip">2 小时</span>
+            </div>
+          </div>
+        </div>
+
+        <button class="btn primary" style="width:100%">定稿画像</button>
+      </div>
+      <nav class="tab-bar">
+        <span class="tab"><svg viewBox="0 0 20 20"><circle cx="5" cy="15" r="1.8"/><circle cx="15" cy="5" r="1.8"/><path d="M6.5 13.8 L13.5 6.2"/></svg>地图</span>
+        <span class="tab"><svg viewBox="0 0 20 20"><rect x="5" y="3" width="10" height="13" rx="2"/><path d="M3.5 6.5 v10 a2 2 0 0 0 2 2 H13"/></svg>抽卡</span>
+        <span class="tab"><svg viewBox="0 0 20 20"><rect x="4" y="3" width="12" height="14" rx="2"/><path d="M7 8 h6 M7 11.5 h6"/></svg>模拟考</span>
+        <span class="tab"><svg viewBox="0 0 20 20"><path d="M16 10 a6 6 0 1 1-2-4.5"/><path d="M14.5 2.5 v3.5 h-3.5"/></svg>复盘</span>
+        <span class="tab on"><svg viewBox="0 0 20 20"><circle cx="10" cy="7" r="3.2"/><path d="M4 17 a6.2 6.2 0 0 1 12 0"/></svg>我的</span>
+      </nav>
+    </div>
+  </figure>
+
+  <!-- ================= 屏 07 定稿总览 ================= -->
+  <figure class="proto">
+    <figcaption class="cap">
+      <span class="cap-no">屏 07</span>
+      <span class="cap-title">画像定稿 · 档案总览</span>
+      <span class="cap-note">存在未确认条目时不得定稿 · 未定稿的画像不参与生成关卡 · 产出全部归属当前档案</span>
+    </figcaption>
+    <div class="screen">
+      <div class="app-bar">
+        <div class="brand">
+          <svg width="18" height="18" viewBox="0 0 18 18"><rect x="1" y="2" width="3" height="14" rx="1.2" fill="#0f6d68"/><rect x="6" y="5" width="3" height="11" rx="1.2" fill="#0f6d68" opacity=".66"/><rect x="11" y="8" width="3" height="8" rx="1.2" fill="#0f6d68" opacity=".4"/><rect x="16" y="11" width="1" height="5" rx=".5" fill="#0f6d68" opacity=".22"/></svg>
+          <span class="brand-name">知己</span>
+        </div>
+        <span class="bar-title">我的档案</span>
+        <div class="bar-right"><span class="avatar-dot">张</span></div>
+      </div>
+      <div class="pg">
+        <div class="state-track">
+          <span class="st done"><i>✓</i>草稿</span>
+          <span class="st-line"></span>
+          <span class="st done"><i>✓</i>确认</span>
+          <span class="st-line"></span>
+          <span class="st fin"><i>3</i>定稿</span>
+        </div>
+
+        <div class="pg-head">
+          <span class="k">建档 · 完成</span>
+          <h3>「Java 后端 · 8 年经验」已定稿</h3>
+          <p>个人态全部挂这份档案 · 进度互不污染</p>
+        </div>
+
+        <div class="overview-grid">
+          <div class="ov-card">
+            <h5>技能条 · 9 条</h5>
+            <div class="big num">34 <small style="font-size:12px;font-weight:400;color:var(--ink-500)">个锚定考点</small></div>
+            <p>Java 主场景 2 · 数据存储 3 · 中间件 2 · 分布式 2 · 软素质 1 条（不进存活率）</p>
+          </div>
+          <div class="ov-card">
+            <h5>目标职级</h5>
+            <div class="big">资深</div>
+            <p>基础关卡组按资深必问组卷 · 过关讲到第 3 层算够（随知识点而异）</p>
+          </div>
+          <div class="ov-card">
+            <h5>备考计划</h5>
+            <div class="big">6 周 · 每日 1 小时</div>
+            <p>目标岗位：资深 Java 后端 · 已对照 1 份 JD</p>
+          </div>
+          <div class="ov-card">
+            <h5>项目素材 · 2 个</h5>
+            <div class="case-mini"><b>订单分库分表改造</b> · 六要素齐备</div>
+            <div class="case-mini"><b>秒杀链路重构</b> · <span class="miss">缺「结果」一项，建议补</span></div>
+          </div>
+        </div>
+
+        <div class="finish-cta">
+          <button class="btn primary">生成学习地图 →</button>
+          <p>画像定稿才参与生成关卡；职级与计划之后随时可改，改完重开地图，练习进度不会动。</p>
+        </div>
+      </div>
+      <nav class="tab-bar">
+        <span class="tab"><svg viewBox="0 0 20 20"><circle cx="5" cy="15" r="1.8"/><circle cx="15" cy="5" r="1.8"/><path d="M6.5 13.8 L13.5 6.2"/></svg>地图</span>
+        <span class="tab"><svg viewBox="0 0 20 20"><rect x="5" y="3" width="10" height="13" rx="2"/><path d="M3.5 6.5 v10 a2 2 0 0 0 2 2 H13"/></svg>抽卡</span>
+        <span class="tab"><svg viewBox="0 0 20 20"><rect x="4" y="3" width="12" height="14" rx="2"/><path d="M7 8 h6 M7 11.5 h6"/></svg>模拟考</span>
+        <span class="tab"><svg viewBox="0 0 20 20"><path d="M16 10 a6 6 0 1 1-2-4.5"/><path d="M14.5 2.5 v3.5 h-3.5"/></svg>复盘</span>
+        <span class="tab on"><svg viewBox="0 0 20 20"><circle cx="10" cy="7" r="3.2"/><path d="M4 17 a6.2 6.2 0 0 1 12 0"/></svg>我的</span>
+      </nav>
+    </div>
+  </figure>
+
+  <!-- ================= 口径对照表 ================= -->
+  <footer class="ledger">
+    <h3>口径对照 · 设计元素 ↔ 核心模块定义 2.1 / 技能库PRD</h3>
+    <p class="sub">原型中每一个非常规元素都有产品条款出处，评审时逐条核对；实现时以现行文档为准。</p>
+    <table>
+      <tr><th>设计元素</th><th>口径出处</th></tr>
+      <tr><td>「已建 2 / 3」新建档案位</td><td>账号 1 : 档案 ≤3（user_profile，附录 A）</td></tr>
+      <tr><td>档案卡状态徽标「草稿 / 已定稿」+ 三站轨道</td><td>画像状态机 draft → confirmed → finalized（user_profile.skill_status）；存在未确认条目不得定稿，未定稿不参与生成关卡</td></tr>
+      <tr><td>「跟 AI 聊」入口与上传并列</td><td>无简历用户同样建档，档案形态为不含简历原件的默认档案，其余流程完全相同</td></tr>
+      <tr><td>对话中浮出「项目素材卡」（数字 / 冲突 / 结果）</td><td>对话里聊到的项目细节沉淀为 user_case，后续是项目叙事与模拟考追问的原料</td></tr>
+      <tr><td>技能条左侧虚线→实线；「确认 / 改措辞 / 删掉 / 补一条」</td><td>LLM 两阶段生成 + 用户逐条拍板：不熟的删掉、漏掉的加上、措辞不准的改掉（技能库PRD）</td></tr>
+      <tr><td>锚定考点 chips「锚定集就是授权数据源」</td><td>user_skill_kp 锚定关联（D30）；授权推导、存活率定义域；幻觉考点被结构校验拒绝</td></tr>
+      <tr><td>「软素质条 · 不计入简历主张存活率」</td><td>0 锚定条标记不进存活率定义域（核心模块定义 3.1）</td></tr>
+      <tr><td>「事实数字只修措辞、不过分改写」</td><td>技能条事实数字按不过分干预口径处理（技能库PRD 4.3）</td></tr>
+      <tr><td>职级五档 + 「按年限推测，可改」提示</td><td>level_target CHECK 五档；没说就按年限推测缺省值，用户随时可改（年限→职级映射表为待办，实现前定稿）</td></tr>
+      <tr><td>「建档不答题、不摸底——这里永远没有考试」</td><td>建档不答题、不摸底，入口永远没有考试（2.1 边界）</td></tr>
+      <tr><td>解析预览「AI 整理 · 待你确认」+ 可直接改</td><td>简历上传解析先行人工预览；解析文本只是技能条草稿原料</td></tr>
+      <tr><td>定稿页 CTA「生成学习地图 →」</td><td>建档与生成关卡的模块衔接点；档案切换即上下文切换、进度互不污染</td></tr>
+    </table>
+  </footer>
+
+</div>
+</body>
+</html>

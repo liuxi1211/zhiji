@@ -7,8 +7,14 @@ import type {
   KpForwardStatus,
   KpListItem,
   KpMeta,
-  KpSavePayload
+  KpSavePayload,
+  ShareKpDetail
 } from './types'
+
+/** 知识卡分享公开接口：无鉴权只读（request.ts 的 /share/ 前缀不带 token） */
+export async function getShareKp(kpId: number): Promise<ShareKpDetail> {
+  return (await request.get<ShareKpDetail>(`/share/kp/${kpId}`)).data
+}
 
 export async function listClusters(params?: {
   domainId?: number

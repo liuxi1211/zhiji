@@ -50,6 +50,11 @@ public class LlmUsageService {
         return usageMapper.sumByDate(today());
     }
 
+    /** C 端消费类当日合计（D32 护栏口径：不含 B 端生产类 profile_id=0 哨兵）。 */
+    public long todayCustomerTotal() {
+        return usageMapper.sumCustomerByDate(today());
+    }
+
     public List<LlmUsageDaily> todayRows() {
         return usageMapper.listByDate(today());
     }

@@ -86,7 +86,7 @@ export interface ApiError {
   fields?: Record<string, string>
 }
 
-/** LLM 调用入口（用途）：业务按用途调用，不认具体模型名（核心模块定义 4.2） */
+/** LLM 调用入口（用途）：业务按用途调用，不认具体模型名（核心模块定义 4.2；T6 新增 B 端生产类三项） */
 export type LlmPurpose =
   | 'judge_practice'
   | 'judge_gacha'
@@ -99,6 +99,9 @@ export type LlmPurpose =
   | 'cluster_dedup'
   | 'ai_compose'
   | 'embedding'
+  | 'doc_form_detect'
+  | 'question_gen'
+  | 'interview_extract'
 
 /** 单条模型路由目标：provider 名对应后端 zhiji.llm.providers 的 key */
 export interface LlmRouteTargetView {
@@ -114,6 +117,8 @@ export interface LlmLimitsView {
   variantRewriteDaily: number
   perProfileDailyTotal: number
   siteDailyTotal: number
+  /** D32：全站熔断护栏开关（默认关闭；启用后仅统计 C 端消费类） */
+  siteCircuitEnabled: boolean
 }
 
 export interface LlmSettingsView {
@@ -311,4 +316,91 @@ export interface KpSavePayload {
 export interface KpMeta {
   domains: { id: number; name: string; status: DomainStatus; kpCount: number }[]
   clusters: { id: number; name: string; domainId: number; status: KpStatus }[]
+}
+
+/**
+ * 知识卡分享公开视图（知识库PRD 7.5）：GET /api/share/kp/{kpId} 无鉴权返回。
+ * 红线：只含 active 库内容，不含 levelReq / rubric（评分要点）与任何个人数据。
+ */
+export interface ShareKpDetail {
+  id: number
+  title: string
+  subType: SubType
+  difficulty: number
+  variants: string[]
+  narrativeFramework: string | null
+  followups: KpFollowup[]
+  samples: KpSampleSet
+  domainName: string | null
+  clusterName: string | null
+  zeroShotMd: string | null
+  referenceSolutionMd: string | null
+}
+
+/* ================= 素材库（pipeline，T6）================= */
+
+/** 素材内容形态（决策清单 D22 三分类路由） */
+export type SourceForm = 'question_bank' | 'reading' | 'interview'
+
+/** 素材文档状态机（附录 A 8.2 source_doc_status） */
+export type SourceDocStatus = 'pending' | 'parsed' | 'parse_failed' | 'split'
+
+/** 候选条目状态机（附录 A 8.2 candidate_status） */
+export type CandidateStatus = 'pending' | 'matched' | 'converting' | 'converted' | 'merged' | 'discarded'
+
+export interface ParsedHeading {
+  level: number
+  title: string
+  line: number
+}
+
+/** 素材文档视图：rawText 只在详情接口返回（列表为 null） */
+export interface SourceDocView {
+  id: number
+  batchId: string
+  fileName: string
+  sourceRef: string | null
+  form: SourceForm | null
+  status: SourceDocStatus
+  parseError: string | null
+  charCount: number
+  headingTree: string | null
+  rawText: string | null
+  createdAt: string
+  updatedAt: string
+}
+
+/** 批次聚合（批次面板：文件数 / 各状态计数 / 失败清单） */
+export interface BatchSummary {
+  batchId: string
+  fileCount: number
+  pendingCount: number
+  parsedCount: number
+  failedCount: number
+  splitCount: number
+  createdAt: string
+  failures: { id: number; fileName: string; error: string }[]
+}
+
+/** 候选条目视图（拆题产物，溯源回素材文档） */
+export interface CandidateItem {
+  id: number
+  docId: number
+  batchId: string
+  title: string
+  answerEvidence: string | null
+  sectionPath: string | null
+  form: SourceForm
+  status: CandidateStatus
+  confidence: 'high' | 'low' | null
+  note: string | null
+}
+
+export interface DocDetail {
+  doc: SourceDocView
+  candidates: CandidateItem[]
+}
+
+export interface SplitOutcome {
+  inserted: number
 }

@@ -49,7 +49,8 @@ public class SettingsController {
             @Min(value = 0, message = "判定限额不能为负") int judgeDaily,
             @Min(value = 0, message = "变体改写限额不能为负") int variantRewriteDaily,
             @Min(value = 0, message = "单档案合计限额不能为负") int perProfileDailyTotal,
-            @Min(value = 0, message = "全站熔断阈值不能为负") int siteDailyTotal) {
+            @Min(value = 0, message = "全站护栏阈值不能为负") int siteDailyTotal,
+            boolean siteCircuitEnabled) {
     }
 
     /**
@@ -83,7 +84,7 @@ public class SettingsController {
     @PutMapping("/limits")
     public SettingsView updateLimits(@Valid @RequestBody LimitsReq req) {
         configService.saveLimits(new LlmLimits(req.judgeDaily(), req.variantRewriteDaily(),
-                req.perProfileDailyTotal(), req.siteDailyTotal()));
+                req.perProfileDailyTotal(), req.siteDailyTotal(), req.siteCircuitEnabled()));
         return get();
     }
 
@@ -117,8 +118,11 @@ public class SettingsController {
         }
         long todayTotal = usageService.todayTotal();
         long peakProfileTotal = totalByProfile.values().stream().mapToLong(Long::longValue).max().orElse(0L);
+        // D32：circuitOpen 以可选护栏开关为前提，且只统计 C 端消费类计数（不含 B 端生产类哨兵行）
+        long customerTotal = usageService.todayCustomerTotal();
+        boolean circuitOpen = limits.siteCircuitEnabled() && customerTotal >= limits.siteDailyTotal();
         return new UsageView(usageService.today(), rows, todayTotal, limits.siteDailyTotal(),
-                todayTotal >= limits.siteDailyTotal(), peakProfileTotal, limits.perProfileDailyTotal(),
+                circuitOpen, peakProfileTotal, limits.perProfileDailyTotal(),
                 peakProfileTotal >= limits.perProfileDailyTotal(), recentDaily());
     }
 

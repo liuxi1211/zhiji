@@ -23,7 +23,6 @@ interface AdminMenuGroup {
 /* 菜单线性图标：静态内置字符串（非用户输入），v-html 安全；风格对齐 LearnLayout 的手绘线性图标 */
 const MENU_ICONS: Record<string, string> = {
   dashboard: '<rect x="4" y="4" width="7" height="7" rx="1.5"/><rect x="13" y="4" width="7" height="7" rx="1.5"/><rect x="4" y="13" width="7" height="7" rx="1.5"/><path d="M16.5 13.5v6M13.5 16.5h6"/>',
-  skills: '<path d="M12 3.5 20 8l-8 4.5L4 8l8-4.5Z"/><path d="m4 12.5 8 4.5 8-4.5"/><path d="m4 16.5 8 4.5 8-4.5"/>',
   kp: '<path d="M6 3.5h9l4 4V20a.5.5 0 0 1-.5.5h-12A.5.5 0 0 1 6 20Z"/><path d="M15 3.5V8h4M9 12.5h6M9 16h4"/>',
   docs: '<path d="M4 6.5A1.5 1.5 0 0 1 5.5 5H10l2 2.5h6.5A1.5 1.5 0 0 1 20 9v9a1.5 1.5 0 0 1-1.5 1.5h-13A1.5 1.5 0 0 1 4 18V6.5Z"/>',
   candidates: '<path d="M4.5 5h15l-6 7v6l-3 1.5V12l-6-7Z"/>',
@@ -41,10 +40,7 @@ const menuGroups: AdminMenuGroup[] = [
   },
   {
     label: '内容资产',
-    items: [
-      { path: '/admin/skills', label: '技能库', icon: 'skills' },
-      { path: '/admin/kp', label: '知识点管理', icon: 'kp' }
-    ]
+    items: [{ path: '/admin/kp', label: '知识点管理', icon: 'kp' }]
   },
   {
     label: '内容生产',

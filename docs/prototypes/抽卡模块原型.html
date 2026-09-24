@@ -1,0 +1,854 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>知己 · C 端原型 — 抽卡</title>
+<style>
+:root{
+  --primary:#0f6d68; --primary-2:#0d5c57; --primary-soft:#e8f2f1;
+  --copper:#b4741f; --copper-soft:#f7efe1;
+  --ink-900:#14201f; --ink-700:#3b4746; --ink-600:#596565; --ink-500:#6b7776; --ink-400:#98a3a2;
+  --line:#e3e8e7; --paper:#f5f7f6; --surface:#fff;
+  --d1:#8b93a7; --d2:#2e9e6b; --d3:#b98a06; --d4:#d96f28; --d5:#d64545;
+  --mono:ui-monospace,"Cascadia Mono","SF Mono",Consolas,monospace;
+}
+*{box-sizing:border-box;margin:0;padding:0}
+html{-webkit-text-size-adjust:100%}
+body{
+  font-family:-apple-system,BlinkMacSystemFont,"PingFang SC","Hiragino Sans GB","Microsoft YaHei","Segoe UI",sans-serif;
+  background:#e7ecea; color:var(--ink-900); font-size:14px; line-height:1.65;
+}
+.num{font-family:var(--mono);font-variant-numeric:tabular-nums}
+
+/* ============ 画布 ============ */
+.board{max-width:880px;margin:0 auto;padding:56px 24px 120px}
+.board-head{margin-bottom:56px}
+.eyebrow{display:flex;align-items:center;gap:10px;color:var(--copper);font-size:12px;font-weight:600;letter-spacing:.12em}
+.eyebrow::before{content:"";width:24px;height:2px;background:var(--copper)}
+.board-head h1{font-size:34px;font-weight:700;letter-spacing:.02em;margin:14px 0 10px}
+.board-head h1 small{font-size:15px;font-weight:400;color:var(--ink-500);margin-left:12px;letter-spacing:0}
+.lede{max-width:640px;color:var(--ink-600);font-size:14px}
+.lede b{color:var(--ink-900)}
+.legend{list-style:none;display:flex;flex-wrap:wrap;gap:8px 22px;margin-top:18px}
+.legend li{display:flex;align-items:center;gap:7px;font-size:12px;color:var(--ink-500)}
+.sw{width:12px;height:12px;border-radius:3px;flex:none}
+.sw.d1{background:var(--d1)}.sw.d2{background:var(--d2)}.sw.d3{background:var(--d3)}
+.sw.d4{background:var(--d4)}.sw.d5{background:var(--d5)}
+.sw.cu{background:var(--copper)}.sw.pu{background:var(--primary)}
+
+/* ============ 模块头 ============ */
+.module-head{margin:72px 0 20px}
+.module-head h2{font-size:24px;font-weight:700;margin:10px 0 6px}
+.module-lede{color:var(--ink-600);font-size:13px;max-width:640px}
+
+/* ============ 屏幕标注与屏幕框 ============ */
+figure.proto{margin:0 0 56px}
+.cap{display:flex;align-items:baseline;gap:12px;margin:0 4px 12px;flex-wrap:wrap}
+.cap-no{font-family:var(--mono);font-size:12px;color:var(--copper);font-weight:700;letter-spacing:.06em}
+.cap-title{font-size:14px;font-weight:700;color:var(--ink-900)}
+.cap-note{font-size:12px;color:var(--ink-500)}
+.screen{
+  background:var(--surface);border:1px solid var(--line);border-radius:14px;
+  box-shadow:0 24px 48px rgba(20,32,31,.10);overflow:hidden;max-width:760px;
+}
+
+/* ---- 产品顶栏 / 底栏 ---- */
+.app-bar{height:52px;display:flex;align-items:center;gap:12px;padding:0 18px;border-bottom:1px solid var(--line)}
+.brand{display:flex;align-items:center;gap:7px}
+.brand-name{font-size:15px;font-weight:700;letter-spacing:.08em}
+.bar-title{font-size:13px;color:var(--ink-500);flex:1}
+.bar-right{display:flex;align-items:center;gap:10px}
+.avatar-dot{width:26px;height:26px;border-radius:50%;background:var(--primary-soft);color:var(--primary);
+  font-size:12px;font-weight:700;display:flex;align-items:center;justify-content:center}
+.tab-bar{height:56px;display:flex;border-top:1px solid var(--line);background:var(--surface)}
+.tab{flex:1;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:3px;
+  color:var(--ink-400);font-size:11px;position:relative}
+.tab svg{width:20px;height:20px;stroke:currentColor;fill:none;stroke-width:1.6;stroke-linecap:round;stroke-linejoin:round}
+.tab.on{color:var(--primary);font-weight:600}
+.tab.on::before{content:"";position:absolute;top:0;left:50%;transform:translateX(-50%);width:24px;height:2px;background:var(--primary);border-radius:0 0 2px 2px}
+
+/* ---- 屏内通用 ---- */
+.pg{padding:22px 24px 26px}
+.pg-head{margin-bottom:18px}
+.pg-head .k{color:var(--copper);font-size:11px;font-weight:700;letter-spacing:.14em}
+.pg-head h3{font-size:20px;font-weight:700;margin-top:6px}
+.pg-head p{font-size:12.5px;color:var(--ink-500);margin-top:3px}
+.btn{display:inline-flex;align-items:center;justify-content:center;gap:6px;border-radius:10px;
+  font-size:14px;font-weight:600;padding:10px 20px;border:1px solid transparent;cursor:pointer;font-family:inherit}
+.btn.primary{background:var(--primary);color:#fff}
+.btn.primary:hover{background:var(--primary-2)}
+.btn.ghost{background:var(--surface);border-color:var(--line);color:var(--ink-700)}
+.btn.sm{padding:5px 12px;font-size:12.5px;border-radius:8px}
+.btn.text{background:none;color:var(--ink-500);font-weight:500;padding:5px 8px;text-decoration:underline;text-underline-offset:3px}
+.chip{display:inline-flex;align-items:center;gap:4px;border:1px solid var(--line);border-radius:999px;
+  padding:2px 10px;font-size:11.5px;color:var(--ink-600);background:var(--surface)}
+.chip.brand{background:var(--primary-soft);border-color:transparent;color:var(--primary)}
+.chip.copper{background:var(--copper-soft);border-color:transparent;color:var(--copper)}
+.note-line{display:flex;align-items:flex-start;gap:10px;background:var(--paper);border-radius:10px;
+  padding:10px 14px;font-size:12.5px;color:var(--ink-600)}
+.note-line .dot{width:6px;height:6px;border-radius:50%;background:var(--copper);flex:none;margin-top:7px}
+
+/* ---- 难度刻度（同前两份，颜色只编码难度） ---- */
+.diff-scale{display:inline-flex;align-items:flex-end;gap:3px}
+.diff-scale i{width:4px;border-radius:2px;background:var(--line)}
+.diff-scale i:nth-child(1){height:6px}
+.diff-scale i:nth-child(2){height:8px}
+.diff-scale i:nth-child(3){height:10px}
+.diff-scale i:nth-child(4){height:12px}
+.diff-scale i:nth-child(5){height:14px}
+.diff-scale.d1 i:nth-child(1){background:var(--d1)}
+.diff-scale.d2 i:nth-child(2){background:var(--d2)}
+.diff-scale.d3 i:nth-child(3){background:var(--d3)}
+.diff-scale.d4 i:nth-child(4){background:var(--d4)}
+.diff-scale.d5 i:nth-child(5){background:var(--d5)}
+.diff-label{font-size:11.5px;color:var(--ink-500)}
+
+/* ---- 信号角标（三条混抽信号 · 一律中性色，绝不抢难度色语义） ---- */
+.sig{display:inline-flex;align-items:center;gap:5px;font-size:11px;color:var(--ink-600);
+  background:var(--paper);border-radius:6px;padding:2px 8px;font-weight:600}
+.sig i{width:5px;height:5px;border-radius:50%;background:var(--ink-400);flex:none}
+
+/* ============ 牌堆（标志性元素） ============ */
+.deck-stage{position:relative;height:250px;margin:6px 0 20px;display:flex;align-items:center;justify-content:center}
+.deck{position:relative;width:230px;height:190px}
+.deck .card-slot{
+  position:absolute;left:0;top:0;width:100%;height:100%;border-radius:14px;background:var(--surface);
+  border:1px solid var(--line);box-shadow:0 10px 24px rgba(20,32,31,.10);
+}
+.deck .card-slot.s3{transform:translate(14px,-14px) rotate(4deg);opacity:.42}
+.deck .card-slot.s2{transform:translate(7px,-7px) rotate(2deg);opacity:.68}
+.deck .card-slot.s1{transform:translate(0,0) rotate(0);padding:18px 20px;display:flex;flex-direction:column}
+.deck .slot-top{display:flex;align-items:center;gap:8px;margin-bottom:10px}
+.deck .slot-top .lv{font-family:var(--mono);font-size:10px;color:var(--ink-400)}
+.deck .slot-body{flex:1}
+.deck .slot-body b{font-size:14px;font-weight:700;line-height:1.5;display:block}
+.deck .slot-body span{font-size:11.5px;color:var(--ink-500);display:block;margin-top:5px}
+.deck .slot-diff{position:absolute;right:14px;bottom:14px}
+.deck .spine{position:absolute;left:0;top:18px;bottom:18px;width:4px;border-radius:2px}
+.deck .spine.d3{background:var(--d3)}
+.deck .spine.d4{background:var(--d4)}
+.deck .spine.d5{background:var(--d5)}
+.deck .spine.d2{background:var(--d2)}
+.deck-count{
+  position:absolute;right:calc(50% - 210px);top:50%;transform:translateY(-50%);
+  text-align:left;
+}
+.deck-count b{font-size:26px;font-weight:700;display:block;line-height:1.1}
+.deck-count span{font-size:11px;color:var(--ink-500)}
+.deck-count .sep{height:1px;background:var(--line);margin:9px 0}
+
+/* ---- 抽卡选项 ---- */
+.gacha-opts{display:grid;grid-template-columns:1fr 1fr 1fr;gap:10px;margin-bottom:16px}
+.gacha-opt{border:1px solid var(--line);border-radius:12px;padding:14px 12px;text-align:center;cursor:pointer}
+.gacha-opt:hover{border-color:var(--primary)}
+.gacha-opt.sel{border-color:var(--primary);background:var(--primary-soft)}
+.gacha-opt b{display:block;font-size:14px;font-weight:700}
+.gacha-opt span{font-size:11px;color:var(--ink-500)}
+.gacha-opt .k{font-family:var(--mono);font-size:10.5px;color:var(--ink-400);letter-spacing:.06em}
+.domain-pick{display:flex;gap:8px;flex-wrap:wrap;margin-bottom:18px}
+.domain-pick .chip{cursor:pointer}
+.domain-pick .chip.sel{background:var(--primary);border-color:var(--primary);color:#fff;font-weight:600}
+.domain-pick .chip.sel .n{color:rgba(255,255,255,.7)}
+.domain-pick .chip .n{font-family:var(--mono);font-size:10.5px;color:var(--ink-400);margin-left:3px}
+
+/* ============ 翻牌动画帧 ============ */
+.flip-stage{position:relative;height:260px;margin:16px 0 18px;display:flex;align-items:center;justify-content:center;perspective:1000px}
+.flip-single{
+  width:250px;height:210px;border-radius:14px;background:var(--surface);border:1px solid var(--line);
+  box-shadow:0 16px 36px rgba(20,32,31,.14);padding:20px 22px;display:flex;flex-direction:column;position:relative;
+}
+.flip-single .back-pattern{
+  position:absolute;inset:8px;border-radius:10px;border:1px dashed var(--line);
+  display:flex;align-items:center;justify-content:center;
+}
+.flip-single .back-pattern .glyph{
+  font-size:38px;font-weight:700;color:var(--primary);opacity:.28;letter-spacing:.1em;
+}
+.flip-single.face .back-pattern{display:none}
+.flip-single .face-top{display:flex;align-items:center;gap:8px;margin-bottom:12px}
+.flip-single .face-q{font-size:16px;font-weight:700;line-height:1.55}
+.flip-single .face-note{margin-top:auto;font-size:11.5px;color:var(--ink-400)}
+.motion-note{text-align:center;font-size:11.5px;color:var(--ink-400);letter-spacing:.04em}
+
+/* ============ 卡面与自评 ============ */
+.qcard{position:relative;border:1px solid var(--line);border-radius:14px;padding:20px 22px 20px 26px;margin-bottom:14px}
+.qbar{position:absolute;left:10px;top:20px;bottom:20px;width:4px;border-radius:2px}
+.qbar.d1{background:var(--d1)}.qbar.d2{background:var(--d2)}.qbar.d3{background:var(--d3)}
+.qbar.d4{background:var(--d4)}.qbar.d5{background:var(--d5)}
+.qmeta{display:flex;align-items:center;gap:8px;flex-wrap:wrap;margin-bottom:12px}
+.qface{font-size:18px;font-weight:700;line-height:1.55;margin-bottom:14px}
+.grade-block{border-radius:10px;padding:13px 16px;margin-bottom:9px;background:var(--paper)}
+.grade-block .g-head{display:flex;align-items:baseline;gap:8px;margin-bottom:6px}
+.grade-block .g-head b{font-size:12.5px;font-weight:700;color:var(--primary)}
+.grade-block .g-head span{font-size:11px;color:var(--ink-400)}
+.grade-block p{font-size:13px;line-height:1.75;color:var(--ink-700)}
+.grade-fold{display:flex;align-items:center;gap:8px;border:1px dashed var(--line);border-radius:10px;
+  padding:10px 16px;margin-bottom:8px;font-size:12.5px;color:var(--ink-600);cursor:pointer}
+.grade-fold i{font-style:normal;color:var(--primary);font-weight:700;font-family:var(--mono)}
+.grade-fold small{color:var(--ink-400);margin-left:auto;font-size:11px}
+.sig-why{display:flex;align-items:flex-start;gap:9px;font-size:12px;color:var(--ink-600);
+  background:var(--paper);border-radius:9px;padding:10px 13px;margin-bottom:14px}
+.sig-why .ic{width:20px;height:20px;border-radius:6px;background:var(--surface);border:1px solid var(--line);
+  display:flex;align-items:center;justify-content:center;flex:none}
+.sig-why .ic svg{width:12px;height:12px;stroke:var(--ink-600);fill:none;stroke-width:1.8}
+.sig-why b{color:var(--ink-900)}
+.self-grid{display:grid;grid-template-columns:1fr 1fr 1fr;gap:9px;margin-top:14px}
+.self-grid .btn{width:100%}
+.self-note{font-size:10.5px;color:var(--ink-400);text-align:center;line-height:1.6;margin-top:6px}
+
+/* ============ 橙红判定 ---- */
+.judge-launch{
+  border:1px solid var(--d4);border-radius:12px;padding:14px 16px;margin-top:14px;
+  display:flex;align-items:center;gap:13px;background:#fdf4ee;
+}
+.judge-launch .jl-ic{width:34px;height:34px;border-radius:9px;background:var(--d4);flex:none;
+  display:flex;align-items:center;justify-content:center}
+.judge-launch .jl-ic svg{width:17px;height:17px;stroke:#fff;fill:none;stroke-width:2;stroke-linecap:round;stroke-linejoin:round}
+.judge-launch .jl-tx{flex:1}
+.judge-launch b{font-size:13px;font-weight:700;display:block}
+.judge-launch p{font-size:11.5px;color:var(--ink-500)}
+.answer-box{border:1px solid var(--primary);border-radius:12px;padding:13px 15px;background:var(--paper);margin:14px 0}
+.answer-box p{font-size:13px;line-height:1.8;color:var(--ink-700)}
+.judge-wait{display:flex;align-items:center;gap:9px;font-size:12px;color:var(--ink-500);
+  padding:9px 0 12px;border-bottom:1px dashed var(--line);margin-bottom:12px}
+.judge-wait .pulse{width:8px;height:8px;border-radius:50%;background:var(--primary);box-shadow:0 0 0 3px var(--primary-soft)}
+.judge-wait .done-tag{margin-left:auto;color:var(--primary);font-weight:700}
+.verdict-chip{display:inline-flex;align-items:center;gap:6px;border-radius:8px;padding:4px 12px;font-size:12.5px;font-weight:700}
+.verdict-chip.hit{background:var(--primary-soft);color:var(--primary)}
+.verdict-chip.shallow{background:var(--copper-soft);color:var(--copper)}
+.verdict-chip.wrong{background:#fdeeee;color:var(--d5)}
+.judge-points{list-style:none;margin:13px 0}
+.judge-points li{display:flex;flex-direction:column;gap:4px;padding:9px 0;border-bottom:1px dashed var(--line)}
+.judge-points li:last-child{border-bottom:0}
+.jp-head{display:flex;align-items:center;gap:8px;font-size:12.5px;color:var(--ink-700)}
+.jp-mark{font-family:var(--mono);font-size:11px;font-weight:700;flex:none;width:18px;text-align:center}
+.jp-mark.yes{color:var(--primary)}
+.jp-mark.part{color:var(--copper)}
+.jp-mark.no{color:var(--ink-400)}
+.quote{font-size:12px;color:var(--ink-500);background:var(--paper);border-left:3px solid var(--primary-soft);
+  border-radius:0 8px 8px 0;padding:5px 10px;margin-left:26px}
+.quote mark{background:var(--primary-soft);color:var(--primary);border-radius:3px;padding:0 3px}
+
+/* ============ 会话小结 ============ */
+.session-card{border:1px solid var(--line);border-radius:14px;padding:18px 20px;margin-bottom:14px}
+.session-card h4{font-size:15.5px;font-weight:700;margin-bottom:4px}
+.session-card .s-sub{font-size:12px;color:var(--ink-500);margin-bottom:14px}
+.sum-row{display:flex;gap:10px;flex-wrap:wrap;margin-bottom:14px}
+.sum-row .cell{flex:1;min-width:92px;border:1px solid var(--line);border-radius:10px;padding:10px 12px;text-align:center}
+.sum-row .cell b{font-size:19px;font-weight:700}
+.sum-row .cell span{display:block;font-size:11px;color:var(--ink-500);margin-top:1px}
+.sum-row .cell.cool b{color:var(--primary)}
+.sum-row .cell.warm b{color:var(--d5)}
+.sum-row .cell.ink b{color:var(--ink-700)}
+.plain-note{font-size:12px;color:var(--ink-600);line-height:1.75;background:var(--paper);border-radius:10px;padding:12px 15px;margin-bottom:14px}
+.plain-note b{color:var(--ink-900)}
+.plain-note u{text-decoration:none;border-bottom:1.5px solid var(--copper);padding-bottom:1px}
+
+/* ============ 卡池说明（三条信号） ============ */
+.pool-grid{display:grid;grid-template-columns:1fr 1fr 1fr;gap:11px;margin-bottom:14px}
+.pool{background:var(--paper);border-radius:11px;padding:13px 14px}
+.pool .p-no{font-family:var(--mono);font-size:10.5px;color:var(--ink-400);font-weight:700;letter-spacing:.06em}
+.pool b{display:block;font-size:13px;font-weight:700;margin:5px 0 3px}
+.pool p{font-size:11.5px;color:var(--ink-600);line-height:1.65}
+.pool .from{font-size:10.5px;color:var(--ink-400);margin-top:6px;display:block}
+.axis-note{display:flex;align-items:center;gap:10px;font-size:12px;color:var(--ink-600);
+  border:1px dashed var(--line);border-radius:10px;padding:10px 14px;margin-bottom:10px}
+.axis-note b{color:var(--ink-900)}
+
+/* ============ 口径对照表 ============ */
+.ledger{background:var(--surface);border:1px solid var(--line);border-radius:14px;padding:26px 28px;margin-top:72px}
+.ledger h3{font-size:16px;font-weight:700;margin-bottom:4px}
+.ledger .sub{font-size:12px;color:var(--ink-500);margin-bottom:16px}
+.ledger table{width:100%;border-collapse:collapse;font-size:12.5px}
+.ledger th{text-align:left;font-size:11px;letter-spacing:.1em;color:var(--ink-400);font-weight:700;
+  padding:8px 10px;border-bottom:1.5px solid var(--line)}
+.ledger td{padding:9px 10px;border-bottom:1px dashed var(--line);color:var(--ink-600);vertical-align:top}
+.ledger td:first-child{color:var(--ink-900);font-weight:600;width:34%}
+@media (max-width:640px){
+  .gacha-opts,.self-grid,.pool-grid{grid-template-columns:1fr}
+  .deck-count{position:static;transform:none;text-align:center;margin-top:10px}
+  .deck-stage{height:auto;flex-direction:column}
+  .board{padding:36px 14px 80px}
+}
+@media (prefers-reduced-motion:reduce){*{transition:none!important;animation:none!important}}
+</style>
+</head>
+<body>
+<div class="board">
+
+  <!-- ================= 画布头 ================= -->
+  <header class="board-head">
+    <p class="eyebrow">知己 · C 端模块原型</p>
+    <h1>抽卡<small>Gacha · /gacha · 对应核心模块定义 2.4</small></h1>
+    <p class="lede">
+      抽卡是全部复习机制的所在地，也是<b>每日回访的默认锚点</b>——「今晚先抽一把」就是打开产品的理由。
+      卡池 = 你已闯过关卡里的卡，按三条信号混抽：<b>到期复测</b>（SM-2 间隔重复主引擎）、<b>抽查验伪</b>（快过态与「我会，跳过」的卡低频复验）、<b>弱点重抽</b>（「我不会」的卡权重上调）。
+      它既是复习器，也是<b>自报水分的挤压器</b>——闯关因此可以放心纯推进。
+      标志性元素是<b>牌堆</b>：把三条不可见的混抽信号变成一摞看得见的实体牌，翻一次即从刻度进入题目。
+    </p>
+    <ul class="legend">
+      <li><span class="sw pu"></span>墨青 · 主色 / 翻牌 / 判定命中</li>
+      <li><span class="sw cu"></span>铜 · 只承担「刻度 / 目标停止点」语义</li>
+      <li><span class="sw d1"></span><span class="sw d2"></span><span class="sw d3"></span><span class="sw d4"></span><span class="sw d5"></span>难度 1–5 · 颜色只编码难度，三条信号一律用中性文字角标</li>
+    </ul>
+  </header>
+
+  <!-- ================= 模块头 ================= -->
+  <section class="module-head">
+    <p class="eyebrow">模块 04 · LEARNING</p>
+    <h2>抽卡</h2>
+    <p class="module-lede">轻体验：翻面自评为主，橙红高难卡可选进入判定；保留翻牌动画与连抽，<b>不引入积分、连击等游戏数值系统，不设正式报告</b>。混抽权重按会话状态动态调整（连对降权 + 连错时掺低难度穿插卡），第一版就有。</p>
+  </section>
+
+  <!-- ================= 屏 01 抽卡首页 ================= -->
+  <figure class="proto">
+    <figcaption class="cap">
+      <span class="cap-no">屏 01</span>
+      <span class="cap-title">抽卡首页 · /gacha（每日默认入口）</span>
+      <span class="cap-note">全随机或指定域 · 单抽 / 3 连 · 牌堆立牌显示今日待抽量，点开即翻</span>
+    </figcaption>
+    <div class="screen">
+      <div class="app-bar">
+        <div class="brand">
+          <svg width="18" height="18" viewBox="0 0 18 18"><rect x="1" y="2" width="3" height="14" rx="1.2" fill="#0f6d68"/><rect x="6" y="5" width="3" height="11" rx="1.2" fill="#0f6d68" opacity=".66"/><rect x="11" y="8" width="3" height="8" rx="1.2" fill="#0f6d68" opacity=".4"/><rect x="16" y="11" width="1" height="5" rx=".5" fill="#0f6d68" opacity=".22"/></svg>
+          <span class="brand-name">知己</span>
+        </div>
+        <span class="bar-title">抽卡</span>
+        <div class="bar-right"><span class="avatar-dot">张</span></div>
+      </div>
+      <div class="pg">
+        <div class="pg-head">
+          <span class="k">今晚先抽一把</span>
+          <h3>今天想抽哪个域？</h3>
+          <p>抽卡只从你已闯过的关卡里出牌 · 不复测新内容</p>
+        </div>
+
+        <div class="domain-pick">
+          <span class="chip sel">全部<span class="n">47</span></span>
+          <span class="chip">数据存储与缓存<span class="n">18</span></span>
+          <span class="chip">Java 主场景<span class="n">12</span></span>
+          <span class="chip">中间件与消息<span class="n">9</span></span>
+          <span class="chip">分布式与微服务<span class="n">8</span></span>
+        </div>
+
+        <div class="deck-stage">
+          <div class="deck">
+            <div class="card-slot s3"></div>
+            <div class="card-slot s2"></div>
+            <div class="card-slot s1">
+              <span class="spine d3"></span>
+              <div class="slot-top">
+                <span class="sig"><i></i>到期复测</span>
+                <span class="lv">SM-2</span>
+              </div>
+              <div class="slot-body">
+                <b>为什么删缓存而不是更新缓存？</b>
+                <span>追问链 3 层 · 数据存储与缓存</span>
+              </div>
+              <span class="slot-diff"><span class="diff-scale d3"><i></i><i></i><i></i><i></i><i></i></span></span>
+            </div>
+          </div>
+          <div class="deck-count">
+            <b class="num">12</b>
+            <span>到期待复习</span>
+            <div class="sep"></div>
+            <b class="num">3</b>
+            <span>抽查待复验</span>
+            <div class="sep"></div>
+            <b class="num">5</b>
+            <span>弱点待重抽</span>
+          </div>
+        </div>
+
+        <div class="gacha-opts">
+          <div class="gacha-opt sel">
+            <span class="k">SINGLE</span>
+            <b>单抽</b>
+            <span>一次一张</span>
+          </div>
+          <div class="gacha-opt">
+            <span class="k">TRIPLE</span>
+            <b>3 连</b>
+            <span>碎片时间刚好</span>
+          </div>
+          <div class="gacha-opt">
+            <span class="k">FOCUS</span>
+            <b>指定域连抽</b>
+            <span>考前突击</span>
+          </div>
+        </div>
+
+        <button class="btn primary" style="width:100%;padding:13px;font-size:15px">抽一张 →</button>
+        <p class="motion-note" style="margin-top:10px">翻牌动画 · 无需积分，无需连胜，随时可停</p>
+      </div>
+      <nav class="tab-bar">
+        <span class="tab"><svg viewBox="0 0 20 20"><circle cx="5" cy="15" r="1.8"/><circle cx="15" cy="5" r="1.8"/><path d="M6.5 13.8 L13.5 6.2"/></svg>地图</span>
+        <span class="tab on"><svg viewBox="0 0 20 20"><rect x="5" y="3" width="10" height="13" rx="2"/><path d="M3.5 6.5 v10 a2 2 0 0 0 2 2 H13"/></svg>抽卡</span>
+        <span class="tab"><svg viewBox="0 0 20 20"><rect x="4" y="3" width="12" height="14" rx="2"/><path d="M7 8 h6 M7 11.5 h6"/></svg>模拟考</span>
+        <span class="tab"><svg viewBox="0 0 20 20"><path d="M16 10 a6 6 0 1 1-2-4.5"/><path d="M14.5 2.5 v3.5 h-3.5"/></svg>复盘</span>
+        <span class="tab"><svg viewBox="0 0 20 20"><circle cx="10" cy="7" r="3.2"/><path d="M4 17 a6.2 6.2 0 0 1 12 0"/></svg>我的</span>
+      </nav>
+    </div>
+  </figure>
+
+  <!-- ================= 屏 02 翻牌动画 ================= -->
+  <figure class="proto">
+    <figcaption class="cap">
+      <span class="cap-no">屏 02</span>
+      <span class="cap-title">翻牌瞬间 · 牌面揭晓</span>
+      <span class="cap-note">简的轻趣味：翻牌动画 + 连抽 · 不引入积分连击 · 系统降低动效偏好时直接跳帧</span>
+    </figcaption>
+    <div class="screen">
+      <div class="app-bar">
+        <div class="brand">
+          <svg width="18" height="18" viewBox="0 0 18 18"><rect x="1" y="2" width="3" height="14" rx="1.2" fill="#0f6d68"/><rect x="6" y="5" width="3" height="11" rx="1.2" fill="#0f6d68" opacity=".66"/><rect x="11" y="8" width="3" height="8" rx="1.2" fill="#0f6d68" opacity=".4"/><rect x="16" y="11" width="1" height="5" rx=".5" fill="#0f6d68" opacity=".22"/></svg>
+          <span class="brand-name">知己</span>
+        </div>
+        <span class="bar-title">抽卡 · 全部</span>
+        <div class="bar-right"><span class="avatar-dot">张</span></div>
+      </div>
+      <div class="pg">
+        <div class="flip-stage">
+          <div class="flip-single">
+            <div class="back-pattern"><span class="glyph">知己</span></div>
+            <div class="face-top">
+              <span class="sig"><i></i>抽查复验</span>
+              <span class="lv num" style="font-family:var(--mono);font-size:10.5px;color:var(--ink-400)">翻牌中…</span>
+            </div>
+            <p class="face-q">Redis 缓存和数据库的双写一致性，你是怎么处理的？</p>
+            <p class="face-note">这张卡在闯关时标了「我会，跳过」——抽卡来验一验</p>
+          </div>
+        </div>
+        <p class="motion-note">牌面逐层展开 · 牌背的手感保留了，但内容永远先出题面</p>
+
+        <div class="note-line" style="margin-top:18px">
+          <span class="dot"></span>
+          每张卡上都会写明这次为什么抽到它——是到期了、来验伪、还是你标过「我不会」。没有暗箱。
+        </div>
+      </div>
+      <nav class="tab-bar">
+        <span class="tab"><svg viewBox="0 0 20 20"><circle cx="5" cy="15" r="1.8"/><circle cx="15" cy="5" r="1.8"/><path d="M6.5 13.8 L13.5 6.2"/></svg>地图</span>
+        <span class="tab on"><svg viewBox="0 0 20 20"><rect x="5" y="3" width="10" height="13" rx="2"/><path d="M3.5 6.5 v10 a2 2 0 0 0 2 2 H13"/></svg>抽卡</span>
+        <span class="tab"><svg viewBox="0 0 20 20"><rect x="4" y="3" width="12" height="14" rx="2"/><path d="M7 8 h6 M7 11.5 h6"/></svg>模拟考</span>
+        <span class="tab"><svg viewBox="0 0 20 20"><path d="M16 10 a6 6 0 1 1-2-4.5"/><path d="M14.5 2.5 v3.5 h-3.5"/></svg>复盘</span>
+        <span class="tab"><svg viewBox="0 0 20 20"><circle cx="10" cy="7" r="3.2"/><path d="M4 17 a6.2 6.2 0 0 1 12 0"/></svg>我的</span>
+      </nav>
+    </div>
+  </figure>
+
+  <!-- ================= 屏 03 到期复测卡 · 翻面自评 ================= -->
+  <figure class="proto">
+    <figcaption class="cap">
+      <span class="cap-no">屏 03</span>
+      <span class="cap-title">到期复测卡 · 翻面自评</span>
+      <span class="cap-note">翻面自评为主 · 自评结果照常写 SM-2 参数（下次到期时间实列化 + 索引）</span>
+    </figcaption>
+    <div class="screen">
+      <div class="app-bar">
+        <div class="brand">
+          <svg width="18" height="18" viewBox="0 0 18 18"><rect x="1" y="2" width="3" height="14" rx="1.2" fill="#0f6d68"/><rect x="6" y="5" width="3" height="11" rx="1.2" fill="#0f6d68" opacity=".66"/><rect x="11" y="8" width="3" height="8" rx="1.2" fill="#0f6d68" opacity=".4"/><rect x="16" y="11" width="1" height="5" rx=".5" fill="#0f6d68" opacity=".22"/></svg>
+          <span class="brand-name">知己</span>
+        </div>
+        <span class="bar-title">抽卡 · 数据存储与缓存</span>
+        <div class="bar-right"><span class="avatar-dot">张</span></div>
+      </div>
+      <div class="pg">
+        <div class="chal-head" style="display:flex;align-items:center;gap:12px;margin-bottom:16px">
+          <div style="flex:1">
+            <span style="font-size:11px;color:var(--ink-400)">第 1 张 · 单抽</span>
+            <b style="font-size:14.5px;font-weight:700;display:block;margin-top:1px">数据存储与缓存 · Redis</b>
+          </div>
+          <span style="font-size:12px;color:var(--ink-500)" class="num">本次已抽 1 / 3</span>
+        </div>
+
+        <div class="qcard">
+          <span class="qbar d3"></span>
+          <div class="qmeta">
+            <span class="diff-scale d3"><i></i><i></i><i></i><i></i><i></i></span>
+            <span class="diff-label">难度 3</span>
+            <span class="sig"><i></i>到期复测</span>
+            <span class="chip">追问 3 层</span>
+          </div>
+          <h4 class="qface" style="font-size:18px;font-weight:700;line-height:1.55;margin-bottom:14px">Redis 持久化 RDB 和 AOF 各自的取舍是什么？</h4>
+          <div class="grade-block">
+            <div class="g-head"><b>标准回答 · 及格档</b><span>默认展开 · 面试及格线</span></div>
+            <p>RDB 是快照、文件小、恢复快，但会丢最后一次快照后的数据；AOF 记命令、数据更全、可配 fsync 策略，但文件大、恢复慢。生产上一般两者都开，RDB 兜底、AOF 保数据。</p>
+          </div>
+          <div class="grade-fold"><i>＋</i>良好档 · 看你怎么答更好<small>AOF 重写机制 · fsync 三档的取舍</small></div>
+          <div class="sig-why">
+            <span class="ic"><svg viewBox="0 0 12 12"><path d="M6 1.5 v5"/><circle cx="6" cy="9.5" r=".8" fill="currentColor" stroke="none"/></svg></span>
+            <span>上次复习是 <b>3 天</b>前，当时你自评「过了」——SM-2 排到今天回来。<b>自评结果会重新算下次到期时间。</b></span>
+          </div>
+          <div class="self-grid">
+            <button class="btn primary">记得，过了</button>
+            <button class="btn ghost">有点模糊</button>
+            <button class="btn ghost">忘了</button>
+          </div>
+          <p class="self-note">「模糊 / 忘了」都会缩短复测间隔，很快再见</p>
+        </div>
+      </div>
+      <nav class="tab-bar">
+        <span class="tab"><svg viewBox="0 0 20 20"><circle cx="5" cy="15" r="1.8"/><circle cx="15" cy="5" r="1.8"/><path d="M6.5 13.8 L13.5 6.2"/></svg>地图</span>
+        <span class="tab on"><svg viewBox="0 0 20 20"><rect x="5" y="3" width="10" height="13" rx="2"/><path d="M3.5 6.5 v10 a2 2 0 0 0 2 2 H13"/></svg>抽卡</span>
+        <span class="tab"><svg viewBox="0 0 20 20"><rect x="4" y="3" width="12" height="14" rx="2"/><path d="M7 8 h6 M7 11.5 h6"/></svg>模拟考</span>
+        <span class="tab"><svg viewBox="0 0 20 20"><path d="M16 10 a6 6 0 1 1-2-4.5"/><path d="M14.5 2.5 v3.5 h-3.5"/></svg>复盘</span>
+        <span class="tab"><svg viewBox="0 0 20 20"><circle cx="10" cy="7" r="3.2"/><path d="M4 17 a6.2 6.2 0 0 1 12 0"/></svg>我的</span>
+      </nav>
+    </div>
+  </figure>
+
+  <!-- ================= 屏 04 抽查验伪 ================= -->
+  <figure class="proto">
+    <figcaption class="cap">
+      <span class="cap-no">屏 04</span>
+      <span class="cap-title">抽查验伪 · 虚报打回复测</span>
+      <span class="cap-note">抽查池 = 快过态 + 「我会，跳过」 · 低频弹出翻面复验 · 虚报累积证据（汇入复盘降级建议）</span>
+    </figcaption>
+    <div class="screen">
+      <div class="app-bar">
+        <div class="brand">
+          <svg width="18" height="18" viewBox="0 0 18 18"><rect x="1" y="2" width="3" height="14" rx="1.2" fill="#0f6d68"/><rect x="6" y="5" width="3" height="11" rx="1.2" fill="#0f6d68" opacity=".66"/><rect x="11" y="8" width="3" height="8" rx="1.2" fill="#0f6d68" opacity=".4"/><rect x="16" y="11" width="1" height="5" rx=".5" fill="#0f6d68" opacity=".22"/></svg>
+          <span class="brand-name">知己</span>
+        </div>
+        <span class="bar-title">抽卡 · 数据存储与缓存</span>
+        <div class="bar-right"><span class="avatar-dot">张</span></div>
+      </div>
+      <div class="pg">
+        <div class="pg-head" style="margin-bottom:14px">
+          <span class="k">抽查池 · 第 2 张</span>
+          <h3>验伪</h3>
+        </div>
+
+        <div class="qcard">
+          <span class="qbar d4"></span>
+          <div class="qmeta">
+            <span class="diff-scale d4"><i></i><i></i><i></i><i></i><i></i></span>
+            <span class="diff-label">难度 4</span>
+            <span class="sig"><i></i>抽查验伪</span>
+            <span class="chip copper">快过关卡</span>
+          </div>
+          <h4 class="qface" style="font-size:18px;font-weight:700;line-height:1.55;margin-bottom:14px">缓存雪崩和缓存击穿的区别，分别怎么防？</h4>
+          <p style="font-size:11.5px;color:var(--ink-400);margin-bottom:12px">先自己完整说一遍，再翻面——翻面即自评</p>
+          <button class="btn primary" style="width:100%">翻面，看标准答案</button>
+        </div>
+
+        <div class="sig-why">
+          <span class="ic"><svg viewBox="0 0 12 12"><path d="M2 6 l2.5 2.5 L10 3.5"/></svg></span>
+          <span>闯关时你把这张标了「<b>我会，跳过</b>」，抽卡按低概率把它抽出来验一验——<b>自报的水分由这里挤</b>。答不出来就打回复测队列，并记一次虚报证据。</span>
+        </div>
+
+        <div class="note-line">
+          <span class="dot"></span>
+          抽查是低概率的，不会打断正常复习节奏；虚报证据累积后，会汇进复盘的简历主张降级建议。
+        </div>
+      </div>
+      <nav class="tab-bar">
+        <span class="tab"><svg viewBox="0 0 20 20"><circle cx="5" cy="15" r="1.8"/><circle cx="15" cy="5" r="1.8"/><path d="M6.5 13.8 L13.5 6.2"/></svg>地图</span>
+        <span class="tab on"><svg viewBox="0 0 20 20"><rect x="5" y="3" width="10" height="13" rx="2"/><path d="M3.5 6.5 v10 a2 2 0 0 0 2 2 H13"/></svg>抽卡</span>
+        <span class="tab"><svg viewBox="0 0 20 20"><rect x="4" y="3" width="12" height="14" rx="2"/><path d="M7 8 h6 M7 11.5 h6"/></svg>模拟考</span>
+        <span class="tab"><svg viewBox="0 0 20 20"><path d="M16 10 a6 6 0 1 1-2-4.5"/><path d="M14.5 2.5 v3.5 h-3.5"/></svg>复盘</span>
+        <span class="tab"><svg viewBox="0 0 20 20"><circle cx="10" cy="7" r="3.2"/><path d="M4 17 a6.2 6.2 0 0 1 12 0"/></svg>我的</span>
+      </nav>
+    </div>
+  </figure>
+
+  <!-- ================= 屏 05 橙红高难卡可选判定 ================= -->
+  <figure class="proto">
+    <figcaption class="cap">
+      <span class="cap-no">屏 05</span>
+      <span class="cap-title">橙红高难卡 · 可选进入判定</span>
+      <span class="cap-note">想要真检验时用 · 复用闯关练习模式的判定流程 · 翻面自评本身不触发判定</span>
+    </figcaption>
+    <div class="screen">
+      <div class="app-bar">
+        <div class="brand">
+          <svg width="18" height="18" viewBox="0 0 18 18"><rect x="1" y="2" width="3" height="14" rx="1.2" fill="#0f6d68"/><rect x="6" y="5" width="3" height="11" rx="1.2" fill="#0f6d68" opacity=".66"/><rect x="11" y="8" width="3" height="8" rx="1.2" fill="#0f6d68" opacity=".4"/><rect x="16" y="11" width="1" height="5" rx=".5" fill="#0f6d68" opacity=".22"/></svg>
+          <span class="brand-name">知己</span>
+        </div>
+        <span class="bar-title">抽卡 · 分布式与微服务</span>
+        <div class="bar-right"><span class="avatar-dot">张</span></div>
+      </div>
+      <div class="pg">
+        <div class="qcard">
+          <span class="qbar d5"></span>
+          <div class="qmeta">
+            <span class="diff-scale d5"><i></i><i></i><i></i><i></i><i></i></span>
+            <span class="diff-label">难度 5</span>
+            <span class="sig"><i></i>弱点重抽</span>
+            <span class="chip copper">高难 · 可判定</span>
+          </div>
+          <h4 class="qface" style="font-size:18px;font-weight:700;line-height:1.55;margin-bottom:14px">分布式事务 TCC 的空回滚和悬挂问题，怎么解决？</h4>
+
+          <div class="judge-launch">
+            <span class="jl-ic"><svg viewBox="0 0 17 17"><path d="M8.5 2 v7"/><circle cx="8.5" cy="13" r="1.2" fill="currentColor" stroke="none"/></svg></span>
+            <div class="jl-tx">
+              <b>这张是橙红高难卡，可以进判定</b>
+              <p>想真检验就闭卷作答，交判定引擎打分；也可以直接翻面自评。</p>
+            </div>
+          </div>
+
+          <div style="display:grid;grid-template-columns:1fr 1fr;gap:9px;margin-top:14px">
+            <button class="btn primary">闭卷作答 · 进判定</button>
+            <button class="btn ghost">翻面自评</button>
+          </div>
+        </div>
+
+        <div class="qcard" style="margin-top:16px">
+          <span class="qbar d5"></span>
+          <p style="font-size:11.5px;color:var(--ink-400);margin-bottom:6px">闭卷作答 · 按你面试时会说的写法写</p>
+          <div class="answer-box">
+            <p>TCC 要解决空回滚和悬挂。空回滚用一张事务控制表记录状态，Try 没执行就 Cancel 时能识别；悬挂是 Cancel 先到、Try 后到，靠事务状态判断拦住。</p>
+          </div>
+          <div class="judge-wait">
+            <span class="pulse"></span>
+            面试官在记录……
+            <span class="done-tag">✓ 判定已返回</span>
+          </div>
+          <span class="verdict-chip hit">对 · hit</span>
+          <ul class="judge-points">
+            <li>
+              <span class="jp-head"><span class="jp-mark yes">✓</span>指出空回滚需要事务状态表来识别</span>
+              <span class="quote">你说了：<mark>用一张事务控制表记录状态，Try 没执行就 Cancel 时能识别</mark></span>
+            </li>
+            <li>
+              <span class="jp-head"><span class="jp-mark part">△</span>悬挂的时序讲到了，防护手段可再具体</span>
+              <span class="quote">你说了：<mark>靠事务状态判断拦住</mark> —— 方向对，可补冻结 / 幂等键</span>
+            </li>
+          </ul>
+          <div style="display:flex;gap:10px;align-items:center">
+            <button class="btn primary sm">抽下一张</button>
+            <p style="flex:1;font-size:11.5px;color:var(--ink-400)">判定结果照常写复习参数与弱点标记</p>
+          </div>
+        </div>
+      </div>
+      <nav class="tab-bar">
+        <span class="tab"><svg viewBox="0 0 20 20"><circle cx="5" cy="15" r="1.8"/><circle cx="15" cy="5" r="1.8"/><path d="M6.5 13.8 L13.5 6.2"/></svg>地图</span>
+        <span class="tab on"><svg viewBox="0 0 20 20"><rect x="5" y="3" width="10" height="13" rx="2"/><path d="M3.5 6.5 v10 a2 2 0 0 0 2 2 H13"/></svg>抽卡</span>
+        <span class="tab"><svg viewBox="0 0 20 20"><rect x="4" y="3" width="12" height="14" rx="2"/><path d="M7 8 h6 M7 11.5 h6"/></svg>模拟考</span>
+        <span class="tab"><svg viewBox="0 0 20 20"><path d="M16 10 a6 6 0 1 1-2-4.5"/><path d="M14.5 2.5 v3.5 h-3.5"/></svg>复盘</span>
+        <span class="tab"><svg viewBox="0 0 20 20"><circle cx="10" cy="7" r="3.2"/><path d="M4 17 a6.2 6.2 0 0 1 12 0"/></svg>我的</span>
+      </nav>
+    </div>
+  </figure>
+
+  <!-- ================= 屏 06 会话小结 ================= -->
+  <figure class="proto">
+    <figcaption class="cap">
+      <span class="cap-no">屏 06</span>
+      <span class="cap-title">会话小结 · 系统做了什么</span>
+      <span class="cap-note">连对降权 / 连错掺低难度穿插卡是内部状态，不做计数器与进度条，只用一句话说清它干了什么</span>
+    </figcaption>
+    <div class="screen">
+      <div class="app-bar">
+        <div class="brand">
+          <svg width="18" height="18" viewBox="0 0 18 18"><rect x="1" y="2" width="3" height="14" rx="1.2" fill="#0f6d68"/><rect x="6" y="5" width="3" height="11" rx="1.2" fill="#0f6d68" opacity=".66"/><rect x="11" y="8" width="3" height="8" rx="1.2" fill="#0f6d68" opacity=".4"/><rect x="16" y="11" width="1" height="5" rx=".5" fill="#0f6d68" opacity=".22"/></svg>
+          <span class="brand-name">知己</span>
+        </div>
+        <span class="bar-title">抽卡 · 全部</span>
+        <div class="bar-right"><span class="avatar-dot">张</span></div>
+      </div>
+      <div class="pg">
+        <div class="session-card">
+          <h4>这一把抽完了</h4>
+          <p class="s-sub">3 连 · 全部域 · 用时约 4 分钟</p>
+          <div class="sum-row">
+            <div class="cell cool"><b class="num">2</b><span>记得</span></div>
+            <div class="cell warm"><b class="num">1</b><span>忘了</span></div>
+            <div class="cell ink"><b class="num">1</b><span>回抽的弱点卡</span></div>
+          </div>
+
+          <div class="plain-note">
+            这 3 张里有 <b>1 张是你标过「我不会」的弱点卡</b>——抽卡会主动把它多抽给你，直到你答稳为止。
+            刚才连对两张后，<u>系统自动调低了已答对卡的出现概率</u>，让你更可能抽到没掌握的；
+            这些都在后台自动进行，你不需要为它做任何操作。
+          </div>
+
+          <p style="font-size:11.5px;color:var(--ink-400);line-height:1.7;margin-bottom:14px">
+            抽卡不给报告、不排名、不算积分——这一把的账只有一个作用：让该回来的卡按时回来，让没掌握的卡多露面。
+          </p>
+
+          <div style="display:flex;gap:10px">
+            <button class="btn primary sm">再抽一把</button>
+            <button class="btn ghost sm">回学习地图</button>
+          </div>
+        </div>
+
+        <div class="note-line">
+          <span class="dot"></span>
+          忘了的这张卡已重新排进最近的复测队列；弱点卡的所有回答都照常更新它的复习参数。
+        </div>
+      </div>
+      <nav class="tab-bar">
+        <span class="tab"><svg viewBox="0 0 20 20"><circle cx="5" cy="15" r="1.8"/><circle cx="15" cy="5" r="1.8"/><path d="M6.5 13.8 L13.5 6.2"/></svg>地图</span>
+        <span class="tab on"><svg viewBox="0 0 20 20"><rect x="5" y="3" width="10" height="13" rx="2"/><path d="M3.5 6.5 v10 a2 2 0 0 0 2 2 H13"/></svg>抽卡</span>
+        <span class="tab"><svg viewBox="0 0 20 20"><rect x="4" y="3" width="12" height="14" rx="2"/><path d="M7 8 h6 M7 11.5 h6"/></svg>模拟考</span>
+        <span class="tab"><svg viewBox="0 0 20 20"><path d="M16 10 a6 6 0 1 1-2-4.5"/><path d="M14.5 2.5 v3.5 h-3.5"/></svg>复盘</span>
+        <span class="tab"><svg viewBox="0 0 20 20"><circle cx="10" cy="7" r="3.2"/><path d="M4 17 a6.2 6.2 0 0 1 12 0"/></svg>我的</span>
+      </nav>
+    </div>
+  </figure>
+
+  <!-- ================= 屏 07 指定域连抽 ================= -->
+  <figure class="proto">
+    <figcaption class="cap">
+      <span class="cap-no">屏 07</span>
+      <span class="cap-title">指定域连抽 · 考前突击</span>
+      <span class="cap-note">「明天面 ES，今晚连抽 ES 组」· 指定域抽卡 + 橙红卡进判定 = 按域的即时检验（原分域检验职能）</span>
+    </figcaption>
+    <div class="screen">
+      <div class="app-bar">
+        <div class="brand">
+          <svg width="18" height="18" viewBox="0 0 18 18"><rect x="1" y="2" width="3" height="14" rx="1.2" fill="#0f6d68"/><rect x="6" y="5" width="3" height="11" rx="1.2" fill="#0f6d68" opacity=".66"/><rect x="11" y="8" width="3" height="8" rx="1.2" fill="#0f6d68" opacity=".4"/><rect x="16" y="11" width="1" height="5" rx=".5" fill="#0f6d68" opacity=".22"/></svg>
+          <span class="brand-name">知己</span>
+        </div>
+        <span class="bar-title">抽卡 · 指定域</span>
+        <div class="bar-right"><span class="avatar-dot">张</span></div>
+      </div>
+      <div class="pg">
+        <div class="pg-head">
+          <span class="k">考前突击</span>
+          <h3>连抽「数据存储与缓存」</h3>
+          <p>明天面试 · 这把只从这一域出牌，混抽权重按三条信号照常算</p>
+        </div>
+
+        <div class="deck-stage" style="height:220px">
+          <div class="deck" style="width:210px;height:172px">
+            <div class="card-slot s3"></div>
+            <div class="card-slot s2"></div>
+            <div class="card-slot s1">
+              <span class="spine d2"></span>
+              <div class="slot-top">
+                <span class="sig"><i></i>到期复测</span>
+              </div>
+              <div class="slot-body">
+                <b>Redis 主从复制的全量同步流程？</b>
+                <span>数据存储与缓存 · Redis</span>
+              </div>
+              <span class="slot-diff"><span class="diff-scale d2"><i></i><i></i><i></i><i></i><i></i></span></span>
+            </div>
+          </div>
+          <div class="deck-count">
+            <b class="num">18</b>
+            <span>这一域已闯过的卡</span>
+            <div class="sep"></div>
+            <b class="num">7</b>
+            <span>今晚更可能抽到</span>
+          </div>
+        </div>
+
+        <div style="display:flex;gap:9px;margin-bottom:14px">
+          <span class="chip brand">连抽模式已开</span>
+          <span class="chip">随时可切回全部域</span>
+        </div>
+
+        <button class="btn primary" style="width:100%;padding:13px;font-size:15px">开始连抽 →</button>
+        <p class="motion-note" style="margin-top:10px">连抽不设上限，抽到不想抽为止</p>
+      </div>
+      <nav class="tab-bar">
+        <span class="tab"><svg viewBox="0 0 20 20"><circle cx="5" cy="15" r="1.8"/><circle cx="15" cy="5" r="1.8"/><path d="M6.5 13.8 L13.5 6.2"/></svg>地图</span>
+        <span class="tab on"><svg viewBox="0 0 20 20"><rect x="5" y="3" width="10" height="13" rx="2"/><path d="M3.5 6.5 v10 a2 2 0 0 0 2 2 H13"/></svg>抽卡</span>
+        <span class="tab"><svg viewBox="0 0 20 20"><rect x="4" y="3" width="12" height="14" rx="2"/><path d="M7 8 h6 M7 11.5 h6"/></svg>模拟考</span>
+        <span class="tab"><svg viewBox="0 0 20 20"><path d="M16 10 a6 6 0 1 1-2-4.5"/><path d="M14.5 2.5 v3.5 h-3.5"/></svg>复盘</span>
+        <span class="tab"><svg viewBox="0 0 20 20"><circle cx="10" cy="7" r="3.2"/><path d="M4 17 a6.2 6.2 0 0 1 12 0"/></svg>我的</span>
+      </nav>
+    </div>
+  </figure>
+
+  <!-- ================= 屏 08 卡池与三条信号 ================= -->
+  <figure class="proto">
+    <figcaption class="cap">
+      <span class="cap-no">屏 08</span>
+      <span class="cap-title">卡池与三条信号说明（抽卡页内说明区）</span>
+      <span class="cap-note">数据源统一是 user_kp_state · 抽卡不自己产生新任务，只消费闯关的选择结果</span>
+    </figcaption>
+    <div class="screen">
+      <div class="app-bar">
+        <div class="brand">
+          <svg width="18" height="18" viewBox="0 0 18 18"><rect x="1" y="2" width="3" height="14" rx="1.2" fill="#0f6d68"/><rect x="6" y="5" width="3" height="11" rx="1.2" fill="#0f6d68" opacity=".66"/><rect x="11" y="8" width="3" height="8" rx="1.2" fill="#0f6d68" opacity=".4"/><rect x="16" y="11" width="1" height="5" rx=".5" fill="#0f6d68" opacity=".22"/></svg>
+          <span class="brand-name">知己</span>
+        </div>
+        <span class="bar-title">抽卡 · 我的卡池</span>
+        <div class="bar-right"><span class="avatar-dot">张</span></div>
+      </div>
+      <div class="pg">
+        <div class="pg-head">
+          <span class="k">卡池</span>
+          <h3>这些卡是怎么抽出来的？</h3>
+          <p>全部复习机制都在这里 · 闯关只管向前，回来复习交给抽卡</p>
+        </div>
+
+        <div class="pool-grid">
+          <div class="pool">
+            <span class="p-no">信号 1</span>
+            <b>到期复测</b>
+            <p>间隔重复的主引擎。答对间隔拉长，答错间隔重置。</p>
+            <span class="from">来自：SM-2 到期时间（due_at）</span>
+          </div>
+          <div class="pool">
+            <span class="p-no">信号 2</span>
+            <b>抽查验伪</b>
+            <p>低频弹出你标「我会，跳过」或快过的卡，翻面复验。</p>
+            <span class="from">来自：抽查池 · 虚报打回复测</span>
+          </div>
+          <div class="pool">
+            <span class="p-no">信号 3</span>
+            <b>弱点重抽</b>
+            <p>闯关时标「我不会」的卡，抽中权重调高。</p>
+            <span class="from">来自：弱点标记位</span>
+          </div>
+        </div>
+
+        <div class="axis-note">
+          <span class="sig"><i></i>卡池</span>
+          <span><b>只有你已闯过的卡才会进池</b>——没走到的地方，抽卡不会替你预习。全部域 <b class="num">47</b> 张可抽。</span>
+        </div>
+        <div class="axis-note">
+          <span class="sig"><i></i>混抽权重</span>
+          <span>连对降权、连错时掺入少量低难度穿插卡（难度 ≤ 2）——<b>权重只调概率，不碰到期队列与抽查池的资格</b>，且设下限不为零。</span>
+        </div>
+
+        <div class="note-line" style="margin-top:14px">
+          <span class="dot"></span>
+          抽卡不新增表、不自己造任务：闪卡自评、练习判定、抽查复验都写回同一份 user_kp_state，它就是卡池的唯一数据源。
+        </div>
+      </div>
+      <nav class="tab-bar">
+        <span class="tab"><svg viewBox="0 0 20 20"><circle cx="5" cy="15" r="1.8"/><circle cx="15" cy="5" r="1.8"/><path d="M6.5 13.8 L13.5 6.2"/></svg>地图</span>
+        <span class="tab on"><svg viewBox="0 0 20 20"><rect x="5" y="3" width="10" height="13" rx="2"/><path d="M3.5 6.5 v10 a2 2 0 0 0 2 2 H13"/></svg>抽卡</span>
+        <span class="tab"><svg viewBox="0 0 20 20"><rect x="4" y="3" width="12" height="14" rx="2"/><path d="M7 8 h6 M7 11.5 h6"/></svg>模拟考</span>
+        <span class="tab"><svg viewBox="0 0 20 20"><path d="M16 10 a6 6 0 1 1-2-4.5"/><path d="M14.5 2.5 v3.5 h-3.5"/></svg>复盘</span>
+        <span class="tab"><svg viewBox="0 0 20 20"><circle cx="10" cy="7" r="3.2"/><path d="M4 17 a6.2 6.2 0 0 1 12 0"/></svg>我的</span>
+      </nav>
+    </div>
+  </figure>
+
+  <!-- ================= 口径对照表 ================= -->
+  <footer class="ledger">
+    <h3>口径对照 · 设计元素 ↔ 核心模块定义 2.4 与决策清单</h3>
+    <p class="sub">原型中每一个非常规元素都有产品条款出处，评审时逐条核对；实现时以现行文档为准。</p>
+    <table>
+      <tr><th>设计元素</th><th>口径出处</th></tr>
+      <tr><td>牌堆立牌 + 三路待抽量（12 / 3 / 5）</td><td>卡池 = 已闯过关卡里的卡；三条信号混抽（2.4）；到期时间 due_at 实列 + 索引支撑按到期过滤</td></tr>
+      <tr><td>三条信号一律用<b>中性文字角标</b>（到期复测 / 抽查验伪 / 弱点重抽），不分配颜色</td><td>颜色只编码难度（2.3 卡面五色）；来源信息用角标区分，不抢颜色语义</td></tr>
+      <tr><td>「单抽 / 3 连 / 指定域连抽」三选项</td><td>支持全随机或指定域连抽——单抽 / 3 连（2.4）</td></tr>
+      <tr><td>翻牌动画 + 连抽；无积分、无连击、无进度条</td><td>翻牌动画轻趣味；不引入积分、连击等游戏数值系统，不设正式报告（2.4）</td></tr>
+      <tr><td>「今天想抽哪个域？」域 chip + 域内可抽卡数</td><td>指定域抽卡天然支持考前抱佛脚——明天面 ES，今晚连抽 ES 组（2.4）</td></tr>
+      <tr><td>每张卡的「为什么抽到它」说明行（上次复习 3 天前 / 你标过我会跳过）</td><td>三条信号由闯关的过关选择喂养，抽卡不自己产生新任务；信号透明可解释</td></tr>
+      <tr><td>翻面自评三档：记得 / 有点模糊 / 忘了</td><td>翻面自评为主；自评结果照常更新 SM-2 参数（2.4）；闪卡自评与抽查复验都写 user_kp_state</td></tr>
+      <tr><td>抽查验伪卡带「快过关卡」角标 + 虚报说明</td><td>抽查池 = 「我会，跳过」以及快过态的卡；低频弹出翻面复验，虚报打回复测队列并累积虚报证据（2.4 / D1）</td></tr>
+      <tr><td>弱点卡「抽中权重上调」+ 会话小结「回抽的弱点卡」</td><td>闯关时标「我不会」的弱点卡，抽中权重上调（2.4）</td></tr>
+      <tr><td>橙红高难卡「可进判定」按钮（复用练习判定流程）</td><td>橙红高难卡可选进入判定，复用闯关练习模式的判定流程；翻面自评本身不触发判定（2.4 / 4.1）</td></tr>
+      <tr><td>判定卡引用用户原话（引用强制）</td><td>引用强制：命中要点必须附用户原话（判定引擎 4.1；附录 A 判定 JSON 契约）</td></tr>
+      <tr><td>会话小结一句话解释「系统调低了已答对卡的概率」</td><td>连对降权与低难度穿插卡为内部状态，落 user_kp_state 实列标记位，<b>不做 UI 展示</b>（2.4）；穿插卡难度 ≤ 2 对应白绿卡面</td></tr>
+      <tr><td>「权重只调概率，不碰到期队列与抽查池资格，下限不为零」</td><td>连对降权只调概率，不碰 SM-2 到期队列与抽查池的入场资格，权重设下限不为零（2.4）</td></tr>
+      <tr><td>卡池说明「只有闯过的卡才进池」</td><td>卡池 = user_kp_state 中已过关知识点的集合；闯关走过的部分（2.4）</td></tr>
+      <tr><td>「抽卡不新增表 / 不自己造任务」说明</td><td>三条信号都由闯关喂养；抽卡与闯关共享练习态，无编译依赖新增（2.4 / 2.3）</td></tr>
+      <tr><td>虚报证据「汇入复盘降级建议」说明</td><td>简历授权卡的虚报 / 失败累积汇入复盘的降级建议（2.4）</td></tr>
+      <tr><td>无报告、无排名、不算积分的小结语气</td><td>不设正式报告；抽卡是复习器 + 挤压器，不是竞技场（2.4）</td></tr>
+    </table>
+  </footer>
+
+</div>
+</body>
+</html>

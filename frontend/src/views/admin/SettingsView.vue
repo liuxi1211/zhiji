@@ -27,7 +27,8 @@ const limits = reactive<LlmLimitsView>({
   judgeDaily: 200,
   variantRewriteDaily: 20,
   perProfileDailyTotal: 300,
-  siteDailyTotal: 1000
+  siteDailyTotal: 1000,
+  siteCircuitEnabled: false
 })
 const usage = ref<LlmUsageView | null>(null)
 const report = ref<LlmConnectivityReport | null>(null)
@@ -185,22 +186,29 @@ async function runConnectivityCheck() {
     <el-card shadow="never" class="block">
       <template #header>
         <div class="toolbar">
-          <span>限额与熔断（判定为软上限，超限仅告警；其余为硬熔断）</span>
+          <span>限额与熔断（D32：C 端单用户限额；B 端生产类不限额不计熔断）</span>
           <el-button type="primary" size="small" :loading="saving" @click="saveLimits">保存限额</el-button>
         </div>
       </template>
       <el-form label-position="top" class="limit-form">
-        <el-form-item label="判定类（练习 / 抽卡，次/档案/天）">
+        <el-form-item label="判定类（练习 / 抽卡，次/用户/天，软上限）">
           <el-input-number v-model="limits.judgeDaily" :min="0" />
         </el-form-item>
-        <el-form-item label="变体现场改写（次/档案/天）">
+        <el-form-item label="变体现场改写（次/用户/天，硬熔断）">
           <el-input-number v-model="limits.variantRewriteDaily" :min="0" />
         </el-form-item>
-        <el-form-item label="单档案每日合计（硬熔断）">
+        <el-form-item label="单用户每日合计（硬熔断，名下全部档案共享）">
           <el-input-number v-model="limits.perProfileDailyTotal" :min="0" />
         </el-form-item>
-        <el-form-item label="全站每日总熔断">
-          <el-input-number v-model="limits.siteDailyTotal" :min="0" />
+        <el-form-item label="全站熔断护栏（默认关闭；启用后仅统计 C 端消费类计数）">
+          <div class="guard-row">
+            <el-switch v-model="limits.siteCircuitEnabled" />
+            <el-input-number v-model="limits.siteDailyTotal" :min="0" :disabled="!limits.siteCircuitEnabled" />
+          </div>
+          <div class="form-hint">
+            全站每日总熔断已按决策清单 D32 取消，此处为可选护栏：开启后 C 端消费类当日合计达到阈值即熔断，
+            B 端生产类（拆题兜底 / 聚类去重 / AI 成稿 / embedding 等）不受影响；多账号滥用风险由用量观测承担。
+          </div>
         </el-form-item>
       </el-form>
     </el-card>
@@ -289,6 +297,19 @@ async function runConnectivityCheck() {
   display: grid;
   grid-template-columns: repeat(auto-fill, minmax(220px, 1fr));
   gap: 0 24px;
+}
+
+.guard-row {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.form-hint {
+  margin-top: 4px;
+  font-size: 12px;
+  line-height: 1.6;
+  color: var(--zj-ink-500);
 }
 
 .totals {
