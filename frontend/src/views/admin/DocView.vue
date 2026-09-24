@@ -3,6 +3,7 @@
 // → 预览修正（形态 / 片段反推 / 拆题结果编辑）→ 拆题入池。候选条目溯源回素材文档；
 // 版权红线：解析文本只在预览可见，出处提示固定展示（6.4）。
 import { computed, onMounted, ref } from 'vue'
+import { useRoute } from 'vue-router'
 import { ElMessage, ElMessageBox } from 'element-plus'
 import { Delete, Plus, Refresh, Search, Upload } from '@element-plus/icons-vue'
 import MarkdownView from '@/components/MarkdownView.vue'
@@ -52,6 +53,8 @@ const STATUS_TAG_TYPES: Record<SourceDocStatus, 'info' | 'success' | 'danger' | 
 const SOURCE_NOTICE =
   '各来源协议与授权各异，素材只作参考输入，成品一律走「AI 参考重写 + 人工审核」管道；' +
   'docs/题库源/ 下的仓库素材仅限本地使用，随开源或共享分发前必须移出。'
+
+const route = useRoute()
 
 const batches = ref<BatchSummary[]>([])
 const currentBatchId = ref<string | null>(null)
@@ -272,8 +275,30 @@ async function removeDoc(doc: SourceDocView): Promise<void> {
   }
 }
 
+async function openPreviewById(docId: number): Promise<void> {
+  previewVisible.value = true
+  previewLoading.value = true
+  previewDoc.value = null
+  previewCandidates.value = []
+  try {
+    const detail = await getDoc(docId)
+    previewDoc.value = detail.doc
+    previewCandidates.value = detail.candidates
+    selectedSections.value = []
+  } catch (error) {
+    ElMessage.error(await messageOf(error))
+  } finally {
+    previewLoading.value = false
+  }
+}
+
 onMounted(() => {
   void loadAll()
+  // 溯源回跳（知识地图 → 素材原文）：/admin/docs?docId= 直接打开预览抽屉
+  const docId = Number(route.query.docId)
+  if (Number.isInteger(docId) && docId > 0) {
+    void openPreviewById(docId)
+  }
 })
 </script>
 

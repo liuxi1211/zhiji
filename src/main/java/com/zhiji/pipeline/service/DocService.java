@@ -166,7 +166,8 @@ public class DocService {
 
     /**
      * 删除素材文档（B端管理台PRD 6.4）：连带解析文本一起删；
-     * 名下候选条目全部处于 pending（尚未研判）时才允许删，有在途候选的先处理完候选。
+     * 名下候选条目全部处于 pending 且未被归一吸收时才允许删——
+     * 已被吸收的候选（canonical_id 非空）承载归一题的覆盖源数，先去知识地图拆回再删（T7）。
      */
     @Transactional
     public void delete(long docId) {
@@ -175,6 +176,11 @@ public class DocService {
         if (inFlight > 0) {
             throw BizException.conflict("DOC_CANDIDATES_IN_FLIGHT",
                     "该文件名下有 " + inFlight + " 条已研判/成稿中的候选条目，先处理完候选再删除");
+        }
+        int absorbed = candidateMapper.countAbsorbed(docId);
+        if (absorbed > 0) {
+            throw BizException.conflict("DOC_CANDIDATES_ABSORBED",
+                    "该文件名下有 " + absorbed + " 条候选已被知识地图归一吸收，请先在知识地图拆回，再删除");
         }
         LambdaQueryWrapper<KpCandidate> wrapper = new LambdaQueryWrapper<>();
         wrapper.eq(KpCandidate::getDocId, docId);

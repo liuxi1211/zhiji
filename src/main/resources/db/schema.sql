@@ -191,3 +191,22 @@ CREATE TABLE IF NOT EXISTS kp_candidate (
 
 CREATE INDEX IF NOT EXISTS idx_kp_candidate_doc ON kp_candidate (doc_id);
 CREATE INDEX IF NOT EXISTS idx_kp_candidate_status ON kp_candidate (status);
+
+-- T7 同题归一（pipeline 二）：归一题是语料层聚合节点，距用户路径还隔成稿与校对两道关。
+-- 覆盖源数参与排序与统计，实列化（陷阱 E）；入库转 kp_freq_signal 发生在成稿入库时，本表只存值。
+-- cluster_id / built_kp_id 是跨模块逻辑引用（kp_cluster / kp_main 归 kb），不加 FK，口径同 answer_log.attempt_id。
+CREATE TABLE IF NOT EXISTS kp_canonical (
+    id             INTEGER PRIMARY KEY AUTOINCREMENT,    -- 自增主键
+    title          TEXT    NOT NULL,                     -- 归一题面（组内覆盖源数最多成员的题面）
+    cluster_id     INTEGER,                              -- 归属语料簇（draft 态 kp_cluster）
+    coverage_count INTEGER NOT NULL DEFAULT 0,           -- 覆盖源数：去重素材文档数（最硬的高频证据）
+    status         TEXT    NOT NULL DEFAULT 'pending'    -- canonical_status 状态机（附录 A 8.2）：AI 聚合待确认/人工确认入图/已建设
+                   CHECK (status IN ('pending','confirmed','built')),
+    built_kp_id    INTEGER,                              -- 已建设知识点指向（演化锚点 D21）
+    judge_basis    TEXT,                                 -- 聚合依据：structural 结构强命中 / exact 极高相似 / llm LLM 精判（人工抽检过滤维度）
+    created_at     TEXT    NOT NULL DEFAULT (datetime('now')),
+    updated_at     TEXT    NOT NULL DEFAULT (datetime('now'))
+);
+
+CREATE INDEX IF NOT EXISTS idx_kp_canonical_cluster ON kp_canonical (cluster_id);
+CREATE INDEX IF NOT EXISTS idx_kp_canonical_status ON kp_canonical (status);

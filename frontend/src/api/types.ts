@@ -404,3 +404,89 @@ export interface DocDetail {
 export interface SplitOutcome {
   inserted: number
 }
+
+/* ================= 知识地图（pipeline，T7）================= */
+
+/** 归一题状态机（附录 A 8.2 canonical_status）：AI 聚合待确认 / 人工确认入图 / 已建设成知识点 */
+export type CanonicalStatus = 'pending' | 'confirmed' | 'built'
+
+/** 聚合依据：structural 结构强命中 / exact 极高相似 / llm LLM 精判（人工抽检的过滤维度） */
+export type CanonicalJudgeBasis = 'structural' | 'exact' | 'llm'
+
+export interface CanonicalItem {
+  id: number
+  title: string
+  clusterId: number | null
+  coverageCount: number
+  status: CanonicalStatus
+  judgeBasis: CanonicalJudgeBasis | null
+  builtKpId: number | null
+}
+
+/** 源候选溯源视图（答案证据为预览截断，原文走 docId 回跳素材库） */
+export interface CanonicalSource {
+  candidateId: number
+  docId: number
+  docFileName: string | null
+  title: string
+  answerEvidence: string | null
+  sectionPath: string | null
+  form: SourceForm
+  sourceRef: string | null
+}
+
+export interface CanonicalDetail {
+  canonical: CanonicalItem
+  sources: CanonicalSource[]
+}
+
+export interface CoverageCluster {
+  clusterId: number
+  name: string
+  domainId: number | null
+  domainName: string | null
+  canonicalCount: number
+  coverageSum: number
+  builtCount: number
+}
+
+export interface CoverageView {
+  domainCount: number
+  clusterCount: number
+  canonicalCount: number
+  builtCount: number
+  pendingCount: number
+  unclusteredCount: number
+  clusters: CoverageCluster[]
+}
+
+export interface TreeDomain {
+  domainId: number
+  domainName: string
+  clusterCount: number
+  canonicalCount: number
+  coverageSum: number
+}
+
+export interface TreeView {
+  domains: TreeDomain[]
+  unclusteredCount: number
+}
+
+/** 运行归一结果摘要 */
+export interface RunSummary {
+  looseCount: number
+  newCanonicals: number
+  absorbedItems: number
+  mappedKp: number
+  newClusters: number
+  embeddingOk: boolean
+  llmJudgeTruncated: number
+}
+
+/** AI 簇命名建议（只建议不落库，采纳走既有簇更新接口） */
+export interface NameSuggestion {
+  name: string
+  domainId: number | null
+  domainName: string | null
+}
