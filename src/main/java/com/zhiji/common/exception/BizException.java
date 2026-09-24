@@ -19,8 +19,19 @@ public class BizException extends RuntimeException {
         this.fields = null;
     }
 
+    public BizException(int status, String code, String message, Map<String, String> fields) {
+        super(message);
+        this.status = status;
+        this.code = code;
+        this.fields = fields;
+    }
+
     public static BizException of(int status, String code, String message) {
         return new BizException(status, code, message);
+    }
+
+    public static BizException of(int status, String code, String message, Map<String, String> fields) {
+        return new BizException(status, code, message, fields);
     }
 
     public static BizException unauthorizedToken() {

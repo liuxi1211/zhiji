@@ -60,3 +60,81 @@ CREATE TABLE IF NOT EXISTS llm_usage_daily (
 );
 
 CREATE INDEX IF NOT EXISTS idx_llm_usage_date ON llm_usage_daily (stat_date);
+
+-- T4 知识库模块（kb）：技能域先落表（T3 跳过期的最小边界，管理接口随 T3），簇/知识点/前置/频率信号。
+-- 枚举口径对齐 docs/核心模块定义.md 附录 A 8.2；字段级 DDL 以本文件为准。
+
+CREATE TABLE IF NOT EXISTS skill_domain (
+    id          INTEGER PRIMARY KEY AUTOINCREMENT,
+    name        TEXT    NOT NULL UNIQUE,
+    description TEXT,
+    sort_order  INTEGER NOT NULL DEFAULT 0,
+    status      TEXT    NOT NULL DEFAULT 'active' CHECK (status IN ('active','disabled')),
+    created_at  TEXT    NOT NULL DEFAULT (datetime('now')),
+    updated_at  TEXT    NOT NULL DEFAULT (datetime('now'))
+);
+
+CREATE TABLE IF NOT EXISTS kp_cluster (
+    id                    INTEGER PRIMARY KEY AUTOINCREMENT,
+    domain_id             INTEGER NOT NULL REFERENCES skill_domain (id),
+    name                  TEXT    NOT NULL,
+    description           TEXT,
+    zero_shot_md          TEXT,
+    reference_solution_md TEXT,
+    status                TEXT    NOT NULL DEFAULT 'draft' CHECK (status IN ('draft','reviewed','active','retired')),
+    merged_into           INTEGER REFERENCES kp_cluster (id),
+    last_reviewed_at      TEXT,
+    review_due_at         TEXT,
+    created_at            TEXT    NOT NULL DEFAULT (datetime('now')),
+    updated_at            TEXT    NOT NULL DEFAULT (datetime('now'))
+);
+
+CREATE INDEX IF NOT EXISTS idx_kp_cluster_domain ON kp_cluster (domain_id);
+CREATE INDEX IF NOT EXISTS idx_kp_cluster_review_due ON kp_cluster (review_due_at);
+
+CREATE TABLE IF NOT EXISTS kp_main (
+    id                  INTEGER PRIMARY KEY AUTOINCREMENT,
+    cluster_id          INTEGER NOT NULL REFERENCES kp_cluster (id),
+    sub_type            TEXT    NOT NULL DEFAULT 'default' CHECK (sub_type IN ('default','design_chain','narrative')),
+    title               TEXT    NOT NULL,
+    variants            TEXT    NOT NULL DEFAULT '[]',
+    narrative_framework TEXT,
+    followups           TEXT    NOT NULL DEFAULT '[]',
+    rubric              TEXT    NOT NULL DEFAULT '[]',
+    samples             TEXT    NOT NULL DEFAULT '{}',
+    level_req           TEXT    NOT NULL DEFAULT '{}',
+    baseline_levels     TEXT    NOT NULL DEFAULT '',
+    difficulty          INTEGER NOT NULL CHECK (difficulty BETWEEN 1 AND 5),
+    status              TEXT    NOT NULL DEFAULT 'draft' CHECK (status IN ('draft','reviewed','active','retired')),
+    merged_into         INTEGER REFERENCES kp_main (id),
+    last_reviewed_at    TEXT,
+    review_due_at       TEXT,
+    created_at          TEXT    NOT NULL DEFAULT (datetime('now')),
+    updated_at          TEXT    NOT NULL DEFAULT (datetime('now'))
+);
+
+CREATE INDEX IF NOT EXISTS idx_kp_main_cluster ON kp_main (cluster_id);
+CREATE INDEX IF NOT EXISTS idx_kp_main_status ON kp_main (status);
+CREATE INDEX IF NOT EXISTS idx_kp_main_review_due ON kp_main (review_due_at);
+
+CREATE TABLE IF NOT EXISTS kp_prereq (
+    id           INTEGER PRIMARY KEY AUTOINCREMENT,
+    kp_id        INTEGER NOT NULL REFERENCES kp_main (id),
+    prereq_kp_id INTEGER NOT NULL REFERENCES kp_main (id),
+    UNIQUE (kp_id, prereq_kp_id)
+);
+
+CREATE INDEX IF NOT EXISTS idx_kp_prereq_target ON kp_prereq (prereq_kp_id);
+
+-- signal_count 列名刻意不用 count：count 在 SQL 语境易与聚合函数混淆，列名规避。
+CREATE TABLE IF NOT EXISTS kp_freq_signal (
+    id           INTEGER PRIMARY KEY AUTOINCREMENT,
+    kp_id        INTEGER NOT NULL REFERENCES kp_main (id),
+    source       TEXT    NOT NULL CHECK (source IN ('manual','interview','coverage')),
+    signal_level TEXT    CHECK (signal_level IS NULL OR signal_level IN ('high','mid','low')),
+    signal_count INTEGER NOT NULL DEFAULT 1,
+    note         TEXT,
+    created_at   TEXT    NOT NULL DEFAULT (datetime('now'))
+);
+
+CREATE INDEX IF NOT EXISTS idx_kp_freq_kp ON kp_freq_signal (kp_id);
