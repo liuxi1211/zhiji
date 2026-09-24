@@ -1,0 +1,231 @@
+/*
+ * 主题层：设计令牌 + Element Plus 变量覆盖。
+ * 只在 Element Plus 的 CSS 变量面上改，不引入任何额外 UI 库。
+ *
+ * 色相决策：主色取「墨青」#0f6d68 —— 冷锻金属/氧化铜绿的方向，避开 SaaS 默认蓝紫。
+ * 铜色只承担"深度/刻度"语义，不参与状态表达；两者同属冷调，保持单一温度。
+ * 中性色带极轻青绿偏（teal-cast），与主色同温，避免灰配青的浑浊感。
+ *
+ * 对比度：本文件所有色值均按 WCAG 实测（文字 4.5:1 / 非文字 3:1），并覆盖亮暗两套。
+ * Element 的 primary 是一整条 ramp（light-3/5/7/8/9 + dark-2），只改 --el-color-primary
+ * 会让浅色变体仍停在默认蓝，必须整条一起换。
+ */
+:root {
+  /* —— 主色：墨青 —— */
+  --zj-primary: #0f6d68;
+  --zj-primary-hover: #0d5c57;
+  --zj-primary-active: #0b4e4b;
+  --zj-primary-soft: #e8f2f1;
+
+  /* —— 信号色：铜（只用于"深度/刻度"语义，非文字用途） —— */
+  --zj-copper: #b4741f;
+  --zj-copper-soft: #f7efe1;
+
+  /* —— 中性：墨（文字）/ 石（边界）/ 纸（底色），青绿偏 —— */
+  --zj-ink-900: #14201f;
+  --zj-ink-700: #3b4746;
+  --zj-ink-600: #596565;
+  --zj-ink-500: #6b7776;
+  --zj-ink-400: #98a3a2;
+  --zj-line: #e3e8e7;
+  --zj-line-soft: #edf1f0;
+  --zj-paper: #f5f7f6;
+  --zj-surface: #ffffff;
+  --zj-surface-sunken: #fafcfb;
+  --zj-sidebar: #0f1a19;
+  --zj-sidebar-ink: #a3aeac;
+
+  /* —— 兼容既有引用 —— */
+  --zj-text: var(--zj-ink-900);
+  --zj-text-weak: var(--zj-ink-500);
+  --zj-text-secondary: var(--zj-ink-500);
+  --zj-border: var(--zj-line);
+  --zj-bg: var(--zj-paper);
+
+  /* —— 难度五色（核心模块定义 85 行：1 白 / 2 绿 / 3 黄 / 4 橙 / 5 红）
+   * 只做圆点与描边（非文字），故只需 3:1；文字一律用墨色，不靠颜色单独承载信息。
+   */
+  --zj-diff-1: #8b93a7;
+  --zj-diff-2: #2e9e6b;
+  --zj-diff-3: #b98a06;
+  --zj-diff-4: #d96f28;
+  --zj-diff-5: #d64545;
+
+  /* —— 排版 —— */
+  --zj-font-sans: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'PingFang SC',
+    'Hiragino Sans GB', 'Microsoft YaHei', system-ui, sans-serif;
+  --zj-fs-xs: 12px;
+  --zj-fs-sm: 13px;
+  --zj-fs-base: 14px;
+  --zj-fs-md: 16px;
+  --zj-fs-lg: 20px;
+  --zj-fs-xl: 26px;
+  --zj-tracking-eyebrow: 0.08em;
+
+  /* —— 间距阶梯（4 的倍数，取用值必须落在此表内） —— */
+  --zj-space-1: 4px;
+  --zj-space-2: 8px;
+  --zj-space-3: 12px;
+  --zj-space-4: 16px;
+  --zj-space-5: 24px;
+  --zj-space-6: 32px;
+  --zj-space-7: 48px;
+
+  /* —— 形状 —— */
+  --zj-radius-sm: 6px;
+  --zj-radius: 10px;
+  --zj-radius-lg: 14px;
+  --zj-shadow-sm: 0 1px 2px rgba(20, 32, 31, 0.05);
+  --zj-shadow: 0 1px 2px rgba(20, 32, 31, 0.05), 0 10px 28px -14px rgba(20, 32, 31, 0.18);
+  --zj-shadow-lg: 0 2px 4px rgba(20, 32, 31, 0.06), 0 24px 48px -20px rgba(20, 32, 31, 0.24);
+
+  /* —— 动效：曲线与时长 —— */
+  --zj-ease-out: cubic-bezier(0.25, 1, 0.5, 1);
+  --zj-ease-out-quint: cubic-bezier(0.22, 1, 0.36, 1);
+  --zj-dur-fast: 140ms;
+  --zj-dur: 220ms;
+  --zj-dur-slow: 380ms;
+
+  /* —— Element Plus 全量对齐 —— */
+  --el-color-primary: #0f6d68;
+  --el-color-primary-light-3: #6fa7a4;
+  --el-color-primary-light-5: #9fc5c3;
+  --el-color-primary-light-7: #cadfde;
+  --el-color-primary-light-8: #ddebea;
+  --el-color-primary-light-9: #f1f6f6;
+  --el-color-primary-dark-2: #0c5753;
+
+  --el-color-success: #2e9e6b;
+  --el-color-warning: #b98a06;
+  --el-color-danger: #d64545;
+  --el-color-error: #d64545;
+  --el-color-info: #6b7776;
+
+  --el-text-color-primary: #14201f;
+  --el-text-color-regular: #3b4746;
+  --el-text-color-secondary: #596565;
+  --el-text-color-placeholder: #98a3a2;
+
+  --el-border-color: #dee4e3;
+  --el-border-color-light: #e3e8e7;
+  --el-border-color-lighter: #edf1f0;
+  --el-border-color-extra-light: #f3f6f5;
+  --el-border-radius-base: 10px;
+  --el-border-radius-small: 6px;
+
+  --el-bg-color-page: #f5f7f6;
+  --el-fill-color-light: #f5f7f6;
+  --el-fill-color-lighter: #fafcfb;
+  --el-fill-color-blank: #ffffff;
+
+  --el-box-shadow-light: var(--zj-shadow);
+  --el-box-shadow-lighter: var(--zj-shadow-sm);
+
+  --el-font-size-base: 14px;
+  --el-font-family: var(--zj-font-sans);
+
+  --el-card-border-color: var(--zj-line-soft);
+  --el-card-border-radius: 14px;
+  --el-card-bg-color: #ffffff;
+  /* 卡片头水平内边距是 24px（main.css .el-card__header），体必须同为 24 才不错位；
+   * ModulePlaceholder 的刻度带负边距也按 24 设计 */
+  --el-card-padding: 24px;
+
+  --el-menu-bg-color: transparent;
+  --el-menu-text-color: var(--zj-sidebar-ink);
+  --el-menu-active-color: #ffffff;
+  --el-menu-hover-bg-color: rgba(255, 255, 255, 0.06);
+  --el-menu-hover-text-color: #ffffff;
+  --el-menu-item-height: 40px;
+  --el-menu-sub-item-height: 38px;
+  --el-menu-item-font-size: 13px;
+  /* 层级缩进交给 Element 自己算：base(父项左距) + level × level-padding(子项每级递进) */
+  --el-menu-base-level-padding: 16px;
+  --el-menu-level-padding: 14px;
+
+  --el-table-border-color: var(--zj-line-soft);
+  --el-table-header-bg-color: var(--zj-surface-sunken);
+  --el-table-header-text-color: var(--zj-ink-600);
+  --el-table-row-hover-bg-color: var(--zj-primary-soft);
+
+  --el-transition-duration: var(--zj-dur);
+  --el-transition-duration-fast: var(--zj-dur-fast);
+
+  color-scheme: light;
+}
+
+html.dark {
+  --zj-primary: #2fb3a8;
+  --zj-primary-hover: #4cbeb4;
+  --zj-primary-active: #65c7bf;
+  --zj-primary-soft: #1a3333;
+
+  --zj-copper: #d99a45;
+  --zj-copper-soft: #2a2317;
+
+  --zj-ink-900: #e6eceb;
+  --zj-ink-700: #c1cac9;
+  --zj-ink-600: #98a4a3;
+  --zj-ink-500: #8b9695;
+  --zj-ink-400: #6e7b7a;
+  --zj-line: #2b3535;
+  --zj-line-soft: #212a2a;
+  --zj-paper: #101617;
+  --zj-surface: #171e20;
+  --zj-surface-sunken: #121819;
+  --zj-sidebar: #0a1011;
+  --zj-sidebar-ink: #96a3a1;
+
+  --zj-shadow-sm: 0 1px 2px rgba(0, 0, 0, 0.4);
+  --zj-shadow: 0 1px 2px rgba(0, 0, 0, 0.4), 0 12px 32px -16px rgba(0, 0, 0, 0.7);
+  --zj-shadow-lg: 0 2px 6px rgba(0, 0, 0, 0.5), 0 28px 56px -24px rgba(0, 0, 0, 0.8);
+
+  --zj-diff-1: #9aa5bd;
+  --zj-diff-2: #3fb87e;
+  --zj-diff-3: #d9a52a;
+  --zj-diff-4: #ef8340;
+  --zj-diff-5: #e8695f;
+
+  /* 深色下 primary 变亮以保证"作为文字/图标"可读（≥4.5）；
+   * 因此实心按钮上的文字改用深墨色（见 main.css 的 .el-button--primary 覆盖）。
+   */
+  --el-color-primary: #2fb3a8;
+  --el-color-primary-light-3: #2a928a;
+  --el-color-primary-light-5: #257772;
+  --el-color-primary-light-7: #205754;
+  --el-color-primary-light-8: #1d4342;
+  --el-color-primary-light-9: #1a3333;
+  --el-color-primary-dark-2: #61c5bd;
+
+  --el-color-success: #3fb87e;
+  --el-color-warning: #d9a52a;
+  --el-color-danger: #e8695f;
+  --el-color-error: #e8695f;
+
+  --el-text-color-primary: #e6eceb;
+  --el-text-color-regular: #c1cac9;
+  --el-text-color-secondary: #98a4a3;
+  --el-text-color-placeholder: #6e7b7a;
+
+  --el-border-color: #333e3e;
+  --el-border-color-light: #2b3535;
+  --el-border-color-lighter: #212a2a;
+  --el-border-color-extra-light: #1a2222;
+
+  --el-bg-color: #171e20;
+  --el-bg-color-page: #101617;
+  --el-bg-color-overlay: #1c2426;
+  --el-fill-color: #212a2a;
+  --el-fill-color-light: #1c2426;
+  --el-fill-color-lighter: #161d1f;
+  --el-fill-color-blank: #171e20;
+
+  --el-card-bg-color: #171e20;
+  --el-card-border-color: #212a2a;
+  --el-table-header-bg-color: #121819;
+  --el-table-border-color: #212a2a;
+  --el-table-bg-color: #171e20;
+  --el-table-tr-bg-color: #171e20;
+
+  color-scheme: dark;
+}
