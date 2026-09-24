@@ -4,6 +4,16 @@
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>知己 · 面试陪练</title>
+    <script>
+      // 首屏前套用主题类，避免深色偏好用户看到白屏闪烁；来源与 stores/theme.ts 的 STORAGE_KEY 一致
+      (function () {
+        try {
+          var saved = localStorage.getItem('zj-theme')
+          var dark = saved ? saved === 'dark' : window.matchMedia('(prefers-color-scheme: dark)').matches
+          if (dark) document.documentElement.classList.add('dark')
+        } catch (e) {}
+      })()
+    </script>
   </head>
   <body>
     <div id="app"></div>

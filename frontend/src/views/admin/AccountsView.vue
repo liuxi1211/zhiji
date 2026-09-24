@@ -68,14 +68,20 @@ async function resetPassword(row: StaffAccountView) {
 </script>
 
 <template>
-  <el-card shadow="never">
-    <template #header>
-      <div class="toolbar">
-        <span>后台人员（客户账号不在后台管理）</span>
-        <el-button type="primary" size="small" @click="createVisible = true">新增账号</el-button>
-      </div>
-    </template>
-    <el-table v-loading="loading" :data="accounts" size="small">
+  <section class="accounts">
+    <header class="zj-page-head">
+      <h1>账号管理</h1>
+      <p>后台人员账号的创建、角色与状态维护；客户账号不在后台管理</p>
+    </header>
+
+    <el-card shadow="never">
+      <template #header>
+        <div class="toolbar">
+          <span>共 <b class="zj-num">{{ accounts.length }}</b> 个后台账号</span>
+          <el-button type="primary" size="small" @click="createVisible = true">新增账号</el-button>
+        </div>
+      </template>
+      <el-table v-loading="loading" :data="accounts" size="small">
       <el-table-column prop="username" label="用户名" min-width="140" />
       <el-table-column label="角色" width="120">
         <template #default="{ row }">{{ constants.name('staff_role', row.role) }}</template>
@@ -91,13 +97,19 @@ async function resetPassword(row: StaffAccountView) {
       <el-table-column prop="lastLoginAt" label="最近登录" width="170" />
       <el-table-column label="操作" width="200">
         <template #default="{ row }">
-          <el-button size="small" @click="resetPassword(row)">重置口令</el-button>
-          <el-button size="small" :type="row.status === 'active' ? 'danger' : 'success'" @click="toggleStatus(row)">
+          <el-button size="small" text type="primary" @click="resetPassword(row)">重置口令</el-button>
+          <el-button
+            size="small"
+            text
+            :type="row.status === 'active' ? 'danger' : 'success'"
+            @click="toggleStatus(row)"
+          >
             {{ row.status === 'active' ? '停用' : '启用' }}
           </el-button>
         </template>
       </el-table-column>
-    </el-table>
+      </el-table>
+    </el-card>
 
     <el-dialog v-model="createVisible" title="新增后台账号" width="420px">
       <el-form label-position="top">
@@ -119,7 +131,7 @@ async function resetPassword(row: StaffAccountView) {
         <el-button type="primary" @click="submitCreate">创建</el-button>
       </template>
     </el-dialog>
-  </el-card>
+  </section>
 </template>
 
 <style scoped>
@@ -127,5 +139,10 @@ async function resetPassword(row: StaffAccountView) {
   display: flex;
   align-items: center;
   justify-content: space-between;
+}
+
+.toolbar b {
+  color: var(--zj-primary);
+  font-weight: 700;
 }
 </style>

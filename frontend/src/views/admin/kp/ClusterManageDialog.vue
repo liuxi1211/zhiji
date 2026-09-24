@@ -2,6 +2,7 @@
 import { computed, reactive, ref, watch } from 'vue'
 import { ElMessage, ElMessageBox } from 'element-plus'
 import MarkdownEditor from '@/components/MarkdownEditor.vue'
+import DifficultyChip from '@/components/DifficultyChip.vue'
 import {
   changeClusterStatus,
   createCluster,
@@ -240,12 +241,6 @@ function statusTagType(status: KpStatus): 'info' | 'warning' | 'success' | 'dang
   return 'danger'
 }
 
-function difficultyTagType(n: number): 'info' | 'success' | 'warning' | 'danger' {
-  if (n <= 1) return 'info'
-  if (n === 2) return 'success'
-  if (n === 3) return 'warning'
-  return 'danger'
-}
 </script>
 
 <template>
@@ -329,12 +324,9 @@ function difficultyTagType(n: number): 'info' | 'success' | 'warning' | 'danger'
                 <el-tag :type="statusTagType(row.status)" size="small">{{ constants.name('content_status', row.status) }}</el-tag>
               </template>
             </el-table-column>
-            <el-table-column label="难度" width="86">
+            <el-table-column label="难度" width="110">
               <template #default="{ row }">
-                <el-tag v-if="row.difficulty === 4" size="small" class="diff-4">难度{{ row.difficulty }}</el-tag>
-                <el-tag v-else size="small" :type="difficultyTagType(row.difficulty)" :effect="row.difficulty <= 1 ? 'plain' : 'light'">
-                  难度{{ row.difficulty }}
-                </el-tag>
+                <DifficultyChip :level="row.difficulty" />
               </template>
             </el-table-column>
           </el-table>
@@ -377,7 +369,7 @@ function difficultyTagType(n: number): 'info' | 'success' | 'warning' | 'danger'
 .cluster-right {
   flex: 1;
   min-width: 0;
-  border-left: 1px solid var(--zj-border, #dcdfe6);
+  border-left: 1px solid var(--zj-line);
   padding-left: 20px;
 }
 
@@ -398,7 +390,7 @@ function difficultyTagType(n: number): 'info' | 'success' | 'warning' | 'danger'
 
 .cluster-desc {
   font-size: 13px;
-  color: var(--zj-text-secondary, #909399);
+  color: var(--zj-ink-500);
   margin: 0 0 12px;
 }
 
@@ -406,11 +398,5 @@ function difficultyTagType(n: number): 'info' | 'success' | 'warning' | 'danger'
   display: flex;
   justify-content: flex-end;
   gap: 8px;
-}
-
-.diff-4 {
-  color: #fff;
-  background-color: #e6752d;
-  border-color: #e6752d;
 }
 </style>

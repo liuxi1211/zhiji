@@ -121,10 +121,15 @@ async function runConnectivityCheck() {
 
 <template>
   <div class="settings" v-loading="loading">
+    <header class="zj-page-head">
+      <h1>系统配置</h1>
+      <p>模型按用途路由、限额与熔断、连通性自检与用量对照；密钥走服务端配置，不在此处管理</p>
+    </header>
+
     <el-card shadow="never">
       <template #header>
         <div class="toolbar">
-          <span>模型路由（按用途选 provider 与模型；密钥走服务端配置，不在此处管理）</span>
+          <span>模型路由（按用途选择 provider 与模型）</span>
           <el-button type="primary" size="small" :loading="saving" @click="saveRoutes">保存路由</el-button>
         </div>
       </template>
@@ -293,7 +298,7 @@ async function runConnectivityCheck() {
   gap: 12px;
   margin-top: 12px;
   font-size: 13px;
-  color: var(--zj-text-secondary, #909399);
+  color: var(--zj-ink-500);
 }
 
 .recent {

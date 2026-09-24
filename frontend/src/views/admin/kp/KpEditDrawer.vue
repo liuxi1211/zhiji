@@ -37,6 +37,33 @@ const constants = useConstantsStore()
 const LEVEL_TARGETS: LevelTarget[] = ['junior', 'mid', 'senior', 'staff', 'expert']
 const MAIN_LAYER = 'main'
 
+/**
+ * 抽屉内分区导航：九个区块若全靠滚动查找，用户必须记住"什么东西在哪个位置"。
+ * 提供常驻锚点后，定位成本从"滚动扫描"降为"点一下"。
+ */
+const SECTIONS = [
+  { id: 'sec-basic', label: '基础信息' },
+  { id: 'sec-variants', label: '题面变体' },
+  { id: 'sec-followups', label: '追问链' },
+  { id: 'sec-rubric', label: '评分要点' },
+  { id: 'sec-samples', label: '回答样例' },
+  { id: 'sec-narrative', label: '叙述框架' },
+  { id: 'sec-levels', label: '职级要求' },
+  { id: 'sec-prereq', label: '前置依赖' },
+  { id: 'sec-signals', label: '频率信号' }
+] as const
+
+const scrollRef = ref<HTMLElement | null>(null)
+const activeSection = ref<string>(SECTIONS[0].id)
+
+function scrollToSection(id: string) {
+  activeSection.value = id
+  const target = scrollRef.value?.querySelector<HTMLElement>(`#${id}`)
+  // 抽屉体本身即滚动容器（el-drawer__body 已是 overflow:auto），
+  // 故用 scrollIntoView 交给最近的滚动祖先，避免再套一层滚动条
+  target?.scrollIntoView({ behavior: 'smooth', block: 'start' })
+}
+
 interface EditableFollowup {
   layerKey: string
   dir: string
@@ -433,7 +460,21 @@ async function save() {
     @update:model-value="emit('update:modelValue', $event)"
   >
     <div v-loading="loading" class="drawer-body">
-      <el-divider content-position="left">基础信息</el-divider>
+      <nav class="section-rail" aria-label="知识点编辑分区">
+        <button
+          v-for="section in SECTIONS"
+          :key="section.id"
+          type="button"
+          class="rail-item"
+          :class="{ active: activeSection === section.id }"
+          @click="scrollToSection(section.id)"
+        >
+          {{ section.label }}
+        </button>
+      </nav>
+
+      <div ref="scrollRef" class="drawer-scroll">
+      <el-divider id="sec-basic" content-position="left">基础信息</el-divider>
       <el-form label-position="top">
         <el-row :gutter="16">
           <el-col :span="6">
@@ -470,7 +511,7 @@ async function save() {
         </el-form-item>
       </el-form>
 
-      <el-divider content-position="left">题面变体</el-divider>
+      <el-divider id="sec-variants" content-position="left">题面变体</el-divider>
       <div class="section-hint">同一题面的不同问法，最多 5 条；用于命中识别。</div>
       <div v-for="(_, index) in state.variants" :key="index" class="variant-row">
         <el-input v-model="state.variants[index]" placeholder="变体问法" />
@@ -479,7 +520,7 @@ async function save() {
       <el-button size="small" :disabled="state.variants.length >= 5" @click="addVariant">添加变体</el-button>
       <span v-if="state.variants.length >= 5" class="section-hint inline">已达上限 5 条</span>
 
-      <el-divider content-position="left">追问链</el-divider>
+      <el-divider id="sec-followups" content-position="left">追问链</el-divider>
       <div class="section-hint">主问题层固定为 main，不在此列；数组顺序即展示序。新增层与停用层即时生效，不走底部整体保存。</div>
       <div
         v-for="(f, index) in state.followups"
@@ -487,39 +528,49 @@ async function save() {
         class="layer-box"
         :class="{ 'layer-disabled': f.status === 'disabled' }"
       >
-        <div class="layer-head">
-          <el-tag size="small" effect="plain">{{ f.layerKey }}</el-tag>
-          <el-tag v-if="f.status === 'disabled'" size="small" type="info">已停用</el-tag>
-          <span class="layer-ops">
-            <el-button size="small" text :disabled="index === 0" @click="moveLayer(index, -1)">上移</el-button>
-            <el-button size="small" text :disabled="index === state.followups.length - 1" @click="moveLayer(index, 1)">下移</el-button>
-            <el-button v-if="f.status === 'active'" size="small" text type="danger" @click="disableLayer(f)">停用</el-button>
-          </span>
+        <span class="depth-spine" aria-hidden="true">
+          <i
+            v-for="n in state.followups.length"
+            :key="n"
+            :class="{ 'is-on': n <= index + 1, 'is-deep': n <= index + 1 && n >= 3 }"
+          ></i>
+        </span>
+        <div class="layer-content">
+          <div class="layer-head">
+            <el-tag size="small" effect="plain">{{ f.layerKey }}</el-tag>
+            <span class="layer-depth zj-num">第 {{ index + 1 }} 层</span>
+            <el-tag v-if="f.status === 'disabled'" size="small" type="info">已停用</el-tag>
+            <span class="layer-ops">
+              <el-button size="small" text :disabled="index === 0" @click="moveLayer(index, -1)">上移</el-button>
+              <el-button size="small" text :disabled="index === state.followups.length - 1" @click="moveLayer(index, 1)">下移</el-button>
+              <el-button v-if="f.status === 'active'" size="small" text type="danger" @click="disableLayer(f)">停用</el-button>
+            </span>
+          </div>
+          <el-form label-position="top">
+            <el-row :gutter="16">
+              <el-col :span="8">
+                <el-form-item label="追问方向">
+                  <el-input v-model="f.dir" :disabled="f.status === 'disabled'" />
+                </el-form-item>
+              </el-col>
+            </el-row>
+            <el-form-item label="追问内容">
+              <el-input v-model="f.text" type="textarea" :rows="2" :disabled="f.status === 'disabled'" />
+            </el-form-item>
+            <el-row :gutter="16">
+              <el-col :span="12">
+                <el-form-item label="期望回答要点">
+                  <el-input v-model="f.expect" type="textarea" :rows="2" :disabled="f.status === 'disabled'" />
+                </el-form-item>
+              </el-col>
+              <el-col :span="12">
+                <el-form-item label="停止条件">
+                  <el-input v-model="f.stopCondition" type="textarea" :rows="2" :disabled="f.status === 'disabled'" />
+                </el-form-item>
+              </el-col>
+            </el-row>
+          </el-form>
         </div>
-        <el-form label-position="top">
-          <el-row :gutter="16">
-            <el-col :span="8">
-              <el-form-item label="追问方向">
-                <el-input v-model="f.dir" :disabled="f.status === 'disabled'" />
-              </el-form-item>
-            </el-col>
-          </el-row>
-          <el-form-item label="追问内容">
-            <el-input v-model="f.text" type="textarea" :rows="2" :disabled="f.status === 'disabled'" />
-          </el-form-item>
-          <el-row :gutter="16">
-            <el-col :span="12">
-              <el-form-item label="期望回答要点">
-                <el-input v-model="f.expect" type="textarea" :rows="2" :disabled="f.status === 'disabled'" />
-              </el-form-item>
-            </el-col>
-            <el-col :span="12">
-              <el-form-item label="停止条件">
-                <el-input v-model="f.stopCondition" type="textarea" :rows="2" :disabled="f.status === 'disabled'" />
-              </el-form-item>
-            </el-col>
-          </el-row>
-        </el-form>
       </div>
       <div class="layer-box new-layer">
         <div class="layer-head">
@@ -552,7 +603,7 @@ async function save() {
         </el-form>
       </div>
 
-      <el-divider content-position="left">评分要点</el-divider>
+      <el-divider id="sec-rubric" content-position="left">评分要点</el-divider>
       <div class="section-hint">预制评分要点是判定尺子，LLM 只做对齐判断；新加要点保存后由后端分配编号。</div>
       <div v-for="section in rubricSections" :key="section.layerKey" class="rubric-group">
         <div class="rubric-head">
@@ -570,7 +621,7 @@ async function save() {
         <el-button size="small" text type="primary" @click="addPoint(section.layerKey)">+ 添加要点</el-button>
       </div>
 
-      <el-divider content-position="left">三档标准回答样例</el-divider>
+      <el-divider id="sec-samples" content-position="left">三档标准回答样例</el-divider>
       <el-row :gutter="16">
         <el-col :span="8">
           <el-form-item label="及格样例">
@@ -589,10 +640,10 @@ async function save() {
         </el-col>
       </el-row>
 
-      <el-divider content-position="left">叙述框架</el-divider>
+      <el-divider id="sec-narrative" content-position="left">叙述框架</el-divider>
       <MarkdownEditor v-model="state.narrativeFramework" height="220px" placeholder="作答应遵循的叙述框架（Markdown）" />
 
-      <el-divider content-position="left">职级要求</el-divider>
+      <el-divider id="sec-levels" content-position="left">职级要求</el-divider>
       <div class="level-grid">
         <div v-for="t in LEVEL_TARGETS" :key="t" class="level-cell">
           <div class="level-head">
@@ -605,7 +656,7 @@ async function save() {
         </div>
       </div>
 
-      <el-divider content-position="left">前置依赖</el-divider>
+      <el-divider id="sec-prereq" content-position="left">前置依赖</el-divider>
       <el-select
         v-model="state.prereqIds"
         multiple
@@ -621,7 +672,7 @@ async function save() {
         <el-option v-for="opt in prereqOptions" :key="opt.id" :label="opt.title" :value="opt.id" />
       </el-select>
 
-      <el-divider content-position="left">频率信号</el-divider>
+      <el-divider id="sec-signals" content-position="left">频率信号</el-divider>
       <el-table :data="state.freqSignals" size="small">
         <el-table-column label="来源" width="110">
           <template #default="{ row }">{{ constants.name('freq_source', row.source) }}</template>
@@ -640,6 +691,7 @@ async function save() {
         <el-input v-model="freqSignalForm.note" placeholder="标定说明" style="width: 320px" />
         <el-button type="primary" size="small" :loading="savingSignal" @click="submitFreqSignal">保存标定</el-button>
       </div>
+      </div>
     </div>
     <template #footer>
       <el-button @click="emit('update:modelValue', false)">取消</el-button>
@@ -649,13 +701,61 @@ async function save() {
 </template>
 
 <style scoped>
+/* 抽屉体（el-drawer__body）本身就是滚动容器，这里不再自建滚动条；
+ * 左栏用 sticky 钉在视口内，右栏内容随抽屉体一起滚动。 */
 .drawer-body {
-  padding: 0 8px;
+  display: flex;
+  gap: var(--zj-space-5);
+  align-items: flex-start;
+  padding: 0 var(--zj-space-2);
+}
+
+.section-rail {
+  position: sticky;
+  top: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  flex-shrink: 0;
+  width: 104px;
+  padding-top: var(--zj-space-1);
+}
+
+.rail-item {
+  padding: 6px 10px;
+  font-size: var(--zj-fs-xs);
+  font-family: inherit;
+  text-align: left;
+  color: var(--zj-ink-600);
+  background: transparent;
+  border: none;
+  border-left: 2px solid var(--zj-line);
+  cursor: pointer;
+  transition: color var(--zj-dur-fast) var(--zj-ease-out),
+    border-color var(--zj-dur-fast) var(--zj-ease-out),
+    background var(--zj-dur-fast) var(--zj-ease-out);
+}
+
+.rail-item:hover {
+  color: var(--zj-ink-900);
+  background: var(--zj-surface-sunken);
+}
+
+.rail-item.active {
+  color: var(--zj-primary);
+  font-weight: 600;
+  border-left-color: var(--zj-primary);
+  background: var(--zj-primary-soft);
+}
+
+.drawer-scroll {
+  flex: 1;
+  min-width: 0;
 }
 
 .section-hint {
   font-size: 12px;
-  color: var(--zj-text-secondary, #909399);
+  color: var(--zj-ink-600);
   margin-bottom: 8px;
 }
 
@@ -671,14 +771,48 @@ async function save() {
 }
 
 .layer-box {
-  border: 1px solid var(--zj-border, #dcdfe6);
-  border-radius: 6px;
+  position: relative;
+  display: flex;
+  gap: 12px;
+  border: 1px solid var(--zj-line);
+  border-radius: var(--zj-radius-sm);
   padding: 12px 16px;
   margin-bottom: 12px;
+  background: var(--zj-surface);
+}
+
+/* 深度脊柱：第 N 层点亮前 N 档，第 3 档起转铜色 —— 追问越深越暖，呼应"问到哪层崩" */
+.depth-spine {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+  padding-top: 5px;
+  flex-shrink: 0;
+}
+
+.depth-spine i {
+  width: 3px;
+  flex: 1;
+  min-height: 6px;
+  border-radius: 2px;
+  background: var(--zj-line);
+}
+
+.depth-spine i.is-on {
+  background: var(--zj-primary);
+}
+
+.depth-spine i.is-deep {
+  background: var(--zj-copper);
+}
+
+.layer-content {
+  flex: 1;
+  min-width: 0;
 }
 
 .layer-disabled {
-  background: #f5f7fa;
+  background: var(--zj-surface-sunken);
 }
 
 .layer-head {
@@ -686,6 +820,12 @@ async function save() {
   align-items: center;
   gap: 8px;
   margin-bottom: 4px;
+}
+
+.layer-depth {
+  font-size: var(--zj-fs-xs);
+  font-weight: 600;
+  color: var(--zj-ink-400);
 }
 
 .layer-ops {
@@ -697,12 +837,13 @@ async function save() {
 }
 
 .new-layer {
+  display: block;
   border-style: dashed;
 }
 
 .rubric-group {
-  border: 1px solid var(--zj-border, #dcdfe6);
-  border-radius: 6px;
+  border: 1px solid var(--zj-line);
+  border-radius: var(--zj-radius-sm);
   padding: 12px 16px;
   margin-bottom: 12px;
 }
@@ -728,8 +869,8 @@ async function save() {
 }
 
 .level-cell {
-  border: 1px solid var(--zj-border, #dcdfe6);
-  border-radius: 6px;
+  border: 1px solid var(--zj-line);
+  border-radius: var(--zj-radius-sm);
   padding: 10px 14px;
 }
 

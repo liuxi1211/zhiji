@@ -1,36 +1,55 @@
 <script setup lang="ts">
 import { computed } from 'vue'
 import { RouterView, useRoute } from 'vue-router'
+import BrandMark from '@/components/BrandMark.vue'
+import ThemeToggle from '@/components/ThemeToggle.vue'
 
 const route = useRoute()
 
 /** C 端主导航：对应核心模块定义第二节的六功能（建档在"我的"内） */
 const tabs = [
-  { name: 'map', path: '/map', label: '地图' },
-  { name: 'gacha', path: '/gacha', label: '抽卡' },
-  { name: 'exam', path: '/exam', label: '模拟考' },
-  { name: 'review', path: '/review', label: '复盘' },
-  { name: 'profile', path: '/profile', label: '我的' }
+  { name: 'map', path: '/map', label: '地图', icon: 'map' },
+  { name: 'gacha', path: '/gacha', label: '抽卡', icon: 'gacha' },
+  { name: 'exam', path: '/exam', label: '模拟考', icon: 'exam' },
+  { name: 'review', path: '/review', label: '复盘', icon: 'review' },
+  { name: 'profile', path: '/profile', label: '我的', icon: 'profile' }
 ]
 
 const activeTab = computed(() => {
   const matched = tabs.find((t) => route.path.startsWith(t.path))
   return matched?.name ?? 'map'
 })
+
+const activeIndex = computed(() => {
+  const index = tabs.findIndex((t) => t.name === activeTab.value)
+  return index < 0 ? 0 : index
+})
 </script>
 
 <template>
   <div class="learn-layout">
     <header class="learn-header">
-      <span class="brand">知己</span>
-      <span class="subtitle">{{ route.meta.title }}</span>
+      <div class="learn-brand">
+        <BrandMark size="md" />
+        <span class="learn-title">{{ route.meta.title }}</span>
+      </div>
+      <ThemeToggle />
     </header>
 
     <main class="learn-main">
-      <RouterView />
+      <RouterView v-slot="{ Component }">
+        <Transition name="route-fade" mode="out-in">
+          <component :is="Component" />
+        </Transition>
+      </RouterView>
     </main>
 
     <nav class="learn-tabbar">
+      <span
+        class="tab-indicator"
+        aria-hidden="true"
+        :style="{ transform: `translateX(${activeIndex * 100}%)` }"
+      ></span>
       <RouterLink
         v-for="tab in tabs"
         :key="tab.name"
@@ -38,7 +57,30 @@ const activeTab = computed(() => {
         class="tab-item"
         :class="{ active: activeTab === tab.name }"
       >
-        {{ tab.label }}
+        <svg class="tab-icon" viewBox="0 0 24 24" aria-hidden="true">
+          <template v-if="tab.icon === 'map'">
+            <path d="M4 6.5 9.5 4l5 2.5L20 4v13.5L14.5 20l-5-2.5L4 20Z" />
+            <path d="M9.5 4v13.5M14.5 6.5V20" />
+          </template>
+          <template v-else-if="tab.icon === 'gacha'">
+            <rect x="4" y="5" width="9" height="14" rx="2" />
+            <path d="M16 8.5l4-1.5v10l-4-1.5Z" />
+          </template>
+          <template v-else-if="tab.icon === 'exam'">
+            <path d="M6 3.5h9l4 4V20a.5.5 0 0 1-.5.5h-12A.5.5 0 0 1 6 20Z" />
+            <path d="M15 3.5V8h4M9 12.5h6M9 16h4" />
+          </template>
+          <template v-else-if="tab.icon === 'review'">
+            <path d="M4 12a8 8 0 1 0 2.5-5.8" />
+            <path d="M4 4v4h4" />
+            <path d="M12 8.5V12l2.5 1.5" />
+          </template>
+          <template v-else>
+            <circle cx="12" cy="8.5" r="3.5" />
+            <path d="M5.5 20a6.5 6.5 0 0 1 13 0" />
+          </template>
+        </svg>
+        <span class="tab-label">{{ tab.label }}</span>
       </RouterLink>
     </nav>
   </div>
@@ -49,6 +91,7 @@ const activeTab = computed(() => {
   display: flex;
   flex-direction: column;
   min-height: 100%;
+  background: var(--zj-paper);
 }
 
 .learn-header {
@@ -57,46 +100,95 @@ const activeTab = computed(() => {
   z-index: 10;
   display: flex;
   align-items: center;
-  gap: 10px;
-  padding: 12px 16px;
-  background: #fff;
-  border-bottom: 1px solid var(--zj-border);
+  justify-content: space-between;
+  gap: var(--zj-space-3);
+  padding: var(--zj-space-3) var(--zj-space-5);
+  background: var(--zj-surface);
+  border-bottom: 1px solid var(--zj-line-soft);
 }
 
-.brand {
-  font-size: 17px;
-  font-weight: 600;
+.learn-brand {
+  display: flex;
+  align-items: baseline;
+  gap: var(--zj-space-3);
 }
 
-.subtitle {
-  font-size: 13px;
-  color: var(--zj-text-weak);
+.learn-title {
+  font-size: var(--zj-fs-sm);
+  font-weight: 500;
+  color: var(--zj-ink-600);
 }
 
 .learn-main {
   flex: 1;
-  padding: 16px;
+  width: 100%;
+  max-width: 920px;
+  margin: 0 auto;
+  padding: var(--zj-space-5) var(--zj-space-5) var(--zj-space-6);
 }
 
 .learn-tabbar {
   position: sticky;
   bottom: 0;
+  z-index: 10;
   display: flex;
-  background: #fff;
-  border-top: 1px solid var(--zj-border);
+  background: var(--zj-surface);
+  border-top: 1px solid var(--zj-line-soft);
+}
+
+/* 选中指示：单个元素平移，而非逐项淡入 —— 移动本身说明"从哪到哪" */
+.tab-indicator {
+  position: absolute;
+  top: -1px;
+  left: 0;
+  width: 20%;
+  height: 2px;
+  display: flex;
+  justify-content: center;
+  transition: transform var(--zj-dur) var(--zj-ease-out-quint);
+}
+
+.tab-indicator::before {
+  content: '';
+  width: 22px;
+  height: 2px;
+  border-radius: 0 0 2px 2px;
+  background: var(--zj-primary);
 }
 
 .tab-item {
+  position: relative;
   flex: 1;
-  padding: 12px 0;
-  text-align: center;
-  font-size: 13px;
-  color: var(--zj-text-weak);
-  text-decoration: none;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 3px;
+  padding: 9px 0 11px;
+  color: var(--zj-ink-500);
+  transition: color var(--zj-dur-fast) var(--zj-ease-out);
+}
+
+.tab-item:hover {
+  color: var(--zj-ink-900);
 }
 
 .tab-item.active {
-  color: #2b6cf6;
-  font-weight: 600;
+  color: var(--zj-primary);
+}
+
+.tab-icon {
+  width: 20px;
+  height: 20px;
+  fill: none;
+  stroke: currentColor;
+  stroke-width: 1.6;
+  stroke-linejoin: round;
+  stroke-linecap: round;
+}
+
+.tab-label {
+  font-size: 11px;
+  font-weight: 500;
+  letter-spacing: 0.01em;
 }
 </style>

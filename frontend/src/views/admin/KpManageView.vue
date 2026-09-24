@@ -5,6 +5,7 @@ import { createKp, getKpMeta, listKp, retireKp } from '@/api/kb'
 import { useConstantsStore } from '@/stores/constants'
 import ClusterManageDialog from './kp/ClusterManageDialog.vue'
 import KpEditDrawer from './kp/KpEditDrawer.vue'
+import DifficultyChip from '@/components/DifficultyChip.vue'
 import type { KpListItem, KpMeta, KpStatus, SubType } from '@/api/types'
 
 const constants = useConstantsStore()
@@ -258,13 +259,6 @@ function statusTagType(status: KpStatus): 'info' | 'warning' | 'success' | 'dang
   return 'danger'
 }
 
-function difficultyTagType(n: number): 'info' | 'success' | 'warning' | 'danger' {
-  if (n <= 1) return 'info'
-  if (n === 2) return 'success'
-  if (n === 3) return 'warning'
-  return 'danger'
-}
-
 onMounted(() => {
   void constants.ensure()
   void loadMeta()
@@ -273,113 +267,123 @@ onMounted(() => {
 </script>
 
 <template>
-  <el-card shadow="never">
-    <template #header>
-      <div class="toolbar">
-        <span>知识点管理</span>
-        <span class="toolbar-actions">
-          <el-button size="small" @click="clusterDialogVisible = true">主题簇管理</el-button>
-          <el-button type="primary" size="small" @click="openCreate">新建知识点</el-button>
+  <section class="kp-manage">
+    <header class="zj-page-head">
+      <h1>知识点管理</h1>
+      <p>知识点与主题簇的维护中心：题面、追问链、评分要点与内容状态机</p>
+    </header>
+
+    <el-card shadow="never">
+      <template #header>
+        <div class="toolbar">
+          <span class="toolbar-title">
+            共 <b class="zj-num">{{ total }}</b> 个知识点
+          </span>
+          <span class="toolbar-actions">
+            <el-button size="small" @click="clusterDialogVisible = true">主题簇管理</el-button>
+            <el-button type="primary" size="small" @click="openCreate">新建知识点</el-button>
+          </span>
+        </div>
+      </template>
+
+      <el-alert
+        v-if="meta && meta.domains.length === 0"
+        type="warning"
+        :closable="false"
+        show-icon
+        title="技能域字典为空，请先通过种子数据（src/main/resources/db/sample-data.sql）或 T3 域管理建立域"
+        class="domain-alert"
+      />
+
+      <div class="filters">
+        <el-input
+          v-model="filters.keyword"
+          placeholder="题面关键词"
+          clearable
+          style="width: 200px"
+          @keyup.enter="search"
+          @clear="search"
+        />
+        <el-select v-model="filters.domainId" style="width: 140px" @change="onFilterDomainChange">
+          <el-option label="全部域" :value="0" />
+          <el-option v-for="d in meta?.domains ?? []" :key="d.id" :label="d.name" :value="d.id" />
+        </el-select>
+        <el-select v-model="filters.clusterId" style="width: 160px" @change="search">
+          <el-option label="全部簇" :value="0" />
+          <el-option v-for="c in filterClusterOptions" :key="c.id" :label="c.name" :value="c.id" />
+        </el-select>
+        <el-select v-model="filters.subType" style="width: 120px" @change="search">
+          <el-option label="全部题型" value="" />
+          <el-option v-for="item in constants.items('sub_type')" :key="item.code" :label="item.name" :value="item.code" />
+        </el-select>
+        <el-select v-model="filters.status" style="width: 120px" @change="search">
+          <el-option label="全部状态" value="" />
+          <el-option v-for="item in constants.items('content_status')" :key="item.code" :label="item.name" :value="item.code" />
+        </el-select>
+        <el-select v-model="filters.difficulty" style="width: 110px" @change="search">
+          <el-option label="全部难度" :value="0" />
+          <el-option v-for="n in 5" :key="n" :label="`难度${n}`" :value="n" />
+        </el-select>
+        <el-select v-model="filters.baseline" style="width: 120px" @change="search">
+          <el-option label="全部基线" value="" />
+          <el-option label="已标基线" value="marked" />
+          <el-option label="未标基线" value="unmarked" />
+        </el-select>
+        <el-select v-model="filters.reviewDue" style="width: 120px" @change="search">
+          <el-option label="复核到期全部" value="" />
+          <el-option label="已到期" value="yes" />
+          <el-option label="未到期" value="no" />
+        </el-select>
+        <span class="filter-actions">
+          <el-button size="small" @click="search">搜索</el-button>
+          <el-button size="small" @click="resetFilters">重置</el-button>
         </span>
       </div>
-    </template>
 
-    <el-alert
-      v-if="meta && meta.domains.length === 0"
-      type="warning"
-      :closable="false"
-      show-icon
-      title="技能域字典为空，请先通过种子数据（src/main/resources/db/sample-data.sql）或 T3 域管理建立域"
-      class="domain-alert"
-    />
+      <div class="table-wrap">
+        <el-table v-loading="loading" :data="list" size="small" height="100%">
+        <el-table-column prop="title" label="题面" min-width="240" show-overflow-tooltip />
+        <el-table-column prop="domainName" label="技能域" width="110" show-overflow-tooltip />
+        <el-table-column prop="clusterName" label="主簇" width="140" show-overflow-tooltip />
+        <el-table-column label="题型" width="100">
+          <template #default="{ row }">{{ constants.name('sub_type', row.subType) }}</template>
+        </el-table-column>
+        <el-table-column label="难度" width="110">
+          <template #default="{ row }">
+            <DifficultyChip :level="row.difficulty" />
+          </template>
+        </el-table-column>
+        <el-table-column label="状态" width="92">
+          <template #default="{ row }">
+            <el-tag :type="statusTagType(row.status)" size="small">{{ constants.name('content_status', row.status) }}</el-tag>
+          </template>
+        </el-table-column>
+        <el-table-column label="最近校对" width="170">
+          <template #default="{ row }"><span class="zj-num">{{ row.lastReviewedAt ?? '—' }}</span></template>
+        </el-table-column>
+        <el-table-column label="复核到期" width="170">
+          <template #default="{ row }"><span class="zj-num">{{ row.reviewDueAt ?? '—' }}</span></template>
+        </el-table-column>
+        <el-table-column label="操作" width="120" fixed="right">
+          <template #default="{ row }">
+            <el-button size="small" text type="primary" @click="openDrawer(row.id)">编辑</el-button>
+            <el-button v-if="row.status !== 'retired'" size="small" text type="danger" @click="openRetire(row)">下线</el-button>
+          </template>
+        </el-table-column>
+        </el-table>
+      </div>
 
-    <div class="filters">
-      <el-input
-        v-model="filters.keyword"
-        placeholder="题面关键词"
-        clearable
-        style="width: 200px"
-        @keyup.enter="search"
-        @clear="search"
+      <el-pagination
+        v-model:current-page="page"
+        v-model:page-size="size"
+        :total="total"
+        :page-sizes="[10, 20, 50]"
+        layout="total, sizes, prev, pager, next"
+        class="pager"
+        @current-change="load"
+        @size-change="onSizeChange"
       />
-      <el-button size="small" @click="search">搜索</el-button>
-      <el-button size="small" @click="resetFilters">重置</el-button>
-      <el-select v-model="filters.domainId" style="width: 140px" @change="onFilterDomainChange">
-        <el-option label="全部域" :value="0" />
-        <el-option v-for="d in meta?.domains ?? []" :key="d.id" :label="d.name" :value="d.id" />
-      </el-select>
-      <el-select v-model="filters.clusterId" style="width: 160px" @change="search">
-        <el-option label="全部簇" :value="0" />
-        <el-option v-for="c in filterClusterOptions" :key="c.id" :label="c.name" :value="c.id" />
-      </el-select>
-      <el-select v-model="filters.subType" style="width: 120px" @change="search">
-        <el-option label="全部题型" value="" />
-        <el-option v-for="item in constants.items('sub_type')" :key="item.code" :label="item.name" :value="item.code" />
-      </el-select>
-      <el-select v-model="filters.status" style="width: 120px" @change="search">
-        <el-option label="全部状态" value="" />
-        <el-option v-for="item in constants.items('content_status')" :key="item.code" :label="item.name" :value="item.code" />
-      </el-select>
-      <el-select v-model="filters.difficulty" style="width: 110px" @change="search">
-        <el-option label="全部难度" :value="0" />
-        <el-option v-for="n in 5" :key="n" :label="`难度${n}`" :value="n" />
-      </el-select>
-      <el-select v-model="filters.baseline" style="width: 120px" @change="search">
-        <el-option label="全部基线" value="" />
-        <el-option label="已标基线" value="marked" />
-        <el-option label="未标基线" value="unmarked" />
-      </el-select>
-      <el-select v-model="filters.reviewDue" style="width: 120px" @change="search">
-        <el-option label="复核到期全部" value="" />
-        <el-option label="已到期" value="yes" />
-        <el-option label="未到期" value="no" />
-      </el-select>
-    </div>
-
-    <el-table v-loading="loading" :data="list" size="small">
-      <el-table-column prop="title" label="题面" min-width="240" show-overflow-tooltip />
-      <el-table-column prop="domainName" label="技能域" width="110" show-overflow-tooltip />
-      <el-table-column prop="clusterName" label="主簇" width="140" show-overflow-tooltip />
-      <el-table-column label="题型" width="100">
-        <template #default="{ row }">{{ constants.name('sub_type', row.subType) }}</template>
-      </el-table-column>
-      <el-table-column label="难度" width="86">
-        <template #default="{ row }">
-          <el-tag v-if="row.difficulty === 4" size="small" class="diff-4">难度{{ row.difficulty }}</el-tag>
-          <el-tag v-else size="small" :type="difficultyTagType(row.difficulty)" :effect="row.difficulty <= 1 ? 'plain' : 'light'">
-            难度{{ row.difficulty }}
-          </el-tag>
-        </template>
-      </el-table-column>
-      <el-table-column label="状态" width="92">
-        <template #default="{ row }">
-          <el-tag :type="statusTagType(row.status)" size="small">{{ constants.name('content_status', row.status) }}</el-tag>
-        </template>
-      </el-table-column>
-      <el-table-column label="最近校对" width="170">
-        <template #default="{ row }">{{ row.lastReviewedAt ?? '—' }}</template>
-      </el-table-column>
-      <el-table-column label="复核到期" width="170">
-        <template #default="{ row }">{{ row.reviewDueAt ?? '—' }}</template>
-      </el-table-column>
-      <el-table-column label="操作" width="120" fixed="right">
-        <template #default="{ row }">
-          <el-button size="small" text type="primary" @click="openDrawer(row.id)">编辑</el-button>
-          <el-button v-if="row.status !== 'retired'" size="small" text type="danger" @click="openRetire(row)">下线</el-button>
-        </template>
-      </el-table-column>
-    </el-table>
-
-    <el-pagination
-      v-model:current-page="page"
-      v-model:page-size="size"
-      :total="total"
-      :page-sizes="[10, 20, 50]"
-      layout="total, sizes, prev, pager, next"
-      class="pager"
-      @current-change="load"
-      @size-change="onSizeChange"
-    />
+    </el-card>
 
     <el-dialog v-model="createVisible" title="新建知识点" width="560px" :close-on-click-modal="false">
       <el-form label-position="top">
@@ -468,14 +472,50 @@ onMounted(() => {
 
     <KpEditDrawer v-model="drawerVisible" :kp-id="editKpId" :meta="meta" @saved="onDrawerSaved" />
     <ClusterManageDialog v-model="clusterDialogVisible" :meta="meta" @changed="onClusterChanged" />
-  </el-card>
+  </section>
 </template>
 
 <style scoped>
+/* 整页填满视口：表格区吃掉剩余高度并内部滚动（配合 el-table height="100%"），表头吸顶，
+ * 筛选与分页常驻可见；窗口过矮时 table-wrap 保底 200px，页面退化为整体滚动 */
+.kp-manage {
+  display: flex;
+  flex-direction: column;
+  min-height: 100%;
+}
+
+.kp-manage > .el-card {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+}
+
+.kp-manage > .el-card :deep(.el-card__body) {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+}
+
+.table-wrap {
+  flex: 1;
+  min-height: 200px;
+}
+
 .toolbar {
   display: flex;
   align-items: center;
   justify-content: space-between;
+}
+
+.toolbar-title {
+  font-weight: 600;
+}
+
+.toolbar-title b {
+  color: var(--zj-primary);
+  font-weight: 700;
 }
 
 .toolbar-actions {
@@ -493,12 +533,20 @@ onMounted(() => {
   flex-wrap: wrap;
   align-items: center;
   gap: 8px;
-  margin-bottom: 12px;
+  margin-bottom: 16px;
+}
+
+.filter-actions {
+  display: inline-flex;
+  gap: 8px;
+  margin-left: 4px;
 }
 
 .pager {
-  margin-top: 12px;
+  margin-top: 16px;
   justify-content: flex-end;
+  flex-wrap: wrap;
+  row-gap: 8px;
 }
 
 .retire-target {
@@ -510,11 +558,5 @@ onMounted(() => {
 
 .retire-title {
   font-weight: 600;
-}
-
-.diff-4 {
-  color: #fff;
-  background-color: #e6752d;
-  border-color: #e6752d;
 }
 </style>

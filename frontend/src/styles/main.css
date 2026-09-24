@@ -1,11 +1,8 @@
-:root {
-  --zj-text: #1f2329;
-  --zj-text-weak: #646a73;
-  --zj-border: #e5e6eb;
-  --zj-bg: #f7f8fa;
-}
+@import './theme.css';
 
-* {
+*,
+*::before,
+*::after {
   box-sizing: border-box;
 }
 
@@ -17,9 +14,206 @@ body,
 
 body {
   margin: 0;
-  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'PingFang SC',
-    'Hiragino Sans GB', 'Microsoft YaHei', sans-serif;
-  color: var(--zj-text);
-  background: var(--zj-bg);
+  font-family: var(--zj-font-sans);
+  font-size: var(--zj-fs-base);
+  line-height: 1.6;
+  color: var(--zj-ink-900);
+  background: var(--zj-paper);
   -webkit-font-smoothing: antialiased;
+  text-rendering: optimizeLegibility;
+}
+
+a {
+  color: var(--zj-primary);
+  text-decoration: none;
+}
+
+a:hover {
+  color: var(--zj-primary-hover);
+}
+
+::selection {
+  background: color-mix(in srgb, var(--zj-primary) 22%, transparent);
+}
+
+/* —— 品牌效用类 —— */
+
+/* 读数：数字列用等宽字形，量具刻度感 */
+.zj-num {
+  font-variant-numeric: tabular-nums;
+  font-feature-settings: 'tnum' 1;
+}
+
+/* 眉题：分区上方的小标签，靠字距而非字号拉开层次 */
+.zj-eyebrow {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  font-size: var(--zj-fs-xs);
+  font-weight: 600;
+  letter-spacing: var(--zj-tracking-eyebrow);
+  color: var(--zj-ink-600);
+  text-transform: uppercase;
+}
+
+.zj-eyebrow::before {
+  content: '';
+  width: 12px;
+  height: 2px;
+  border-radius: 2px;
+  background: var(--zj-copper);
+}
+
+/* 页面标题区：标题 + 说明，各页统一 */
+.zj-page-head {
+  display: flex;
+  flex-direction: column;
+  gap: var(--zj-space-1);
+  margin-bottom: var(--zj-space-5);
+}
+
+.zj-page-head h1 {
+  margin: 0;
+  font-size: var(--zj-fs-lg);
+  font-weight: 650;
+  letter-spacing: -0.01em;
+  color: var(--zj-ink-900);
+}
+
+.zj-page-head p {
+  margin: 0;
+  font-size: var(--zj-fs-sm);
+  color: var(--zj-ink-600);
+}
+
+/* —— Element Plus 全局打磨（只调形与色，不动行为） —— */
+
+/* 卡片的阴影过渡：切换主题时 --zj-shadow-* 会变，过渡让明暗切换更顺，而非硬跳 */
+.el-card {
+  --el-card-border-color: var(--zj-line-soft);
+  box-shadow: var(--zj-shadow-sm);
+  transition: box-shadow var(--zj-dur) var(--zj-ease-out);
+}
+
+.el-card__header {
+  padding: var(--zj-space-4) var(--zj-space-5);
+  border-bottom: 1px solid var(--zj-line-soft);
+  font-weight: 600;
+  font-size: var(--zj-fs-base);
+}
+
+/* 表格：表头改眉题口径；数字列对齐时更易读 */
+.el-table th.el-table__cell {
+  font-size: var(--zj-fs-xs);
+  font-weight: 600;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+}
+
+.el-table .cell {
+  line-height: 1.5;
+}
+
+.el-tag {
+  border-radius: var(--zj-radius-sm);
+  font-weight: 500;
+}
+
+.el-button {
+  font-weight: 500;
+}
+
+/*
+ * 实心主按钮的对比度修正。
+ * Element 默认 hover 走 primary-light-3（更亮），白字会掉到 2.71:1 —— 必须覆盖为变深。
+ * 深色下 primary 为了"能当文字用"而调亮，实心按钮的白字随之只剩 2.58:1，
+ * 故改为深墨色文字（6.93:1）。plain/text/link 变体不受影响，仍以 primary 作文字色。
+ */
+.el-button--primary {
+  --el-button-hover-bg-color: var(--zj-primary-hover);
+  --el-button-hover-border-color: var(--zj-primary-hover);
+  --el-button-active-bg-color: var(--zj-primary-active);
+  --el-button-active-border-color: var(--zj-primary-active);
+  --el-button-disabled-bg-color: var(--zj-line);
+  --el-button-disabled-border-color: var(--zj-line);
+  --el-button-disabled-text-color: var(--zj-ink-400);
+}
+
+html.dark .el-button--primary:not(.is-plain):not(.is-text):not(.is-link):not(.is-dashed) {
+  --el-button-text-color: #0b1a17;
+  --el-button-hover-text-color: #0b1a17;
+  --el-button-active-text-color: #0b1a17;
+}
+
+/* 输入类控件统一半径与描边 */
+.el-input__wrapper,
+.el-textarea__inner,
+.el-select__wrapper {
+  border-radius: var(--zj-radius-sm);
+}
+
+.el-dialog,
+.el-drawer {
+  border-radius: var(--zj-radius-lg);
+}
+
+.el-message-box {
+  border-radius: var(--zj-radius);
+}
+
+/* 空状态 */
+.el-empty {
+  padding: var(--zj-space-6) 0;
+}
+
+.el-empty__description p {
+  color: var(--zj-ink-600);
+  font-size: var(--zj-fs-sm);
+}
+
+/* 代码高亮：github.css 是亮色主题，深色下需覆盖底色与前景，否则白底刺眼 */
+html.dark .hljs {
+  background: #121819;
+  color: #c9d1d9;
+}
+
+html.dark .md-view pre code.hljs {
+  color: #c9d1d9;
+}
+
+/* —— 路由切换：交叉淡入（原先为硬切，是最明显的"死点"） —— */
+.route-fade-enter-active {
+  transition: opacity var(--zj-dur) var(--zj-ease-out),
+    transform var(--zj-dur) var(--zj-ease-out);
+}
+
+.route-fade-leave-active {
+  transition: opacity var(--zj-dur-fast) var(--zj-ease-out);
+}
+
+.route-fade-enter-from {
+  opacity: 0;
+  transform: translateY(6px);
+}
+
+.route-fade-leave-to {
+  opacity: 0;
+}
+
+/* —— 无障碍与降级 —— */
+
+:focus-visible {
+  outline: 2px solid var(--zj-primary);
+  outline-offset: 2px;
+  border-radius: 4px;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+  }
 }

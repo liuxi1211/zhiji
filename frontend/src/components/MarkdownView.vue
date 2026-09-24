@@ -129,7 +129,7 @@ watch(() => props.source, render, { immediate: true })
 }
 
 .md-view :deep(code:not([class*='language-'])) {
-  background: var(--el-fill-color-light, #f5f7fa);
+  background: var(--el-fill-color-light);
   border-radius: 4px;
   padding: 0.15em 0.4em;
   font-size: 0.9em;
@@ -154,13 +154,13 @@ watch(() => props.source, render, { immediate: true })
 
 .md-view :deep(th),
 .md-view :deep(td) {
-  border: 1px solid var(--el-border-color-lighter, #e4e7ed);
+  border: 1px solid var(--el-border-color-lighter);
   padding: 6px 12px;
   text-align: left;
 }
 
 .md-view :deep(th) {
-  background: var(--el-fill-color-light, #f5f7fa);
+  background: var(--el-fill-color-light);
 }
 
 .md-view :deep(img) {
@@ -170,8 +170,8 @@ watch(() => props.source, render, { immediate: true })
 .md-view :deep(blockquote) {
   margin: 0.6em 0;
   padding: 0.2em 1em;
-  border-left: 4px solid var(--el-border-color, #dcdfe6);
-  color: var(--el-text-color-secondary, #909399);
+  border-left: 4px solid var(--zj-line);
+  color: var(--el-text-color-secondary);
 }
 
 .md-view :deep(.mdv-mermaid-error) {
@@ -189,7 +189,7 @@ watch(() => props.source, render, { immediate: true })
 
 .md-view :deep(.mdv-mermaid-error pre) {
   margin: 0;
-  background: #fff;
+  background: var(--zj-surface);
   padding: 8px;
   white-space: pre-wrap;
 }
