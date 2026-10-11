@@ -22,37 +22,29 @@ interface AdminMenuGroup {
 
 /* 菜单线性图标：静态内置字符串（非用户输入），v-html 安全；风格对齐 LearnLayout 的手绘线性图标 */
 const MENU_ICONS: Record<string, string> = {
-  dashboard: '<rect x="4" y="4" width="7" height="7" rx="1.5"/><rect x="13" y="4" width="7" height="7" rx="1.5"/><rect x="4" y="13" width="7" height="7" rx="1.5"/><path d="M16.5 13.5v6M13.5 16.5h6"/>',
-  skills: '<path d="M12 3.5 20 8l-8 4.5L4 8l8-4.5Z"/><path d="m4 12.5 8 4.5 8-4.5"/><path d="m4 16.5 8 4.5 8-4.5"/>',
-  kp: '<path d="M6 3.5h9l4 4V20a.5.5 0 0 1-.5.5h-12A.5.5 0 0 1 6 20Z"/><path d="M15 3.5V8h4M9 12.5h6M9 16h4"/>',
+  catalog: '<circle cx="5.5" cy="5.5" r="2"/><circle cx="18.5" cy="5.5" r="2"/><circle cx="12" cy="18.5" r="2"/><path d="M7 6.5 10.8 16.8M17 6.5 13.2 16.8M7.5 5.5h9"/>',
   docs: '<path d="M4 6.5A1.5 1.5 0 0 1 5.5 5H10l2 2.5h6.5A1.5 1.5 0 0 1 20 9v9a1.5 1.5 0 0 1-1.5 1.5h-13A1.5 1.5 0 0 1 4 18V6.5Z"/>',
-  candidates: '<path d="M4.5 5h15l-6 7v6l-3 1.5V12l-6-7Z"/>',
-  'knowledge-map': '<circle cx="18" cy="5" r="2.5"/><circle cx="6" cy="12" r="2.5"/><circle cx="18" cy="19" r="2.5"/><path d="m8.2 10.8 7.6-4.6M8.2 13.2l7.6 4.6"/>',
-  'review-flow': '<path d="M4 9a8 8 0 0 1 13.6-3.4L20 8"/><path d="M20 3.5V8h-4.5"/><path d="M20 15a8 8 0 0 1-13.6 3.4L4 16"/><path d="M4 20.5V16h4.5"/>',
+  production: '<path d="M4 5.5h16M4 12h16M4 18.5h16"/><rect x="6.5" y="3.8" width="3" height="3.4" rx="0.6"/><rect x="12" y="10.3" width="3" height="3.4" rx="0.6"/><rect x="9" y="16.8" width="3" height="3.4" rx="0.6"/>',
   accounts: '<circle cx="9" cy="8" r="3.2"/><path d="M3.5 20a5.5 5.5 0 0 1 11 0"/><path d="M15.5 5.5a3.2 3.2 0 0 1 0 5"/><path d="M17 14.8a5.5 5.5 0 0 1 3.5 5.2"/>',
   settings: '<path d="M4 7h16M4 12h16M4 17h16"/><circle cx="9" cy="7" r="1.8"/><circle cx="15" cy="12" r="1.8"/><circle cx="8" cy="17" r="1.8"/>'
 }
 
-// B 端菜单注册表：新增页面先在 docs/prd/B端管理台PRD.md 页面总览表登记，再在此加一行；
-// roles 为空表示 admin/editor 均可见，仅 admin 可见的组按登录角色过滤（D18）。
+// B 端菜单注册表：严格对齐新版《核心模块定义》的内容维护者工作台——
+// 知识库管理（素材库/内容生产台/知识库目录，新增向导为流程页不占菜单）+ 账号与体系配置。
+// 旧口径占位页（概览/技能库/知识点管理/候选池/知识地图/校对流转）全部退役：
+// 「概览」的待办数由内容生产台承担，「技能域字典」由 5.3 固化领域清单取代。
 const menuGroups: AdminMenuGroup[] = [
-  {
-    items: [{ path: '/admin/dashboard', label: '概览', icon: 'dashboard' }]
-  },
   {
     label: '内容资产',
     items: [
-      { path: '/admin/skills', label: '技能库', icon: 'skills' },
-      { path: '/admin/kp', label: '知识点管理', icon: 'kp' }
+      { path: '/admin/catalog', label: '知识库目录', icon: 'catalog' }
     ]
   },
   {
     label: '内容生产',
     items: [
       { path: '/admin/docs', label: '素材库', icon: 'docs' },
-      { path: '/admin/candidates', label: '候选池', icon: 'candidates' },
-      { path: '/admin/knowledge-map', label: '知识地图', icon: 'knowledge-map' },
-      { path: '/admin/review-flow', label: '校对流转', icon: 'review-flow' }
+      { path: '/admin/production', label: '内容生产台', icon: 'production' }
     ]
   },
   {

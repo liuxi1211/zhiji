@@ -18,7 +18,7 @@ async function submit() {
     const result = await staffLogin({ ...form })
     auth.setStaff(result.token, result.username, result.role)
     ElMessage.success('登录成功')
-    void router.push('/admin/dashboard')
+    void router.push('/admin/production')
   } catch (error) {
     const err = error as { message?: string }
     ElMessage.error(err.message ?? '登录失败')

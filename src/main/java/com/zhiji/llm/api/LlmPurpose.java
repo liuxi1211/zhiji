@@ -23,7 +23,16 @@ public enum LlmPurpose implements ConstantItem {
     SPLIT_FALLBACK("split_fallback", "拆题兜底", LimitKey.NONE, Tier.QUALITY),
     CLUSTER_DEDUP("cluster_dedup", "聚类去重", LimitKey.NONE, Tier.QUALITY),
     AI_COMPOSE("ai_compose", "AI 成稿", LimitKey.NONE, Tier.QUALITY),
-    EMBEDDING("embedding", "向量化", LimitKey.NONE, Tier.EMBED);
+    EMBEDDING("embedding", "向量化", LimitKey.NONE, Tier.EMBED),
+    // 素材库 AI 辅助（核心模块定义 5.1/6.4）：B 端人工触发，profileId=null 走 0 哨兵计量
+    SOURCE_REWRITE("source_rewrite", "素材 AI 改写", LimitKey.NONE, Tier.QUALITY),
+    SOURCE_SPLIT("source_split", "素材一键拆分", LimitKey.NONE, Tier.QUALITY),
+    SOURCE_SUMMARY("source_summary", "素材概述生成", LimitKey.NONE, Tier.QUALITY),
+    SOURCE_CLASSIFY("source_classify", "素材分类建议", LimitKey.NONE, Tier.QUALITY),
+    SOURCE_INFER("source_infer", "素材反推出题", LimitKey.NONE, Tier.QUALITY),
+    SOURCE_DIFFICULTY("source_difficulty", "难度建议", LimitKey.NONE, Tier.QUALITY),
+    // 标准库（T4/5.2）：同位语料合并重写，B 端合并页人工触发
+    KB_MERGE("kb_merge", "同位语料合并", LimitKey.NONE, Tier.QUALITY);
 
     /** 限额档：判定软上限 / 变体硬上限 / 无独立限额（仅全局兜底）。 */
     public enum LimitKey {

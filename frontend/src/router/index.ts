@@ -54,36 +54,19 @@ const adminRoutes: RouteRecordRaw[] = [
     path: '/admin',
     component: () => import('@/layouts/AdminLayout.vue'),
     children: [
-      { path: '', redirect: '/admin/dashboard' },
+      // 登录落地内容生产台：待办队列形态（审核/同位/到期），内容维护者最常打开的页
+      { path: '', redirect: '/admin/production' },
       {
-        path: 'dashboard',
-        name: 'admin-dashboard',
-        component: () => import('@/views/admin/DashboardView.vue'),
-        meta: { title: '概览' }
+        path: 'catalog',
+        name: 'admin-catalog',
+        component: () => import('@/views/admin/CatalogView.vue'),
+        meta: { title: '知识库目录' }
       },
       {
-        path: 'skills',
-        name: 'admin-skills',
-        component: () => import('@/views/admin/SkillsView.vue'),
-        meta: { title: '技能库' }
-      },
-      {
-        path: 'kp',
-        name: 'admin-kp',
-        component: () => import('@/views/admin/KpManageView.vue'),
-        meta: { title: '知识点管理' }
-      },
-      {
-        path: 'candidates',
-        name: 'admin-candidates',
-        component: () => import('@/views/admin/CandidateView.vue'),
-        meta: { title: '候选池' }
-      },
-      {
-        path: 'knowledge-map',
-        name: 'admin-knowledge-map',
-        component: () => import('@/views/admin/KnowledgeMapView.vue'),
-        meta: { title: '知识地图' }
+        path: 'wizard',
+        name: 'admin-wizard',
+        component: () => import('@/views/admin/WizardView.vue'),
+        meta: { title: '新增向导' }
       },
       {
         path: 'docs',
@@ -92,10 +75,17 @@ const adminRoutes: RouteRecordRaw[] = [
         meta: { title: '素材库' }
       },
       {
-        path: 'review-flow',
-        name: 'admin-review-flow',
-        component: () => import('@/views/admin/ReviewFlowView.vue'),
-        meta: { title: '校对流转' }
+        path: 'production',
+        name: 'admin-production',
+        component: () => import('@/views/admin/ProductionDeskView.vue'),
+        meta: { title: '内容生产台' }
+      },
+      {
+        // 合并页不进菜单：由内容生产台的同位管理勾选跳入（核心模块定义 5.2 可视化合并页）
+        path: 'production/merge',
+        name: 'admin-merge',
+        component: () => import('@/views/admin/MergeView.vue'),
+        meta: { title: '同位合并' }
       },
       {
         path: 'accounts',
@@ -157,7 +147,7 @@ router.beforeEach((to) => {
   // 后台树：员工会话守卫（/admin/login 除外）
   if (to.path.startsWith('/admin')) {
     if (to.path === '/admin/login') {
-      return auth.isStaffLoggedIn ? { path: '/admin/dashboard' } : true
+      return auth.isStaffLoggedIn ? { path: '/admin/production' } : true
     }
     return auth.isStaffLoggedIn ? true : { path: '/admin/login' }
   }

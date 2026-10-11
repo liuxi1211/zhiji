@@ -185,3 +185,348 @@ export interface JudgeResult {
   /** 教练口吻的一句话缺口描述 */
   missingSummary?: string
 }
+
+// —— 素材库（核心模块定义 5.1，B 端） ——
+
+/** 素材状态机：待加工 → 已入库 / 已放弃（入库素材保留不删，红线 5） */
+export type SourceStatus = 'pending' | 'submitted' | 'discarded'
+
+/** 素材来源：手写 / 导入 / URL 抓取 / 反推出题 */
+export type SourceType = 'manual' | 'import' | 'url' | 'inferred'
+
+/** 内容难度四档（与职级要求正交，红线 6） */
+export type SourceDifficulty = 'junior' | 'mid' | 'senior' | 'expert'
+
+/** 领域清单（5.3 种子草案；后端常量组 domain 下发） */
+export type DomainCode =
+  | 'java'
+  | 'database'
+  | 'middleware'
+  | 'distributed'
+  | 'cs_basic'
+  | 'go'
+  | 'engineering'
+
+export interface SourceItemView {
+  id: number
+  parentId: number | null
+  title: string
+  contentMd: string
+  /** 概述齐备是提交入库的门槛 */
+  summary: string | null
+  difficulty: SourceDifficulty | null
+  domainCode: string | null
+  domainName: string | null
+  topicName: string | null
+  sourceType: SourceType
+  sourceUrl: string | null
+  status: SourceStatus
+  submittedAt: string | null
+  /** 拆分产出的子素材数（仅母素材有值） */
+  childCount: number
+  createdAt: string
+  updatedAt: string
+}
+
+export interface SourceCreateReq {
+  title: string
+  contentMd?: string
+  sourceUrl?: string
+}
+
+export interface SourceUpdateReq {
+  title?: string
+  contentMd?: string
+  summary?: string
+  difficulty?: string
+  domainCode?: string
+  topicName?: string
+  sourceUrl?: string
+}
+
+export interface SourceSubmitReq {
+  domainCode: string
+  /** 主题位置 id（T4 起主题以 kb_topic 表为准，AI 分类候选也从表取） */
+  topicId: number
+  /** 定类分流：面试题线 / 文章线（5.2 进门即分流） */
+  contentType: KbContentType
+}
+
+export interface SourceSplitSliceInput {
+  title: string
+  contentMd?: string
+}
+
+export interface SourceSplitSliceResp {
+  id: number
+  title: string
+}
+
+export interface SourceSplitResp {
+  slices: SourceSplitSliceResp[]
+}
+
+/** AI 改写产物：正文回编辑器、定类建议仅供参考 */
+export interface SourceRewriteResp {
+  content: string
+  genre: string
+}
+
+/** AI 一键拆分预填：anchor 为原文标题锚点，前端据此切正文 */
+export interface SourceSplitSuggestion {
+  title: string
+  anchor: string
+}
+
+export interface SourceAiSplitResp {
+  needSplit: boolean
+  slices: SourceSplitSuggestion[]
+}
+
+/** AI 分类建议：仅领域内推荐主题位置，采纳或无视由人 */
+export interface SourceClassifyResp {
+  topicName: string
+  reason: string
+}
+
+/** 反推面试问法：锚点 + 问法 + 难度（初级/中级/高级/资深） */
+export interface SourceInferItem {
+  anchor: string
+  question: string
+  difficulty: string
+}
+
+export interface SourceInferResp {
+  inferences: SourceInferItem[]
+}
+
+export interface SourceDomainTopicsResp {
+  topics: string[]
+}
+
+// —— 标准知识库（核心模块定义 5.2，B 端） ——
+
+/** 标准内容状态机：draft(退回/恢复) → pending(待审) → available(上线)；deprecated(弃用) / merged(合并下线) */
+export type KbStatus = 'draft' | 'pending' | 'available' | 'deprecated' | 'merged'
+
+/** 定类分流：面试题线（知识点） / 文章线（资料讲解） */
+export type KbContentType = 'kp' | 'doc'
+
+/** 审核动作留痕：submit/resubmit/recheck 入队，pass/reject/discard 出队 */
+export type KbReviewAction = 'submit' | 'resubmit' | 'recheck' | 'pass' | 'reject' | 'discard'
+
+export interface KbTopicView {
+  id: number
+  domainCode: string
+  name: string
+  status: 'active' | 'merged'
+  mergedIntoId: number | null
+  kpCount: number
+  docCount: number
+  createdAt: string
+  updatedAt: string
+}
+
+/** 追问层：id 经分配永不复用、永不修改（红线 2），层的增减走新增/停用 */
+export interface KbFollowup {
+  id: string
+  layer: number
+  direction: string
+  content: string
+  status: 'active' | 'disabled'
+}
+
+/** 分级评分要点：判定引擎的对齐尺子（pass 及格 / good 良好 / excellent 优秀） */
+export interface KbScoringPoint {
+  id: string
+  level: 'pass' | 'good' | 'excellent'
+  content: string
+}
+
+export interface KbAnswerSample {
+  level: 'pass' | 'good' | 'excellent'
+  content: string
+}
+
+/** 职级要求与停止点：目标职级要不要会、下钻到第几层算够 */
+export interface KbLevelRule {
+  level: 'junior' | 'mid' | 'senior' | 'expert' | 'master'
+  required: boolean
+  stopLayer: number | null
+}
+
+export interface KbVariant {
+  text: string
+}
+
+/** 知识点（面试题线）：学习、判定、模拟考的主线实体 */
+export interface KpView {
+  id: number
+  domainCode: string
+  topicId: number
+  topicName: string
+  title: string
+  summary: string | null
+  frameworkMd: string
+  variants: KbVariant[]
+  followups: KbFollowup[]
+  scoringPoints: KbScoringPoint[]
+  answerSamples: KbAnswerSample[]
+  difficulty: SourceDifficulty
+  levelRules: KbLevelRule[]
+  prerequisites: number[]
+  freqManual: number
+  freqSignal: number
+  freqCoverage: number
+  status: KbStatus
+  mergedIntoId: number | null
+  mergeSources: number[]
+  reviewDueAt: string | null
+  createdBy: number
+  createdAt: string
+  updatedAt: string
+}
+
+/** 资料讲解（文章线）：无评分要求、无追问链，挂载知识点即发布 */
+export interface DocView {
+  id: number
+  domainCode: string
+  topicId: number
+  topicName: string
+  title: string
+  summary: string | null
+  contentMd: string
+  difficulty: SourceDifficulty
+  sourceUrl: string | null
+  kpId: number | null
+  status: KbStatus
+  mergedIntoId: number | null
+  mergeSources: number[]
+  reviewDueAt: string | null
+  createdBy: number
+  createdAt: string
+  updatedAt: string
+}
+
+/** 目录/搜索/队列共用的内容摘要（目录与同位管理始终有可读摘要） */
+export interface KbContentItemView {
+  contentType: KbContentType
+  id: number
+  domainCode: string
+  topicId: number
+  topicName: string
+  title: string
+  summary: string | null
+  difficulty: SourceDifficulty
+  status: KbStatus
+  /** 文章线挂载的知识点 */
+  kpId: number | null
+  mergedIntoId: number | null
+  /** 合并产物（审核通过时源会标 merged 并转入覆盖度） */
+  mergeProduct: boolean
+  reviewDueAt: string | null
+  createdAt: string
+  updatedAt: string
+}
+
+export interface KbUpdateKpReq {
+  title?: string
+  summary?: string
+  frameworkMd?: string
+  variants?: KbVariant[]
+  followups?: KbFollowup[]
+  scoringPoints?: KbScoringPoint[]
+  answerSamples?: KbAnswerSample[]
+  difficulty?: SourceDifficulty
+  levelRules?: KbLevelRule[]
+  prerequisites?: number[]
+  freqManual?: number
+  topicId?: number
+}
+
+export interface KbUpdateDocReq {
+  title?: string
+  summary?: string
+  contentMd?: string
+  difficulty?: SourceDifficulty
+  kpId?: number
+  topicId?: number
+}
+
+/** 直达新建（不经素材库，概述与难度门槛一视同仁） */
+export interface KbDirectSubmitReq {
+  contentType: KbContentType
+  domainCode: string
+  topicId: number
+  title: string
+  summary: string
+  contentMd?: string
+  difficulty: SourceDifficulty
+}
+
+export interface KbReviewRecord {
+  id: number
+  contentType: KbContentType
+  contentId: number
+  action: KbReviewAction
+  source: 'wizard' | 'direct' | 'merge' | 'recheck'
+  checks: string | null
+  comment: string | null
+  operatorId: number
+  createdAt: string
+}
+
+/** 四项强制校验：技术正确性/评分要点可判定性(kp)/侵权检查/内容质量；文章线 judgeable=na */
+export interface KbReviewChecks {
+  correctness: 'pass' | 'fail'
+  judgeable: 'pass' | 'fail' | 'na'
+  infringement: 'pass' | 'fail'
+  quality: 'pass' | 'fail'
+  notes?: string
+}
+
+export interface KbReviewDetail {
+  contentType: KbContentType
+  kp: KpView | null
+  doc: DocView | null
+  history: KbReviewRecord[]
+}
+
+/** AI 一键合并产物（不落库，回人手里；追问层/评分要点的 id 由服务端提交时分配） */
+export interface KbMergeProduct {
+  title: string
+  summary: string
+  frameworkMd?: string
+  contentMd?: string
+  variants?: KbVariant[]
+  followups?: { layer: number; direction: string; content: string }[]
+  scoringPoints?: { level: 'pass' | 'good' | 'excellent'; content: string }[]
+  answerSamples?: KbAnswerSample[]
+  difficulty: SourceDifficulty | ''
+  levelRules?: KbLevelRule[]
+  conflicts?: string[]
+}
+
+/** 知识点编辑草稿（前端编辑形态）：目录编辑抽屉与合并产物编辑共用 */
+export interface KbKpDraft {
+  title: string
+  summary: string
+  frameworkMd: string
+  variants: KbVariant[]
+  followups: KbFollowup[]
+  scoringPoints: KbScoringPoint[]
+  answerSamples: KbAnswerSample[]
+  difficulty: SourceDifficulty
+  levelRules: KbLevelRule[]
+  prerequisites: number[]
+  freqManual: number
+}
+
+/** 资料讲解编辑草稿 */
+export interface KbDocDraft {
+  title: string
+  summary: string
+  contentMd: string
+  difficulty: SourceDifficulty
+  kpId: number | null
+}

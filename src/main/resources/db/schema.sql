@@ -60,3 +60,116 @@ CREATE TABLE IF NOT EXISTS llm_usage_daily (
 );
 
 CREATE INDEX IF NOT EXISTS idx_llm_usage_date ON llm_usage_daily (stat_date);
+
+-- T3 素材库模块：素材（Source Item，核心模块定义 5.1）。素材库是 B 端内部数据资产，
+-- 入库（提交进标准库）后长期保留、原文隔离不对任何外部用户开放（6.2 红线 5/7）。
+-- 状态机：pending（待加工）→ submitted（已提交入库）/ discarded（已放弃）。
+CREATE TABLE IF NOT EXISTS src_item (
+    id           INTEGER PRIMARY KEY AUTOINCREMENT,
+    parent_id    INTEGER,                                   -- 拆分产出的子素材指向母素材；null 即母素材
+    title        TEXT    NOT NULL,
+    content_md   TEXT    NOT NULL DEFAULT '',               -- Markdown 正文；图片引用形如 asset:source/{itemId}/{file}
+    summary      TEXT,                                      -- 素材概述（百字内）：齐备是提交入库的门槛（5.1 边界）
+    difficulty   TEXT    CHECK (difficulty IS NULL OR difficulty IN ('junior','mid','senior','expert')),
+    domain_code  TEXT,                                      -- 领域代码（常量组 domain，人工点选；AI 分类��在所选领域内）
+    topic_name   TEXT,                                      -- 主题位置（AI 建议或人工填写，仅入库前的工作位信息）
+    source_type  TEXT    NOT NULL DEFAULT 'manual'
+                 CHECK (source_type IN ('manual','import','url','inferred')),  -- 手写/导入/URL抓取/反推出题
+    source_url   TEXT,                                      -- 原始出处：URL 自动带入或人工登记，服务版权追溯
+    status       TEXT    NOT NULL DEFAULT 'pending'
+                 CHECK (status IN ('pending','submitted','discarded')),
+    submitted_at TEXT,                                      -- 提交入库时间（素材保留不删的起点）
+    created_by   INTEGER NOT NULL,                          -- 操作员工 id（sys_staff.id）
+    created_at   TEXT    NOT NULL DEFAULT (datetime('now')),
+    updated_at   TEXT    NOT NULL DEFAULT (datetime('now')),
+    FOREIGN KEY (parent_id) REFERENCES src_item (id)
+);
+
+CREATE INDEX IF NOT EXISTS idx_src_item_status ON src_item (status);
+CREATE INDEX IF NOT EXISTS idx_src_item_parent ON src_item (parent_id);
+
+-- T4 标准知识库模块（核心模块定义 5.2）：主题为第二层组织节点，内容按定类分流两套实体，
+-- 数据分开存放（kb_kp 面试题线 / kb_doc 文章线）；标准库与素材库进门即断联（6.2 红线 7），
+-- 内容新版本只能由标准库内同位语料合并重写或人工编辑产生。
+-- 内容状态机：draft(退回/恢复暂存) → pending(待审) → available(上线)；
+-- pending → deprecated(废弃)；available → deprecated(弃用下线)；
+-- 合并产物审核通过后源 → merged(合并下线，merged_into 指向产物，数据保留可恢复)。
+CREATE TABLE IF NOT EXISTS kb_topic (
+    id             INTEGER PRIMARY KEY AUTOINCREMENT,
+    domain_code    TEXT NOT NULL,                 -- 领域（常量组 domain，人工维护边界，5.3）
+    name           TEXT NOT NULL,                 -- 主题名：前端可见、可人工改名（5.2 组织结构可改）
+    status         TEXT NOT NULL DEFAULT 'active' CHECK (status IN ('active','merged')),
+    merged_into_id INTEGER,                       -- 主题合并指向的目标主题
+    created_at     TEXT NOT NULL DEFAULT (datetime('now')),
+    updated_at     TEXT NOT NULL DEFAULT (datetime('now')),
+    UNIQUE (domain_code, name)
+);
+
+CREATE INDEX IF NOT EXISTS idx_kb_topic_domain ON kb_topic (domain_code);
+
+CREATE TABLE IF NOT EXISTS kb_kp (
+    id             INTEGER PRIMARY KEY AUTOINCREMENT,
+    domain_code    TEXT NOT NULL,
+    topic_id       INTEGER NOT NULL REFERENCES kb_topic (id),
+    title          TEXT NOT NULL,                 -- 题面
+    summary        TEXT,                          -- 可读摘要（目录与同位管理始终有摘要，概述是入库门槛的落点）
+    framework_md   TEXT NOT NULL DEFAULT '',      -- 叙述框架/正文（Markdown 快照）
+    variants       TEXT NOT NULL DEFAULT '[]',    -- 问法变体 [{"text":"..."}]
+    followups      TEXT NOT NULL DEFAULT '[]',    -- 追问链 [{"id","layer","direction","content","status"}]
+                   -- id 经分配永不复用、永不修改（红线 2），层的增减走新增/停用（status=active/disabled）
+    scoring_points TEXT NOT NULL DEFAULT '[]',    -- 分级评分要点 [{"id","level":"pass|good|excellent","content"}]（判定引擎的尺子）
+    answer_samples TEXT NOT NULL DEFAULT '[]',    -- 三档回答样例 [{"level":"pass|good|excellent","content"}]
+    difficulty     TEXT NOT NULL CHECK (difficulty IN ('junior','mid','senior','expert')),
+    level_rules    TEXT NOT NULL DEFAULT '[]',    -- 职级要求与停止点 [{"level":"junior|mid|senior|expert|master","required":0/1,"stop_layer":N}]
+    prerequisites  TEXT NOT NULL DEFAULT '[]',    -- 前置依赖 [kpId]（学习维度，与追问层/主题正交）
+    freq_manual    INTEGER NOT NULL DEFAULT 0,    -- 频率信号·人工标定
+    freq_signal    INTEGER NOT NULL DEFAULT 0,    -- 频率信号·面经回流（复盘模块 T9 接入，一期恒 0）
+    freq_coverage  INTEGER NOT NULL DEFAULT 0,    -- 频率信号·覆盖度（合并通过时由覆盖源数转入）
+    status         TEXT NOT NULL DEFAULT 'pending'
+                   CHECK (status IN ('draft','pending','available','deprecated','merged')),
+    merged_into_id INTEGER REFERENCES kb_kp (id),
+    merge_sources  TEXT,                          -- 非空即合并产物：源 id JSON 数组，审核通过时据此把源标 merged
+    review_due_at  TEXT,                          -- 复核到期时间（放行时设置，到期回审核队列复检）
+    created_by     INTEGER NOT NULL,              -- 操作员工 id（sys_staff.id）
+    created_at     TEXT NOT NULL DEFAULT (datetime('now')),
+    updated_at     TEXT NOT NULL DEFAULT (datetime('now'))
+);
+
+CREATE INDEX IF NOT EXISTS idx_kb_kp_topic ON kb_kp (topic_id, status);
+
+CREATE TABLE IF NOT EXISTS kb_doc (
+    id             INTEGER PRIMARY KEY AUTOINCREMENT,
+    domain_code    TEXT NOT NULL,
+    topic_id       INTEGER NOT NULL REFERENCES kb_topic (id),
+    title          TEXT NOT NULL,
+    summary        TEXT,
+    content_md     TEXT NOT NULL,                 -- 讲解正文（Markdown 快照）
+    difficulty     TEXT NOT NULL CHECK (difficulty IN ('junior','mid','senior','expert')),
+    source_url     TEXT,                          -- 来源溯源（素材侧 URL 自动带入，版权追溯）
+    kp_id          INTEGER REFERENCES kb_kp (id), -- 挂载的知识点（挂载动作即人工发布决策）
+    status         TEXT NOT NULL DEFAULT 'pending'
+                   CHECK (status IN ('draft','pending','available','deprecated','merged')),
+    merged_into_id INTEGER REFERENCES kb_doc (id),
+    merge_sources  TEXT,
+    review_due_at  TEXT,
+    created_by     INTEGER NOT NULL,
+    created_at     TEXT NOT NULL DEFAULT (datetime('now')),
+    updated_at     TEXT NOT NULL DEFAULT (datetime('now'))
+);
+
+CREATE INDEX IF NOT EXISTS idx_kb_doc_topic ON kb_doc (topic_id, status);
+
+-- 审核留痕（5.2「不校不上线」「留痕可回溯」）：动作式流水，每次动作一行，只插不改。
+CREATE TABLE IF NOT EXISTS kb_review (
+    id           INTEGER PRIMARY KEY AUTOINCREMENT,
+    content_type TEXT NOT NULL CHECK (content_type IN ('kp','doc')),
+    content_id   INTEGER NOT NULL,
+    action       TEXT NOT NULL CHECK (action IN ('submit','resubmit','recheck','pass','reject','discard')),
+    source       TEXT NOT NULL DEFAULT 'wizard' CHECK (source IN ('wizard','direct','merge','recheck')),
+    checks       TEXT,                            -- 四项强制校验 {"correctness","judgeable","infringement","quality","notes"}
+    comment      TEXT,                            -- 审核意见（退回原因等）
+    operator_id  INTEGER NOT NULL,
+    created_at   TEXT NOT NULL DEFAULT (datetime('now'))
+);
+
+CREATE INDEX IF NOT EXISTS idx_kb_review_content ON kb_review (content_type, content_id);

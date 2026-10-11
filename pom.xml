@@ -22,6 +22,8 @@
     <mybatis-plus.version>3.5.17</mybatis-plus.version>
     <sqlite.version>3.53.2.0</sqlite.version>
     <spring-ai.version>2.0.1</spring-ai.version>
+    <jsoup.version>1.18.3</jsoup.version>
+    <markdown-it.version>14.1.0</markdown-it.version>
   </properties>
 
   <dependencyManagement>
@@ -74,6 +76,13 @@
       <artifactId>sqlite-jdbc</artifactId>
       <version>${sqlite.version}</version>
       <scope>runtime</scope>
+    </dependency>
+
+    <!-- 素材库：URL 抓取转 Markdown 的 HTML 解析（仅 B 端抓取场景使用） -->
+    <dependency>
+      <groupId>org.jsoup</groupId>
+      <artifactId>jsoup</artifactId>
+      <version>${jsoup.version}</version>
     </dependency>
 
     <dependency>
