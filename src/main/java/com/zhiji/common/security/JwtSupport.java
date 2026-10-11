@@ -6,12 +6,15 @@ import java.util.Base64;
 import java.util.regex.Pattern;
 import javax.crypto.Mac;
 import javax.crypto.spec.SecretKeySpec;
+import com.zhiji.common.exception.BizException;
 import org.springframework.stereotype.Component;
 
 /**
  * 自实现 HS256 三段式签名 token（JWT 兼容格式），刻意不引 jjwt：只为一个签名引依赖不值当。
  * payload 只包含内部固定字段（typ/uid/role/exp），值全部来自内部枚举与自增 id，
  * 因此解析用正则提取是安全的；签名校验保证内容不可篡改。
+ * 解析失败（结构/签名/过期/字段缺失）一律抛 BizException.unauthorizedToken——
+ * 拦截器按 401 处理，畸形 token 不得变成 500。
  */
 @Component
 public class JwtSupport {
@@ -36,33 +39,37 @@ public class JwtSupport {
     public Payload parse(String token) {
         String[] parts = token.split("\\.");
         if (parts.length != 3) {
-            throw new IllegalArgumentException("token 结构不完整");
+            throw BizException.unauthorizedToken();
         }
         byte[] expected = hmac(parts[0] + "." + parts[1]);
         byte[] actual;
         try {
             actual = Base64.getUrlDecoder().decode(parts[2]);
         } catch (IllegalArgumentException e) {
-            throw new IllegalArgumentException("token 签名编码非法");
+            throw BizException.unauthorizedToken();
         }
         if (!MessageDigest.isEqual(expected, actual)) {
-            throw new IllegalArgumentException("token 签名不匹配");
+            throw BizException.unauthorizedToken();
         }
         String payload = new String(Base64.getUrlDecoder().decode(parts[1]), StandardCharsets.UTF_8);
-        long exp = Long.parseLong(extractValue(payload, "exp"));
-        if (exp < System.currentTimeMillis() / 1000) {
-            throw new IllegalArgumentException("token 已过期");
+        long exp;
+        long uid;
+        try {
+            exp = Long.parseLong(extractValue(payload, "exp"));
+            uid = Long.parseLong(extractValue(payload, "uid"));
+        } catch (NumberFormatException e) {
+            throw BizException.unauthorizedToken();
         }
-        return new Payload(
-                extractValue(payload, "typ"),
-                Long.parseLong(extractValue(payload, "uid")),
-                extractValue(payload, "role"));
+        if (exp < System.currentTimeMillis() / 1000) {
+            throw BizException.unauthorizedToken();
+        }
+        return new Payload(extractValue(payload, "typ"), uid, extractValue(payload, "role"));
     }
 
     private String extractValue(String json, String key) {
         var matcher = Pattern.compile(FIELD_TEMPLATE.formatted(key)).matcher(json);
         if (!matcher.find()) {
-            throw new IllegalArgumentException("payload 缺少字段: " + key);
+            throw BizException.unauthorizedToken();
         }
         String value = matcher.group(1);
         return value.startsWith("\"") ? value.substring(1, value.length() - 1) : value;

@@ -160,6 +160,12 @@ public class SourceController {
         return sourceAiService.rewrite(sourceService.get(id).contentMd());
     }
 
+    /** 流式改写（SSE）：逐片段推送打字机式呈现，长文不再干等；协议见 RewriteStreamSupport。 */
+    @PostMapping(value = "/{id}/ai/rewrite/stream", produces = org.springframework.http.MediaType.TEXT_EVENT_STREAM_VALUE)
+    public org.springframework.web.servlet.mvc.method.annotation.SseEmitter rewriteStream(@PathVariable long id) {
+        return RewriteStreamSupport.stream(sourceAiService, sourceService.get(id).contentMd());
+    }
+
     @PostMapping("/{id}/ai/split")
     public SourceAiService.SplitResp aiSplit(@PathVariable long id) {
         return sourceAiService.split(sourceService.get(id).contentMd());

@@ -22,6 +22,7 @@ const loading = ref(false)
 const saving = ref(false)
 const checking = ref(false)
 const providers = ref<string[]>([])
+const providerModels = ref<Record<string, string[]>>({})
 const routes = reactive<Record<string, LlmRouteTargetView>>({})
 const limits = reactive<LlmLimitsView>({
   judgeDaily: 200,
@@ -60,6 +61,7 @@ async function load() {
   try {
     const settings = await getLlmSettings()
     providers.value = settings.providers
+    providerModels.value = settings.providerModels ?? {}
     Object.keys(routes).forEach((key) => delete routes[key])
     Object.entries(settings.routes ?? {}).forEach(([key, value]) => {
       routes[key] = { ...value }
@@ -146,7 +148,17 @@ async function runConnectivityCheck() {
         </el-table-column>
         <el-table-column label="模型名" min-width="200">
           <template #default="{ row }">
-            <el-input v-model="row.target.model" size="small" placeholder="如 doubao-seed-2-0-lite-260428" />
+            <el-select
+              v-model="row.target.model"
+              size="small"
+              style="width: 100%"
+              filterable
+              allow-create
+              default-first-option
+              placeholder="选择或输入模型名"
+            >
+              <el-option v-for="m in providerModels[row.target.provider] ?? []" :key="m" :label="m" :value="m" />
+            </el-select>
           </template>
         </el-table-column>
         <el-table-column label="温度" width="110">
@@ -176,6 +188,22 @@ async function runConnectivityCheck() {
         <el-table-column label="向量化" width="90">
           <template #default="{ row }">
             <el-tag v-if="row.target.embedding" type="info" size="small">embedding</el-tag>
+            <span v-else>—</span>
+          </template>
+        </el-table-column>
+        <el-table-column label="思考模式" width="120">
+          <template #default="{ row }">
+            <el-select
+              v-if="!row.target.embedding"
+              v-model="row.target.thinking"
+              size="small"
+              style="width: 100%"
+              placeholder="默认"
+            >
+              <el-option label="跟随默认" :value="null" />
+              <el-option label="开启" :value="true" />
+              <el-option label="关闭" :value="false" />
+            </el-select>
             <span v-else>—</span>
           </template>
         </el-table-column>
@@ -238,6 +266,13 @@ async function runConnectivityCheck() {
       <el-table v-if="usage" :data="usage.purposes" size="small">
         <el-table-column label="入口" min-width="150">
           <template #default="{ row }">{{ row.purposeName }}</template>
+        </el-table-column>
+        <el-table-column label="侧别" width="70">
+          <template #default="{ row }">
+            <el-tag :type="row.side === 'B' ? 'warning' : 'primary'" size="small" disable-transitions>
+              {{ row.side === 'B' ? 'B 端' : 'C 端' }}
+            </el-tag>
+          </template>
         </el-table-column>
         <el-table-column prop="limitKey" label="限额档" width="100" />
         <el-table-column prop="callCount" label="全站计数" width="100" />

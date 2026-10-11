@@ -2,6 +2,7 @@ package com.zhiji.llm.service;
 
 import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
 import com.zhiji.llm.api.LlmPurpose;
+import com.zhiji.llm.config.LlmProperties;
 import com.zhiji.llm.domain.LlmLimits;
 import com.zhiji.llm.domain.LlmRouteConfig;
 import com.zhiji.llm.domain.LlmRouteConfig.RouteTarget;
@@ -28,13 +29,15 @@ public class LlmConfigService {
     public static final String KEY_LIMITS = "llm.limits";
 
     private final SysConfigMapper configMapper;
+    private final LlmProperties properties;
     private final JsonMapper jsonMapper = new JsonMapper();
 
     private volatile LlmRouteConfig routeConfig = new LlmRouteConfig(Map.of());
     private volatile LlmLimits limits = LlmLimits.defaults();
 
-    public LlmConfigService(SysConfigMapper configMapper) {
+    public LlmConfigService(SysConfigMapper configMapper, LlmProperties properties) {
         this.configMapper = configMapper;
+        this.properties = properties;
     }
 
     public void load() {
@@ -118,21 +121,30 @@ public class LlmConfigService {
 
     /**
      * 默认路由：按默认档给一份可直接运行的种子配置（管理员可在设置页改）。
-     * 模型名用日期快照——判定链路的稳定性依赖模型版本不漂移；
-     * embedding 用 vision-embedding：方舟 coding plan 拒绝纯文本 embedding 模型（UnsupportedModel），实测唯其可用。
+     * 模型名取 provider 配置的 default-model（application.yml 维护，模型换代改 yml 即可）——
+     * 不再硬编码日期快照：快照模型下线后种子配置直接不可用（Stream failed 即此症状）。
+     * embedding 单列：方舟 coding plan 拒绝纯文本 embedding 模型（UnsupportedModel），实测唯 vision-embedding 可用。
      */
-    public static LlmRouteConfig defaultRouteConfig() {
+    public LlmRouteConfig defaultRouteConfig() {
+        String arkModel = defaultModelOf("ark");
         Map<String, RouteTarget> purposes = new LinkedHashMap<>();
         for (LlmPurpose purpose : LlmPurpose.values()) {
             switch (purpose.tier()) {
                 case JUDGE -> purposes.put(purpose.getCode(),
-                        new RouteTarget("ark", "doubao-seed-2-0-lite-260428", 0.0, 2048, false));
+                        new RouteTarget("ark", arkModel, 0.0, 2048, false));
                 case QUALITY -> purposes.put(purpose.getCode(),
-                        new RouteTarget("ark", "doubao-seed-2-1-turbo-260628", null, 4096, false));
+                        new RouteTarget("ark", arkModel, null, 4096, false));
                 case EMBED -> purposes.put(purpose.getCode(),
                         new RouteTarget("ark", "doubao-embedding-vision-251215", null, null, true));
             }
         }
         return new LlmRouteConfig(purposes);
+    }
+
+    private String defaultModelOf(String provider) {
+        LlmProperties.Provider target = properties.getProviders().get(provider);
+        return target != null && target.getDefaultModel() != null && !target.getDefaultModel().isBlank()
+                ? target.getDefaultModel()
+                : null;
     }
 }

@@ -103,26 +103,28 @@ class SettingsControllerTest {
     @Test
     void adminCanUpdateRoutes() throws Exception {
         String adminToken = login("admin", "admin123");
+        // 模型名必须取自 provider 的 models 清单（yml 事实源），用清单内的 deepseek-v4.1-flash
         mvc.perform(put("/api/admin/settings/routes").header("Authorization", "Bearer " + adminToken)
                         .contentType(MediaType.APPLICATION_JSON)
                         .content("{\"routes\":{\"judge_practice\":{\"provider\":\"ark\","
-                                + "\"model\":\"doubao-seed-2-0-lite-260428\",\"temperature\":0.0,"
+                                + "\"model\":\"deepseek-v4.1-flash\",\"temperature\":0.0,"
                                 + "\"maxTokens\":1024,\"embedding\":false}}}"))
                 .andExpect(status().isOk())
-                .andExpect(jsonPath("$.routes.judge_practice.model").value("doubao-seed-2-0-lite-260428"));
-        configService.saveRouteConfig(LlmConfigService.defaultRouteConfig());
+                .andExpect(jsonPath("$.routes.judge_practice.model").value("deepseek-v4.1-flash"));
+        configService.saveRouteConfig(configService.defaultRouteConfig());
     }
 
     @Test
     void connectivityCheckProbesEachUniqueTargetOnce() throws Exception {
         String adminToken = login("admin", "admin123");
-        configService.saveRouteConfig(LlmConfigService.defaultRouteConfig());
+        // 默认路由 JUDGE/QUALITY 同模型（provider default-model），去重后唯一目标 = chat + embedding = 2
+        configService.saveRouteConfig(configService.defaultRouteConfig());
         mvc.perform(post("/api/admin/settings/connectivity-check")
                         .header("Authorization", "Bearer " + adminToken))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.allOk").value(true))
-                .andExpect(jsonPath("$.items.length()").value(3));
-        assertThat(stub.callCount()).isEqualTo(3);
+                .andExpect(jsonPath("$.items.length()").value(2));
+        assertThat(stub.callCount()).isEqualTo(2);
     }
 
     @Test
@@ -154,7 +156,7 @@ class SettingsControllerTest {
                                 + "\"maxTokens\":1024,\"embedding\":false}}}"))
                 .andExpect(status().isBadRequest())
                 .andExpect(jsonPath("$.message").value(containsString("模型名")));
-        configService.saveRouteConfig(LlmConfigService.defaultRouteConfig());
+        configService.saveRouteConfig(configService.defaultRouteConfig());
     }
 
     @Test

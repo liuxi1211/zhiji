@@ -8,11 +8,10 @@ import { computed, onMounted, reactive, ref } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import MarkdownIt from 'markdown-it'
 import { ElMessage } from 'element-plus'
-import { MagicStick, Plus, Delete, Right } from '@element-plus/icons-vue'
+import { MagicStick, Plus, Delete, Right, VideoPause } from '@element-plus/icons-vue'
 import {
   aiClassify,
   aiDifficulty,
-  aiRewrite,
   aiSplit,
   aiSummary,
   getSource,
@@ -22,10 +21,10 @@ import {
   submitSource,
   updateSource
 } from '@/api/source'
+import { streamAiRewrite } from '@/api/stream'
 import {
   aiClassifyContent,
   aiDifficultyContent,
-  aiRewriteContent,
   aiSummaryContent,
   directSubmit,
   listTopics
@@ -53,8 +52,6 @@ interface WizardItem {
   difficulty: SourceDifficulty | ''
   domainCode: string
   topicId: number | null
-  /** 改写产物的定类建议（面试题/文章），仅提示 */
-  genre: string
   /** 各类建议的理由/提示，展示用 */
   note: string
 }
@@ -68,8 +65,8 @@ const loading = ref(false)
 // 首帧即渲染第 1 步表单（v-show 恒渲染，activeItem 被 activeItem!.title 解引用）：
 // items 必须初始就有一条空白草稿，否则 activeItem 为 null，首帧渲染直接抛 TypeError 白屏
 const items = ref<WizardItem[]>([newItem({})])
-// 定类：直达新建的入口（知识库目录的「新建知识点 / 新建资料讲解」）会以 ?type=kp|doc 预置，
-// 预置入口不再被改写的定类建议覆盖；素材接续与无预置时仍按「改写建议 → 缺省面试题线」推导
+// 定类：入口（知识库管理「新建知识点 / 新建资料讲解」）会以 ?type=kp|doc 预置；无预置默认面试题线，
+// 第 4 步提交前可人工改选（定类是人工决策，AI 不参与建议）
 function presetType(queryType: unknown): queryType is KbContentType {
   return queryType === 'kp' || queryType === 'doc'
 }
@@ -118,7 +115,6 @@ function newItem(partial: Partial<WizardItem>): WizardItem {
     difficulty: '',
     domainCode: '',
     topicId: null,
-    genre: '',
     note: '',
     ...partial
   }
@@ -161,6 +157,7 @@ onMounted(async () => {
 // —— 第 1 步：编写（编辑 + AI 改写，产物回编辑器） ——
 
 const preRewrite = ref('')
+const rewriteAbortRef = { current: null as (() => void) | null }
 
 async function doRewrite() {
   const item = activeItem.value
@@ -170,19 +167,36 @@ async function doRewrite() {
     return
   }
   busy.rewrite = true
+  preRewrite.value = item.contentMd
+  item.contentMd = ''
+  // 流式改写：逐片段追加打字机式呈现；素材接续与直达共用同一能力（6.4）
+  const streamUrl = mode.value === 'source' && item.sourceId
+    ? `/admin/sources/${item.sourceId}/ai/rewrite/stream`
+    : '/admin/kb/ai/rewrite-stream'
+  const { promise, abort } = streamAiRewrite(streamUrl, streamUrl.includes('rewrite-stream') ? { contentMd: preRewrite.value } : null, (delta) => {
+    item.contentMd += delta
+  })
+  rewriteAbortRef.current = abort
   try {
-    const resp = mode.value === 'source' && item.sourceId
-      ? await aiRewrite(item.sourceId)
-      : await aiRewriteContent(item.contentMd)
-    preRewrite.value = item.contentMd
+    const resp = await promise
     item.contentMd = resp.content
-    item.genre = resp.genre
     ElMessage.success('改写产物已回到编辑器，可继续调整或撤销')
   } catch (error) {
-    ElMessage.error(messageOf(error, 'AI 改写失败'))
+    const err = error as { status?: number; message?: string; name?: string }
+    if (err?.status === undefined && err?.name === 'AbortError') {
+      ElMessage.info('已停止改写，可撤销恢复原文')
+    } else {
+      item.contentMd = preRewrite.value
+      ElMessage.error(err?.message || 'AI 改写失败')
+    }
   } finally {
     busy.rewrite = false
+    rewriteAbortRef.current = null
   }
+}
+
+function stopRewrite() {
+  rewriteAbortRef.current?.()
 }
 
 function undoRewrite() {
@@ -398,10 +412,9 @@ async function persistAndNext() {
       loading.value = false
     }
   }
-  // 定类缺省：入口预置（?type=）优先；否则取改写定类建议 面试题→kp、文章→doc，缺省面试题线
+  // 定类缺省：入口预置（?type=）优先；无预置默认面试题线，第 4 步可人工改选
   if (!typePreset) {
-    const genre = items.value[0]?.genre ?? ''
-    contentType.value = genre === '文章' ? 'doc' : 'kp'
+    contentType.value = 'kp'
   }
   step.value = 3
 }
@@ -481,9 +494,12 @@ const topicName = (topicId: number | null) =>
         </div>
         <div class="step-actions">
           <div class="action-left">
-            <el-button :icon="MagicStick" :loading="busy.rewrite" @click="doRewrite">AI 改写</el-button>
-            <el-button v-if="preRewrite" @click="undoRewrite">撤销改写</el-button>
-            <span v-if="activeItem!.genre" class="genre-hint">定类建议：{{ activeItem!.genre }}</span>
+            <el-button
+              :icon="busy.rewrite ? VideoPause : MagicStick"
+              :type="busy.rewrite ? 'danger' : 'default'"
+              @click="busy.rewrite ? stopRewrite() : doRewrite()"
+            >{{ busy.rewrite ? '停止' : 'AI 改写' }}</el-button>
+            <el-button v-if="preRewrite && !busy.rewrite" @click="undoRewrite">撤销改写</el-button>
           </div>
           <el-button type="primary" @click="nextFromStep1">下一步<el-icon class="el-icon--right"><Right /></el-icon></el-button>
         </div>
@@ -684,11 +700,6 @@ const topicName = (topicId: number | null) =>
   display: flex;
   align-items: center;
   gap: 8px;
-}
-
-.genre-hint {
-  font-size: 12px;
-  color: var(--zj-primary);
 }
 
 .slice-list {

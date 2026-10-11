@@ -133,7 +133,7 @@ async function doReject() {
 
 async function doDiscard() {
   try {
-    await ElMessageBox.confirm('废弃后内容标记弃用下线（数据保留，可在知识库目录恢复），确认废弃？', '废弃确认', { type: 'warning' })
+    await ElMessageBox.confirm('废弃后内容标记弃用下线（数据保留，可在知识库管理恢复），确认废弃？', '废弃确认', { type: 'warning' })
   } catch {
     return
   }

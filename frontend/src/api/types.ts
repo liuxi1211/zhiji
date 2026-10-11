@@ -94,13 +94,14 @@ export type LlmPurpose =
   | 'ai_compose'
   | 'embedding'
 
-/** 单条模型路由目标：provider 名对应后端 zhiji.llm.providers 的 key */
+/** 单条模型路由目标：provider 名对应后端 zhiji.llm.providers 的 key；thinking 三态 null=跟随默认 */
 export interface LlmRouteTargetView {
   provider: string
   model: string
   temperature: number | null
   maxTokens: number | null
   embedding: boolean
+  thinking: boolean | null
 }
 
 export interface LlmLimitsView {
@@ -114,6 +115,8 @@ export interface LlmSettingsView {
   routes: Record<string, LlmRouteTargetView>
   limits: LlmLimitsView
   providers: string[]
+  /** provider 支持的模型清单（yml 事实源）：key=provider 名，value=模型列表（设置页下拉数据源） */
+  providerModels: Record<string, string[]>
 }
 
 export interface LlmConnectivityItem {
@@ -133,6 +136,8 @@ export interface LlmConnectivityReport {
 export interface LlmUsageRow {
   purpose: string
   purposeName: string
+  /** 调用侧别：C=用户触发（受档案限额）/ B=员工人工触发（仅计量不限流） */
+  side: 'C' | 'B'
   /** 该入口全站当日计数（所有档案合计） */
   callCount: number
   /** 该入口单档案当日最高计数——单档案限额按此口径比较 */
@@ -266,10 +271,9 @@ export interface SourceSplitResp {
   slices: SourceSplitSliceResp[]
 }
 
-/** AI 改写产物：正文回编辑器、定类建议仅供参考 */
+/** AI 改写产物：正文回编辑器（kp/doc 定类由向导入口预置 + 提交时人工选择） */
 export interface SourceRewriteResp {
   content: string
-  genre: string
 }
 
 /** AI 一键拆分预填：anchor 为原文标题锚点，前端据此切正文 */
@@ -529,4 +533,79 @@ export interface KbDocDraft {
   contentMd: string
   difficulty: SourceDifficulty
   kpId: number | null
+}
+
+// —— 判定引擎（核心模块定义 6.1，T6） ——
+
+/** 答况四分流：对/缺/错/空；「空」是独立值。取值与后端 judge_verdict 常量组一致 */
+export type JudgeVerdict = 'correct' | 'missing' | 'wrong' | 'empty'
+
+/** 单知识点四档（6.1 硬规则 3：公式计算，模型不碰分） */
+export type JudgeGrade = 'excellent' | 'good' | 'pass' | 'fail'
+
+/** 判定目标职级五档（与 KbLevelRule.level 同口径） */
+export type JudgeLevel = 'junior' | 'mid' | 'senior' | 'expert' | 'master'
+
+/** 判定来源：llm=引擎 / self=降级自评 / code=空答短路 */
+export type JudgeSource = 'llm' | 'self' | 'code'
+
+/** 评分要点全量快照（含未命中项）：内容改版后历史档位可重算 */
+export interface JudgePointResult {
+  id: string
+  level: KbScoringPoint['level']
+  content: string
+  hit: boolean
+  quote: string
+}
+
+export interface JudgeAnswerView {
+  id: number
+  followupId: string | null
+  questionText: string
+  layer: number
+  answerText: string
+  verdict: JudgeVerdict | null
+  source: JudgeSource
+  points: JudgePointResult[]
+  wrongNote: string | null
+  errorNote: string | null
+  createdAt: string
+}
+
+export interface JudgeSessionView {
+  id: number
+  kpId: number
+  kpTitle: string
+  kpSummary: string | null
+  level: JudgeLevel
+  stopLayer: number | null
+  status: 'open' | 'closed'
+  grade: JudgeGrade | null
+  gradeNote: string | null
+  degraded: boolean
+  createdAt: string
+  closedAt: string | null
+  followups: KbFollowup[]
+  scoringPoints: KbScoringPoint[]
+  answers: JudgeAnswerView[]
+}
+
+export interface JudgeSessionItemView {
+  id: number
+  kpId: number
+  kpTitle: string
+  level: JudgeLevel
+  stopLayer: number | null
+  status: 'open' | 'closed'
+  grade: JudgeGrade | null
+  degraded: boolean
+  answerCount: number
+  createdAt: string
+  closedAt: string | null
+}
+
+export interface JudgeAnswerResp {
+  answer: JudgeAnswerView
+  degraded: boolean
+  advice: string
 }

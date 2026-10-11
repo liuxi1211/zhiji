@@ -83,7 +83,10 @@ public class KbMergeService {
         String corpus = buildCorpus(contentType, distinct);
         String prompt = PromptTemplate.render(readTemplate("prompts/kb_merge.txt"),
                 Map.of("contentType", contentType, "corpus", corpus));
-        MergeResp resp = llmClient.completeJson(LlmRequest.user(LlmPurpose.KB_MERGE, null, prompt), MergeResp.class);
+        // 多份语料合并输出全结构产物，分钟级任务：超时放宽，走请求级覆盖（timeoutSeconds）
+        MergeResp resp = llmClient.completeJson(LlmRequest.admin(LlmPurpose.KB_MERGE, prompt)
+                .timeoutSeconds(com.zhiji.source.service.SourceAiService.JSON_TASK_TIMEOUT_SECONDS)
+                .build(), MergeResp.class);
         String difficulty = resp.difficulty() == null ? "" : resp.difficulty().strip();
         if (!List.of("junior", "mid", "senior", "expert").contains(difficulty)) {
             log.info("AI 合并难度建议越界（{}），置空交人工拍板", difficulty);

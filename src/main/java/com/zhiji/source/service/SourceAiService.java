@@ -28,6 +28,16 @@ public class SourceAiService {
 
     private static final int MAX_CONTENT_CHARS = 12_000;
 
+    /** 长任务超时（秒）：改写全文生成分钟级；拆分/反推/合并等 JSON 任务输出长，统一放宽到 120s。 */
+    public static final int REWRITE_TIMEOUT_SECONDS = 180;
+    public static final int JSON_TASK_TIMEOUT_SECONDS = 120;
+
+    /**
+     * 改写输出预算：路由 maxTokens 默认 4096，但思考模型（deepseek-v4.1 等）的推理 token 也计入输出预算，
+     * 12k 字长文改写时思考耗尽预算 → 正文零输出直接 done。改写显式放宽到 16k，路由配置不再依赖。
+     */
+    private static final int REWRITE_MAX_TOKENS = 16_000;
+
     private final LlmClient llmClient;
     private final JsonMapper jsonMapper = new JsonMapper();
 
@@ -35,8 +45,8 @@ public class SourceAiService {
         this.llmClient = llmClient;
     }
 
-    /** AI 改写产物。 */
-    public record RewriteResp(String content, String genre) {
+    /** AI 改写产物（正文即产物；kp/doc 定类由向导入口预置 + 提交时人工选择，不再由 AI 建议）。 */
+    public record RewriteResp(String content) {
     }
 
     /** 拆分预填项：anchor 为原文标题锚点，由前端据此切正文。 */
@@ -64,15 +74,30 @@ public class SourceAiService {
 
     public RewriteResp rewrite(String content) {
         String text = requireContent(content);
-        String raw = llmClient.complete(LlmRequest.user(LlmPurpose.SOURCE_REWRITE, null,
-                prompt("prompts/source_rewrite.txt", Map.of("content", text))));
-        return new RewriteResp(raw.strip(), extractGenre(raw));
+        String raw = llmClient.complete(LlmRequest.admin(LlmPurpose.SOURCE_REWRITE,
+                prompt("prompts/source_rewrite.txt", Map.of("content", text)))
+                .timeoutSeconds(REWRITE_TIMEOUT_SECONDS)
+                .maxTokens(REWRITE_MAX_TOKENS)
+                .build());
+        return new RewriteResp(raw.strip());
+    }
+
+    /** 流式改写：onDelta 逐片段回调（SSE 推给前端打字机式呈现），返回拼接后的完整正文。 */
+    public String rewriteStream(String content, java.util.function.Consumer<String> onDelta) {
+        String text = requireContent(content);
+        return llmClient.streamComplete(LlmRequest.admin(LlmPurpose.SOURCE_REWRITE,
+                prompt("prompts/source_rewrite.txt", Map.of("content", text)))
+                .timeoutSeconds(REWRITE_TIMEOUT_SECONDS)
+                .maxTokens(REWRITE_MAX_TOKENS)
+                .build(), onDelta);
     }
 
     public SplitResp split(String content) {
         String text = requireContent(content);
-        SplitResp resp = llmClient.completeJson(LlmRequest.user(LlmPurpose.SOURCE_SPLIT, null,
-                prompt("prompts/source_split.txt", Map.of("content", text))), SplitResp.class);
+        SplitResp resp = llmClient.completeJson(LlmRequest.admin(LlmPurpose.SOURCE_SPLIT,
+                prompt("prompts/source_split.txt", Map.of("content", text)))
+                .timeoutSeconds(JSON_TASK_TIMEOUT_SECONDS)
+                .build(), SplitResp.class);
         List<SplitSlice> slices = resp.slices() == null ? List.of()
                 : resp.slices().stream()
                         .filter(s -> s.title() != null && !s.title().isBlank())
@@ -82,8 +107,10 @@ public class SourceAiService {
 
     public String summarize(String content) {
         String text = requireContent(content);
-        String raw = llmClient.complete(LlmRequest.user(LlmPurpose.SOURCE_SUMMARY, null,
-                prompt("prompts/source_summary.txt", Map.of("content", text))));
+        String raw = llmClient.complete(LlmRequest.admin(LlmPurpose.SOURCE_SUMMARY,
+                prompt("prompts/source_summary.txt", Map.of("content", text)))
+                .timeoutSeconds(JSON_TASK_TIMEOUT_SECONDS)
+                .build());
         String summary = raw.strip();
         if (summary.length() > 200) {
             summary = summary.substring(0, 200);
@@ -94,10 +121,11 @@ public class SourceAiService {
     public ClassifyResp classify(String content, String domain, List<String> topics) {
         String text = requireContent(content);
         String joined = String.join("、", topics);
-        ClassifyResp resp = llmClient.completeJson(LlmRequest.user(LlmPurpose.SOURCE_CLASSIFY, null,
+        ClassifyResp resp = llmClient.completeJson(LlmRequest.admin(LlmPurpose.SOURCE_CLASSIFY,
                 prompt("prompts/source_classify.txt",
-                        Map.of("domain", domain, "topics", joined, "content", text.substring(0, Math.min(3000, text.length()))))),
-                ClassifyResp.class);
+                        Map.of("domain", domain, "topics", joined, "content", text.substring(0, Math.min(3000, text.length())))))
+                .timeoutSeconds(JSON_TASK_TIMEOUT_SECONDS)
+                .build(), ClassifyResp.class);
         String topic = resp.topicName() == null ? "" : resp.topicName().strip();
         // 只在候选主题内采纳：模型越界发明主题时降级为「采纳失败」，建议仅供采纳或无视
         if (!topic.isEmpty() && topics.stream().noneMatch(t -> t.equals(topic))) {
@@ -109,8 +137,10 @@ public class SourceAiService {
 
     public List<InferResp> infer(String content) {
         String text = requireContent(content);
-        InferResp[] items = llmClient.completeJson(LlmRequest.user(LlmPurpose.SOURCE_INFER, null,
-                prompt("prompts/source_infer.txt", Map.of("content", text))), InferResp[].class);
+        InferResp[] items = llmClient.completeJson(LlmRequest.admin(LlmPurpose.SOURCE_INFER,
+                prompt("prompts/source_infer.txt", Map.of("content", text)))
+                .timeoutSeconds(JSON_TASK_TIMEOUT_SECONDS)
+                .build(), InferResp[].class);
         List<InferResp> result = new ArrayList<>();
         for (InferResp item : items) {
             if (item.question() == null || item.question().isBlank()) {
@@ -129,9 +159,10 @@ public class SourceAiService {
     /** 难度建议：四档取值，模型越界时降级 mid（建议仅供采纳或无视）。 */
     public DifficultyResp difficulty(String content) {
         String text = requireContent(content);
-        DifficultyResp resp = llmClient.completeJson(LlmRequest.user(LlmPurpose.SOURCE_DIFFICULTY, null,
-                prompt("prompts/source_difficulty.txt", Map.of("content", text.substring(0, Math.min(6000, text.length()))))),
-                DifficultyResp.class);
+        DifficultyResp resp = llmClient.completeJson(LlmRequest.admin(LlmPurpose.SOURCE_DIFFICULTY,
+                prompt("prompts/source_difficulty.txt", Map.of("content", text.substring(0, Math.min(6000, text.length())))))
+                .timeoutSeconds(JSON_TASK_TIMEOUT_SECONDS)
+                .build(), DifficultyResp.class);
         String difficulty = resp.difficulty() == null ? "" : resp.difficulty().strip();
         if (!List.of("junior", "mid", "senior", "expert").contains(difficulty)) {
             log.info("难度建议越出四档清单（{}），降级为 mid", difficulty);
@@ -178,11 +209,5 @@ public class SourceAiService {
         } catch (IOException e) {
             throw new IllegalStateException("读取 prompt 模板失败: " + path, e);
         }
-    }
-
-    /** 从改写产物末行提取「定类建议：面试题/文章」。 */
-    private String extractGenre(String raw) {
-        var matcher = java.util.regex.Pattern.compile("定类建议[:：]\\s*(面试题|文章)").matcher(raw);
-        return matcher.find() ? matcher.group(1) : "";
     }
 }

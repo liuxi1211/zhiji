@@ -93,7 +93,7 @@ class SourceFlowTest {
         stub.reset();
         // 测试库共享（临时 SQLite），sys_config 里可能存有旧版路由（缺 SOURCE_* 入口）：
         // 与 LlmGatewayTest 同口径，每个用例前重置路由与限额，保证新增入口可调用。
-        llmConfigService.saveRouteConfig(com.zhiji.llm.service.LlmConfigService.defaultRouteConfig());
+        llmConfigService.saveRouteConfig(llmConfigService.defaultRouteConfig());
         llmConfigService.saveLimits(LlmLimits.defaults());
         llmUsageService.deleteByDate(llmUsageService.today());
         MvcResult login = mvc.perform(post("/api/auth/staff/login").contentType(MediaType.APPLICATION_JSON)
@@ -214,7 +214,7 @@ class SourceFlowTest {
         asStaff();
         SourceService.SourceItemView created = sourceService.create("待改写素材",
                 "# JVM\n\nG1 回收器分代内容。", null, "manual");
-        stub.respond("改写后的正文\n\n定类建议：面试题");
+        stub.respond("改写后的正文");
         mvc.perform(post("/api/admin/sources/" + created.id() + "/ai/rewrite").header("Authorization", staffToken))
                 .andExpect(status().isOk());
         stub.respond("{\"needSplit\":true,\"slices\":[{\"title\":\"G1 原理\",\"anchor\":\"# JVM\"}]}");

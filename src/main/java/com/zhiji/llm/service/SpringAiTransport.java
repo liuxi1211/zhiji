@@ -6,11 +6,13 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
+import java.util.function.Consumer;
 import org.springframework.ai.chat.messages.Message;
 import org.springframework.ai.chat.messages.SystemMessage;
 import org.springframework.ai.chat.messages.UserMessage;
 import org.springframework.ai.chat.model.ChatModel;
 import org.springframework.ai.chat.model.ChatResponse;
+import org.springframework.ai.chat.model.Generation;
 import org.springframework.ai.chat.prompt.Prompt;
 import org.springframework.ai.embedding.EmbeddingModel;
 import org.springframework.ai.openai.OpenAiChatModel;
@@ -18,10 +20,11 @@ import org.springframework.ai.openai.OpenAiChatOptions;
 import org.springframework.ai.openai.OpenAiEmbeddingModel;
 import org.springframework.ai.openai.OpenAiEmbeddingOptions;
 import org.springframework.stereotype.Component;
+import reactor.core.publisher.Flux;
 
 /**
  * Spring AI 实现：用 OpenAI 兼容适配器对接各 provider（火山方舟 / DeepSeek / GLM 均兼容 OpenAI 协议）。
- * Chat 模型按 provider 缓存（baseUrl/apiKey 决定连接），模型名与温度按调用参数传入；
+ * Chat 模型按 provider 缓存（baseUrl/apiKey 决定连接），模型名与采样参数按调用参数传入；
  * Embedding 模型按 provider+model 缓存（模型名在建实例时固定）。
  *
  * 只负责「把一次请求发出去」，不含路由、限额、计数、JSON 解析——那些在 LlmGatewayService。
@@ -29,6 +32,7 @@ import org.springframework.stereotype.Component;
  * 超时必须显式给到 options：Spring AI 的 OpenAiChatOptions 在未指定时填 60s 默认值、maxRetries 填 3，
  * 且 2.0 的 OpenAiChatModel 在 prompt 自带 options 时不合并模型默认 options——不显式设置就是 60s × 多层重试，
  * 与核心模块定义 4.1 的「15s 超时一次重试后降级」相悖（重试统一由 LlmGatewayService 掌握，SDK 内层重试置 0）。
+ * spec.timeout 为 null 时回落全局配置；思考模式经 extraBody 透传（OpenAI 兼容扩展字段）。
  */
 @Component
 public class SpringAiTransport implements LlmTransport {
@@ -42,19 +46,57 @@ public class SpringAiTransport implements LlmTransport {
     }
 
     @Override
-    public String call(String provider, String model, Double temperature, Integer maxTokens,
-            String systemPrompt, String userPrompt) {
-        ChatModel chatModel = chatModels.computeIfAbsent(provider, this::buildChatModel);
+    public String call(LlmCallSpec spec, String systemPrompt, String userPrompt) {
+        ChatModel chatModel = chatModels.computeIfAbsent(spec.provider(), this::buildChatModel);
+        ChatResponse response = chatModel.call(new Prompt(messages(systemPrompt, userPrompt), optionsOf(spec)));
+        if (response == null || response.getResult() == null || response.getResult().getOutput() == null) {
+            return "";
+        }
+        return response.getResult().getOutput().getText();
+    }
+
+    @Override
+    public String stream(LlmCallSpec spec, String systemPrompt, String userPrompt, Consumer<String> onDelta) {
+        ChatModel chatModel = chatModels.computeIfAbsent(spec.provider(), this::buildChatModel);
+        Flux<ChatResponse> flux = chatModel.stream(new Prompt(messages(systemPrompt, userPrompt), optionsOf(spec)));
+        StringBuilder full = new StringBuilder();
+        // block 住消费流（SSE 端点跑在虚拟线程上，阻塞无碍），逐 delta 回调给上层推给前端
+        flux.doOnNext(response -> {
+            Generation generation = response == null ? null : response.getResult();
+            String delta = generation == null || generation.getOutput() == null ? null : generation.getOutput().getText();
+            if (delta != null && !delta.isEmpty()) {
+                full.append(delta);
+                onDelta.accept(delta);
+            }
+        }).blockLast();
+        return full.toString();
+    }
+
+    private List<Message> messages(String systemPrompt, String userPrompt) {
         List<Message> messages = new ArrayList<>(2);
         if (systemPrompt != null && !systemPrompt.isBlank()) {
             messages.add(new SystemMessage(systemPrompt));
         }
         messages.add(new UserMessage(userPrompt));
-        ChatResponse response = chatModel.call(new Prompt(messages, callOptions(model, temperature, maxTokens)));
-        if (response == null || response.getResult() == null || response.getResult().getOutput() == null) {
-            return "";
+        return messages;
+    }
+
+    /** 单次调用参数：模型名/采样参数/思考模式按 spec 传入，超时 spec 优先、回落全局。 */
+    OpenAiChatOptions optionsOf(LlmCallSpec spec) {
+        OpenAiChatOptions.Builder builder = OpenAiChatOptions.builder()
+                .model(spec.model())
+                .timeout(spec.timeout() != null ? spec.timeout() : globalTimeout());
+        if (spec.temperature() != null) {
+            builder.temperature(spec.temperature());
         }
-        return response.getResult().getOutput().getText();
+        if (spec.maxTokens() != null) {
+            builder.maxTokens(spec.maxTokens());
+        }
+        Map<String, Object> extraBody = spec.extraBody();
+        if (!extraBody.isEmpty()) {
+            builder.extraBody(extraBody);
+        }
+        return builder.build();
     }
 
     @Override
@@ -70,23 +112,9 @@ public class SpringAiTransport implements LlmTransport {
         return OpenAiChatOptions.builder()
                 .baseUrl(target.getBaseUrl())
                 .apiKey(target.getApiKey())
-                .timeout(timeout())
+                .timeout(globalTimeout())
                 .maxRetries(0)
                 .build();
-    }
-
-    /** 单次调用参数：模型名与采样参数按调用方传入，超时同样要带上（per-request 超时只认 prompt options）。 */
-    OpenAiChatOptions callOptions(String model, Double temperature, Integer maxTokens) {
-        OpenAiChatOptions.Builder builder = OpenAiChatOptions.builder()
-                .model(model)
-                .timeout(timeout());
-        if (temperature != null) {
-            builder.temperature(temperature);
-        }
-        if (maxTokens != null) {
-            builder.maxTokens(maxTokens);
-        }
-        return builder.build();
     }
 
     private ChatModel buildChatModel(String provider) {
@@ -102,13 +130,13 @@ public class SpringAiTransport implements LlmTransport {
                         .baseUrl(target.getBaseUrl())
                         .apiKey(target.getApiKey())
                         .model(model)
-                        .timeout(timeout())
+                        .timeout(globalTimeout())
                         .maxRetries(0)
                         .build())
                 .build();
     }
 
-    private Duration timeout() {
+    private Duration globalTimeout() {
         return Duration.ofSeconds(properties.getTimeoutSeconds());
     }
 

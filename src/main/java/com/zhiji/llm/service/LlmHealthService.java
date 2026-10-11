@@ -63,7 +63,8 @@ public class LlmHealthService {
             if (target.embedding()) {
                 transport.embed(target.provider(), target.model(), List.of("ping"));
             } else {
-                transport.call(target.provider(), target.model(), 0.0, 8, null, "ping");
+                transport.call(LlmCallSpec.of(target.provider(), target.model(), 0.0, 8, target.thinking(), null),
+                        null, "ping");
             }
             return new Item(purposeCode, target.provider(), target.model(), target.embedding(), true, "连通正常");
         } catch (RuntimeException e) {

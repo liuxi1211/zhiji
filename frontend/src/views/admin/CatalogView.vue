@@ -1,11 +1,11 @@
 <script setup lang="ts">
-// 知识库目录（核心模块定义 5.2，资产家底形态）：领域 → 主题 → 知识点/资料讲解的目录树浏览与检索。
+// 知识库管理（核心模块定义 5.2，资产家底形态）：领域 → 主题 → 知识点/资料讲解的目录树浏览与检索。
 // 内容编辑、组织结构调整（主题改名/合并/调领域）、直达新建、下线与恢复都在这里。
 // 打开它的理由是"要看家底"，按目录结构组织（与内容生产台的待办形态互补）。
 import { computed, onMounted, reactive, ref } from 'vue'
 import { useRouter } from 'vue-router'
 import { ElMessage, ElMessageBox } from 'element-plus'
-import { CirclePlus, Document, Edit, MagicStick, Refresh, Search } from '@element-plus/icons-vue'
+import { CirclePlus, Document, Edit, MagicStick, Refresh, Search, VideoPlay } from '@element-plus/icons-vue'
 import {
   KB_STATUS_LABELS,
   createTopic,
@@ -58,6 +58,11 @@ const currentTopic = computed(() => topics.value.find((topic) => topic.id === cu
 function messageOf(error: unknown, fallback: string): string {
   const err = error as { message?: string }
   return err.message ?? fallback
+}
+
+// 试判直达：带上 kpId 跳试判台自动预选，免掉重复搜索（职级仍需人工选择，它决定停止点）
+function goTrial(row: KbContentItemView) {
+  void router.push({ path: '/admin/judge', query: { kpId: String(row.id) } })
 }
 
 async function refreshTopics() {
@@ -335,8 +340,8 @@ function statusTagType(status: KbStatus): 'primary' | 'success' | 'info' | 'warn
   <div class="catalog-view">
     <header class="view-head">
       <div>
-        <h1>知识库目录</h1>
-        <p class="view-sub">领域 → 主题 → 知识点/资料讲解：资产家底，按目录结构组织</p>
+        <h1>知识库管理</h1>
+        <p class="view-sub">领域 → 主题 → 知识点/资料讲解：资产家底，编辑与组织维护、试判入口都在这里</p>
       </div>
       <div class="head-actions">
         <el-badge :value="dueCount" :hidden="dueCount === 0">
@@ -423,9 +428,14 @@ function statusTagType(status: KbStatus): 'primary' | 'success' | 'info' | 'warn
               <el-tag :type="statusTagType(row.status)" size="small">{{ statusLabel(row.status) }}</el-tag>
             </template>
           </el-table-column>
-          <el-table-column label="操作" width="230" fixed="right">
+          <el-table-column label="操作" width="270" fixed="right">
             <template #default="{ row }">
               <el-button size="small" text type="primary" @click="openEditor(row)">编辑</el-button>
+              <!-- 试判只对上线知识点开放（后端 D10 校验 kp 必须 available），doc 无可判定性 -->
+              <el-button
+                v-if="row.contentType === 'kp' && row.status === 'available'"
+                size="small" text type="success" :icon="VideoPlay" @click="goTrial(row)"
+              >试判</el-button>
               <el-button v-if="row.status === 'available'" size="small" text type="danger" @click="doOffline(row)">弃用</el-button>
               <el-button v-if="row.status === 'draft'" size="small" text type="warning" @click="doResubmit(row)">重新提交审核</el-button>
               <el-button v-if="row.status === 'deprecated' || row.status === 'merged'" size="small" text type="warning" @click="doRestore(row)">恢复</el-button>

@@ -2,11 +2,12 @@ package com.zhiji.llm.service;
 
 import com.zhiji.common.exception.BizException;
 import com.zhiji.llm.api.LlmClient;
-import com.zhiji.llm.api.LlmRequest;
 import com.zhiji.llm.api.LlmPurpose;
+import com.zhiji.llm.api.LlmRequest;
 import com.zhiji.llm.config.LlmProperties;
 import com.zhiji.llm.domain.LlmRouteConfig.RouteTarget;
 import java.util.List;
+import java.util.function.Consumer;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.stereotype.Service;
@@ -14,8 +15,10 @@ import tools.jackson.core.JacksonException;
 import tools.jackson.databind.json.JsonMapper;
 
 /**
- * LLM 调用编排（LlmClient 的实现）：路由解析 → 限额守卫 → 网络调用 → JSON 校验与重试 → 计数落库。
- * 业务模块只依赖 LlmClient，不感知 provider、模型名与重试细节。
+ * LLM 调用编排（LlmClient 的实现）：路由解析 → 限额守卫（按侧别分策略）→ 参数合并 →
+ * 网络调用 → JSON 校验与重试 → 计数落库。
+ * 业务模块只依赖 LlmClient，不感知 provider、模型名与重试细节；
+ * 请求级覆盖（模型/温度/token/思考/超时）只影响单次调用，不写回路由配置。
  */
 @Service
 public class LlmGatewayService implements LlmClient {
@@ -40,37 +43,43 @@ public class LlmGatewayService implements LlmClient {
 
     @Override
     public String complete(LlmRequest request) {
-        RouteTarget target = requireTarget(request.purpose());
-        long profileId = request.profileKey();
-        rateGuard.check(request.purpose(), profileId);
+        LlmCallSpec spec = requireSpec(request);
+        rateGuard.check(request.purpose(), request.profileKey());
         try {
-            String text = transport.call(target.provider(), target.model(),
-                    request.temperature() != null ? request.temperature() : target.temperature(),
-                    request.maxTokens() != null ? request.maxTokens() : target.maxTokens(),
-                    request.systemPrompt(), request.userPrompt());
-            usageService.recordCall(request.purpose().getCode(), profileId);
+            String text = transport.call(spec, request.systemPrompt(), request.userPrompt());
+            usageService.recordCall(request.purpose().getCode(), request.profileKey());
             return text;
         } catch (RuntimeException e) {
-            usageService.recordFail(request.purpose().getCode(), profileId);
+            usageService.recordFail(request.purpose().getCode(), request.profileKey());
+            throw providerError(e);
+        }
+    }
+
+    @Override
+    public String streamComplete(LlmRequest request, Consumer<String> onDelta) {
+        LlmCallSpec spec = requireSpec(request);
+        rateGuard.check(request.purpose(), request.profileKey());
+        try {
+            String text = transport.stream(spec, request.systemPrompt(), request.userPrompt(), onDelta);
+            usageService.recordCall(request.purpose().getCode(), request.profileKey());
+            return text;
+        } catch (RuntimeException e) {
+            usageService.recordFail(request.purpose().getCode(), request.profileKey());
             throw providerError(e);
         }
     }
 
     @Override
     public <T> T completeJson(LlmRequest request, Class<T> type) {
-        RouteTarget target = requireTarget(request.purpose());
-        long profileId = request.profileKey();
-        rateGuard.check(request.purpose(), profileId);
+        LlmCallSpec spec = requireSpec(request);
+        rateGuard.check(request.purpose(), request.profileKey());
 
         RuntimeException last = null;
         for (int attempt = 0; attempt < 2; attempt++) {
             String raw = null;
             try {
-                raw = transport.call(target.provider(), target.model(),
-                        request.temperature() != null ? request.temperature() : target.temperature(),
-                        request.maxTokens() != null ? request.maxTokens() : target.maxTokens(),
-                        request.systemPrompt(), request.userPrompt());
-                usageService.recordCall(request.purpose().getCode(), profileId);
+                raw = transport.call(spec, request.systemPrompt(), request.userPrompt());
+                usageService.recordCall(request.purpose().getCode(), request.profileKey());
                 return parseJson(raw, type);
             } catch (JacksonException e) {
                 last = providerError(e);
@@ -81,7 +90,7 @@ public class LlmGatewayService implements LlmClient {
             }
         }
         // 同一逻辑请求两次尝试都失败只记一次失败：call 计两次、fail 计一次，用量视图按此口径读
-        usageService.recordFail(request.purpose().getCode(), profileId);
+        usageService.recordFail(request.purpose().getCode(), request.profileKey());
         throw last != null ? last
                 : BizException.of(502, "SYS_PROVIDER_ERROR", "模型返回内容无法解析");
     }
@@ -114,6 +123,23 @@ public class LlmGatewayService implements LlmClient {
                     "路由指向未配置的 provider: " + target.provider());
         }
         return target;
+    }
+
+    /**
+     * 路由配置 + 请求级覆盖合并为 LlmCallSpec：请求值优先，请求未给的用路由值。
+     * 超时：请求级显式值 > 全局 zhiji.llm.timeout-seconds（spec.of 内处理 null 回落）。
+     */
+    private LlmCallSpec requireSpec(LlmRequest request) {
+        RouteTarget target = requireTarget(request.purpose());
+        return LlmCallSpec.of(
+                target.provider(),
+                request.model() != null && !request.model().isBlank() ? request.model() : target.model(),
+                request.temperature() != null ? request.temperature() : target.temperature(),
+                request.maxTokens() != null ? request.maxTokens() : target.maxTokens(),
+                request.thinking() != null ? request.thinking() : target.thinking(),
+                request.timeoutSeconds() != null && request.timeoutSeconds() > 0
+                        ? request.timeoutSeconds()
+                        : null);
     }
 
     private <T> T parseJson(String raw, Class<T> type) {

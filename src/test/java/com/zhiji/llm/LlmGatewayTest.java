@@ -57,14 +57,14 @@ class LlmGatewayTest {
     void reset() {
         stub.reset();
         configService.saveLimits(LlmLimits.defaults());
-        configService.saveRouteConfig(LlmConfigService.defaultRouteConfig());
+        configService.saveRouteConfig(configService.defaultRouteConfig());
         usageService.deleteByDate(usageService.today());
     }
 
     @Test
     void routesByPurposeAndReturnsText() {
         stub.respond("hello");
-        String result = llmClient.complete(LlmRequest.user(LlmPurpose.EXAM_SUMMARY, null, "说点什么"));
+        String result = llmClient.complete(LlmRequest.user(LlmPurpose.EXAM_SUMMARY, null, "说点什么").build());
         assertThat(result).isEqualTo("hello");
         assertThat(usageService.todayTotal()).isEqualTo(1);
     }
@@ -73,7 +73,7 @@ class LlmGatewayTest {
     void parsesValidJson() {
         stub.respond("{\"verdict\":\"hit\",\"score\":80}");
         Verdict verdict = llmClient.completeJson(
-                LlmRequest.user(LlmPurpose.JUDGE_PRACTICE, 1L, "判断"), Verdict.class);
+                LlmRequest.user(LlmPurpose.JUDGE_PRACTICE, 1L, "判断").build(), Verdict.class);
         assertThat(verdict.verdict()).isEqualTo("hit");
         assertThat(verdict.score()).isEqualTo(80);
     }
@@ -82,7 +82,7 @@ class LlmGatewayTest {
     void stripsMarkdownFence() {
         stub.respond("```json\n{\"verdict\":\"hit\",\"score\":60}\n```");
         Verdict verdict = llmClient.completeJson(
-                LlmRequest.user(LlmPurpose.JUDGE_PRACTICE, 1L, "判断"), Verdict.class);
+                LlmRequest.user(LlmPurpose.JUDGE_PRACTICE, 1L, "判断").build(), Verdict.class);
         assertThat(verdict.score()).isEqualTo(60);
     }
 
@@ -90,7 +90,7 @@ class LlmGatewayTest {
     void retriesOnceOnInvalidJsonThenSucceeds() {
         stub.script("not-json", "{\"verdict\":\"shallow\",\"score\":30}");
         Verdict verdict = llmClient.completeJson(
-                LlmRequest.user(LlmPurpose.JUDGE_PRACTICE, 1L, "判断"), Verdict.class);
+                LlmRequest.user(LlmPurpose.JUDGE_PRACTICE, 1L, "判断").build(), Verdict.class);
         assertThat(verdict.verdict()).isEqualTo("shallow");
         assertThat(stub.callCount()).isEqualTo(2);
     }
@@ -99,7 +99,7 @@ class LlmGatewayTest {
     void failsWithProviderErrorAfterTwoInvalidJson() {
         stub.respond("still-not-json");
         assertThatThrownBy(() -> llmClient.completeJson(
-                LlmRequest.user(LlmPurpose.JUDGE_PRACTICE, 1L, "判断"), Verdict.class))
+                LlmRequest.user(LlmPurpose.JUDGE_PRACTICE, 1L, "判断").build(), Verdict.class))
                 .isInstanceOf(BizException.class)
                 .extracting(e -> ((BizException) e).getCode())
                 .isEqualTo("SYS_PROVIDER_ERROR");
@@ -109,7 +109,7 @@ class LlmGatewayTest {
     @Test
     void transportFailureBecomesProviderErrorAndCountsFail() {
         stub.fail(new IllegalStateException("network down"));
-        assertThatThrownBy(() -> llmClient.complete(LlmRequest.user(LlmPurpose.EXAM_SUMMARY, null, "x")))
+        assertThatThrownBy(() -> llmClient.complete(LlmRequest.user(LlmPurpose.EXAM_SUMMARY, null, "x").build()))
                 .isInstanceOf(BizException.class)
                 .extracting(e -> ((BizException) e).getCode())
                 .isEqualTo("SYS_PROVIDER_ERROR");
@@ -121,10 +121,10 @@ class LlmGatewayTest {
     @Test
     void unmappedPurposeFailsFast() {
         configService.saveRouteConfig(new LlmRouteConfig(Map.of()));
-        assertThatThrownBy(() -> llmClient.complete(LlmRequest.user(LlmPurpose.EXAM_SUMMARY, null, "x")))
+        assertThatThrownBy(() -> llmClient.complete(LlmRequest.user(LlmPurpose.EXAM_SUMMARY, null, "x").build()))
                 .isInstanceOf(BizException.class)
                 .extracting(e -> ((BizException) e).getCode())
                 .isEqualTo("SYS_PROVIDER_ERROR");
-        configService.saveRouteConfig(LlmConfigService.defaultRouteConfig());
+        configService.saveRouteConfig(configService.defaultRouteConfig());
     }
 }

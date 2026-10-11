@@ -60,7 +60,7 @@ const adminRoutes: RouteRecordRaw[] = [
         path: 'catalog',
         name: 'admin-catalog',
         component: () => import('@/views/admin/CatalogView.vue'),
-        meta: { title: '知识库目录' }
+        meta: { title: '知识库管理' }
       },
       {
         path: 'wizard',
@@ -86,6 +86,13 @@ const adminRoutes: RouteRecordRaw[] = [
         name: 'admin-merge',
         component: () => import('@/views/admin/MergeView.vue'),
         meta: { title: '同位合并' }
+      },
+      {
+        // 试判台：判定引擎的 B 端质检入口（核心模块定义 6.1），验证评分要点可判定性与停止点标定
+        path: 'judge',
+        name: 'admin-judge',
+        component: () => import('@/views/admin/JudgeTrialView.vue'),
+        meta: { title: '试判台' }
       },
       {
         path: 'accounts',

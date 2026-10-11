@@ -12,8 +12,7 @@ import type {
   KbUpdateDocReq,
   KbUpdateKpReq,
   KpView,
-  SourceClassifyResp,
-  SourceRewriteResp
+  SourceClassifyResp
 } from './types'
 
 // —— 主题（组织结构） ——
@@ -115,10 +114,7 @@ export async function submitDocMerge(ids: number[], product: KbMergeProduct): Pr
 }
 
 // —— 通用 AI 辅助（直达模式：内容不绑定素材行，与素材库共用同一套能力） ——
-
-export async function aiRewriteContent(contentMd: string): Promise<SourceRewriteResp> {
-  return (await request.post<SourceRewriteResp>('/admin/kb/ai/rewrite', { contentMd }, { timeout: 120000 })).data
-}
+// 改写已切到 SSE 流式（stream.ts 的 streamAiRewrite 走 /admin/kb/ai/rewrite-stream）
 
 export async function aiSummaryContent(contentMd: string): Promise<string> {
   const resp = (await request.post<{ summary: string }>('/admin/kb/ai/summary', { contentMd }, { timeout: 120000 }))

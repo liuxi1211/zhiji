@@ -1,6 +1,7 @@
 package com.zhiji.llm.api;
 
 import com.zhiji.common.exception.BizException;
+import com.zhiji.llm.config.LlmProperties;
 import com.zhiji.llm.domain.LlmLimits;
 import com.zhiji.llm.domain.LlmRouteConfig;
 import com.zhiji.llm.domain.LlmRouteConfig.RouteTarget;
@@ -33,16 +34,19 @@ public class SettingsController {
     private final LlmConfigService configService;
     private final LlmHealthService healthService;
     private final LlmUsageService usageService;
+    private final LlmProperties properties;
 
     public SettingsController(LlmConfigService configService, LlmHealthService healthService,
-            LlmUsageService usageService) {
+            LlmUsageService usageService, LlmProperties properties) {
         this.configService = configService;
         this.healthService = healthService;
         this.usageService = usageService;
+        this.properties = properties;
     }
 
+    /** provider 模型清单（yml 事实源）：key=provider 名，value=该 key 支持的模型列表（设置页下拉数据源）。 */
     public record SettingsView(Map<String, LlmRouteConfig.RouteTarget> routes, LlmLimits limits,
-            List<String> providers) {
+            List<String> providers, Map<String, List<String>> providerModels) {
     }
 
     public record LimitsReq(
@@ -55,8 +59,9 @@ public class SettingsController {
     /**
      * 用量行：站点计数与单档案峰值分开给——per-purpose 限额是「单档案」口径，
      * 拿全站合计去比会误报超限，因此 exceeded 以单档案当日峰值为准（核心模块定义 4.2 限额表）。
+     * side 标注调用侧别（C 端用户触发 / B 端员工触发），B 端行不参与限额只有计量。
      */
-    public record UsageRow(String purpose, String purposeName, long callCount, long peakProfileCount,
+    public record UsageRow(String purpose, String purposeName, String side, long callCount, long peakProfileCount,
             String limitKey, Integer limit, boolean soft, boolean exceeded) {
     }
 
@@ -70,8 +75,10 @@ public class SettingsController {
 
     @GetMapping
     public SettingsView get() {
+        Map<String, List<String>> providerModels = new LinkedHashMap<>();
+        properties.getProviders().forEach((name, provider) -> providerModels.put(name, provider.getModels()));
         return new SettingsView(configService.routeConfig().purposes(), configService.limits(),
-                healthService.knownProviders());
+                healthService.knownProviders(), providerModels);
     }
 
     @PutMapping("/routes")
@@ -111,7 +118,7 @@ public class SettingsController {
         for (LlmPurpose purpose : LlmPurpose.values()) {
             Integer limit = limitFor(purpose, limits);
             long peak = peakByPurpose.getOrDefault(purpose.getCode(), 0L);
-            rows.add(new UsageRow(purpose.getCode(), purpose.getName(),
+            rows.add(new UsageRow(purpose.getCode(), purpose.getName(), purpose.side().name(),
                     siteByPurpose.getOrDefault(purpose.getCode(), 0L), peak, purpose.limitKey().name(), limit,
                     purpose.limitKey() == LlmPurpose.LimitKey.JUDGE, limit != null && peak >= limit));
         }
@@ -130,7 +137,7 @@ public class SettingsController {
         };
     }
 
-    /** 未知入口 / 缺目标 / 未配置的 provider / 文本入口缺模型名一律挡在落库前，避免问题留到真实调用才暴露。 */
+    /** 未知入口 / 缺目标 / 未配置的 provider / 文本入口缺模型名 / 模型不在 provider 清单一律挡在落库前。 */
     private Map<String, RouteTarget> validateRoutes(Map<String, RouteTarget> routes) {
         Map<String, RouteTarget> validated = new LinkedHashMap<>();
         for (Map.Entry<String, RouteTarget> entry : routes.entrySet()) {
@@ -145,6 +152,15 @@ public class SettingsController {
             }
             if (!target.embedding() && (target.model() == null || target.model().isBlank())) {
                 throw BizException.of(400, "SYS_PARAM_INVALID", "入口缺少模型名：" + entry.getKey());
+            }
+            // 模型必须在 provider 的 models 清单内（yml 事实源）：防止手输错模型名把错误留到真实调用才暴露
+            if (!target.embedding()) {
+                List<String> models = properties.getProviders().get(target.provider()).getModels();
+                if (models != null && !models.isEmpty() && !models.contains(target.model())) {
+                    throw BizException.of(400, "SYS_PARAM_INVALID",
+                            "入口 " + entry.getKey() + " 的模型 " + target.model() + " 不在 provider "
+                                    + target.provider() + " 的支持清单内");
+                }
             }
             validated.put(entry.getKey(), target);
         }

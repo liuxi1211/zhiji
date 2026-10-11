@@ -7,9 +7,8 @@
 import { computed, onMounted, reactive, ref } from 'vue'
 import { useRouter } from 'vue-router'
 import { ElMessage, ElMessageBox } from 'element-plus'
-import { ArrowDown, Delete, Edit, MagicStick, Plus, Position, Refresh, Search, Upload } from '@element-plus/icons-vue'
+import { ArrowDown, Delete, Edit, MagicStick, Plus, Position, Refresh, Search, Upload, VideoPause } from '@element-plus/icons-vue'
 import {
-  aiRewrite,
   createSource,
   deleteSource,
   discardSource,
@@ -19,6 +18,7 @@ import {
   listSources,
   updateSource
 } from '@/api/source'
+import { streamAiRewrite } from '@/api/stream'
 import type { SourceItemView, SourceStatus, SourceType } from '@/api/types'
 import { useConstantsStore } from '@/stores/constants'
 import { createMarkdown } from '@/utils/markdown'
@@ -210,6 +210,8 @@ const current = ref<SourceItemView | null>(null)
 const form = reactive({ title: '', contentMd: '' })
 const editorTab = ref<'edit' | 'preview'>('edit')
 const rewriting = ref(false)
+const preRewrite = ref('')
+let rewriteAbort: (() => void) | null = null
 
 const wordCount = computed(() => form.contentMd.length.toLocaleString('zh-CN'))
 
@@ -252,15 +254,33 @@ async function save() {
 async function runRewrite() {
   if (!current.value) return
   rewriting.value = true
+  preRewrite.value = form.contentMd
+  form.contentMd = ''
+  // 流式改写：逐片段追加打字机式呈现；可点「停止」中断（后端同步断开模型流）
+  const { promise, abort } = streamAiRewrite(`/admin/sources/${current.value.id}/ai/rewrite/stream`, null, (delta) => {
+    form.contentMd += delta
+  })
+  rewriteAbort = abort
   try {
-    const resp = await aiRewrite(current.value.id)
+    const resp = await promise
     form.contentMd = resp.content
     ElMessage.success('改写完成，产物已回编辑器，请人工确认')
   } catch (error) {
-    ElMessage.error(messageOf(error, 'AI 改写失败'))
+    const err = error as { status?: number; message?: string; name?: string }
+    if (err?.status === undefined && err?.name === 'AbortError') {
+      ElMessage.info('已停止改写，可撤销恢复原文')
+    } else {
+      form.contentMd = preRewrite.value
+      ElMessage.error(err?.message || 'AI 改写失败')
+    }
   } finally {
     rewriting.value = false
+    rewriteAbort = null
   }
+}
+
+function stopRewrite() {
+  rewriteAbort?.()
 }
 
 // —— 进标准库：素材库唯一的入库动作，点击引导进入新增向导（5.1 → 5.2 衔接） ——
@@ -506,14 +526,18 @@ async function remove(item: SourceItemView) {
                 <div class="label-row-right">
                   <span class="word-count zj-num">{{ wordCount }} 字</span>
                   <el-button
+                    v-if="!rewriting && preRewrite"
                     size="small"
-                    type="primary"
+                    @click="form.contentMd = preRewrite; preRewrite = ''"
+                  >撤销改写</el-button>
+                  <el-button
+                    size="small"
+                    :type="rewriting ? 'danger' : 'primary'"
                     plain
-                    :icon="MagicStick"
-                    :loading="rewriting"
-                    @click="runRewrite"
+                    :icon="rewriting ? VideoPause : MagicStick"
+                    @click="rewriting ? stopRewrite() : runRewrite()"
                   >
-                    AI 改写
+                    {{ rewriting ? '停止' : 'AI 改写' }}
                   </el-button>
                 </div>
               </div>

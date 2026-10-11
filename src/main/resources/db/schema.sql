@@ -173,3 +173,38 @@ CREATE TABLE IF NOT EXISTS kb_review (
 );
 
 CREATE INDEX IF NOT EXISTS idx_kb_review_content ON kb_review (content_type, content_id);
+
+-- T6 判定引擎（核心模块定义 6.1）：把自由作答对齐到评分要点，答况四分流、引用强制、档位公式全在代码。
+-- 会话=一个知识点 × 目标职级的连续作答；作答行只插不改（快照即真相，内容改版后历史可回溯可重算）。
+CREATE TABLE IF NOT EXISTS judge_session (
+    id          INTEGER PRIMARY KEY AUTOINCREMENT,
+    kp_id       INTEGER NOT NULL REFERENCES kb_kp (id),
+    level       TEXT NOT NULL CHECK (level IN ('junior','mid','senior','expert','master')),
+    stop_layer  INTEGER,                       -- 判定范围界（创建时快照自 level_rules；空=未标定，取最大 active 层）
+    status      TEXT NOT NULL DEFAULT 'open' CHECK (status IN ('open','closed')),
+    grade       TEXT CHECK (grade IS NULL OR grade IN ('excellent','good','pass','fail')),
+    grade_note  TEXT,                          -- 无法评级原因/公式说明
+    degraded    INTEGER NOT NULL DEFAULT 0,    -- 会话中出现降级自评
+    closed_at   TEXT,
+    created_by  INTEGER NOT NULL,              -- 员工 id（sys_staff.id，试判台=内容维护者）
+    created_at  TEXT NOT NULL DEFAULT (datetime('now'))
+);
+
+CREATE INDEX IF NOT EXISTS idx_judge_session_kp ON judge_session (kp_id, created_at);
+
+CREATE TABLE IF NOT EXISTS judge_answer (
+    id             INTEGER PRIMARY KEY AUTOINCREMENT,
+    session_id     INTEGER NOT NULL REFERENCES judge_session (id),
+    followup_id    TEXT,                       -- null=题面作答；否则追问层 id（永久身份，红线 2）
+    question_text  TEXT NOT NULL,              -- 作答时的问题快照（题面/追问层内容）
+    layer          INTEGER NOT NULL DEFAULT 0, -- 0=题面，追问层为层号
+    answer_text    TEXT NOT NULL,
+    verdict        TEXT CHECK (verdict IS NULL OR verdict IN ('correct','missing','wrong','empty')),
+    source         TEXT NOT NULL DEFAULT 'llm' CHECK (source IN ('llm','self','code')),  -- code=空答短路，self=降级自评
+    points_result  TEXT NOT NULL DEFAULT '[]', -- 评分要点全量快照 [{"id","level","content","hit","quote"}] 含未命中项
+    wrong_note     TEXT,
+    error_note     TEXT,                       -- 判定失败留痕（解锁自评的前置证据）
+    created_at     TEXT NOT NULL DEFAULT (datetime('now'))
+);
+
+CREATE INDEX IF NOT EXISTS idx_judge_answer_session ON judge_answer (session_id);

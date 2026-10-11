@@ -98,7 +98,7 @@ class KbFlowTest {
     void setUp() throws Exception {
         mvc = MockMvcBuilders.webAppContextSetup(context).build();
         stub.reset();
-        llmConfigService.saveRouteConfig(LlmConfigService.defaultRouteConfig());
+        llmConfigService.saveRouteConfig(llmConfigService.defaultRouteConfig());
         llmConfigService.saveLimits(LlmLimits.defaults());
         llmUsageService.deleteByDate(llmUsageService.today());
         MvcResult login = mvc.perform(post("/api/auth/staff/login").contentType(MediaType.APPLICATION_JSON)
@@ -408,7 +408,7 @@ class KbFlowTest {
         assertThat(difficulty.getResponse().getContentAsString(java.nio.charset.StandardCharsets.UTF_8))
                 .contains("senior");
         // 通用 AI 改写（直达模式，内容不绑定素材行）
-        stub.respond("改写后的成品\n\n定类建议：面试题");
+        stub.respond("改写后的成品");
         mvc.perform(post("/api/admin/kb/ai/rewrite").header("Authorization", staffToken)
                         .contentType(MediaType.APPLICATION_JSON)
                         .content("{\"contentMd\":\"原始正文\"}"))

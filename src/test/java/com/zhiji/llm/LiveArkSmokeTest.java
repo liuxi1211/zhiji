@@ -47,11 +47,14 @@ class LiveArkSmokeTest {
 
     @Test
     void completeJsonReturnsParsedObjectAndCountsUsage() {
-        configService.saveRouteConfig(LlmConfigService.defaultRouteConfig());
+        configService.saveRouteConfig(configService.defaultRouteConfig());
         long before = usageService.todayTotal();
-        Verdict verdict = llmClient.completeJson(new LlmRequest(LlmPurpose.JUDGE_PRACTICE, 999L,
-                "你是面试判定器，只输出 JSON，不要任何解释：{\"verdict\":\"hit 或 shallow\",\"reason\":\"一句话\"}",
-                "用户回答：Redis 的增量同步靠 repl_backlog 环形缓冲，主从断连重连后按 offset 续传。", 0.0, 128),
+        Verdict verdict = llmClient.completeJson(LlmRequest.user(LlmPurpose.JUDGE_PRACTICE, 999L,
+                        "用户回答：Redis 的增量同步靠 repl_backlog 环形缓冲，主从断连重连后按 offset 续传。")
+                .systemPrompt("你是面试判定器，只输出 JSON，不要任何解释：{\"verdict\":\"hit 或 shallow\",\"reason\":\"一句话\"}")
+                .temperature(0.0)
+                .maxTokens(128)
+                .build(),
                 Verdict.class);
         assertThat(verdict).isNotNull();
         assertThat(verdict.verdict()).isNotBlank();
@@ -60,7 +63,7 @@ class LiveArkSmokeTest {
 
     @Test
     void embeddingReturnsVectors() {
-        configService.saveRouteConfig(LlmConfigService.defaultRouteConfig());
+        configService.saveRouteConfig(configService.defaultRouteConfig());
         List<float[]> vectors = llmClient.embedAll(LlmPurpose.EMBEDDING, null, List.of("Redis 近实时同步"));
         assertThat(vectors).hasSize(1);
         assertThat(vectors.get(0).length).isGreaterThan(1);

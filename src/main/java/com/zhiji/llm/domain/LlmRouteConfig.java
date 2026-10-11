@@ -10,9 +10,15 @@ public record LlmRouteConfig(Map<String, RouteTarget> purposes) {
 
     /**
      * 单个路由目标。provider 名对应 zhiji.llm.providers 的 key；
-     * embedding=true 表示该用途走向量化接口（chat 与 embedding 是两条调用链）。
+     * embedding=true 表示该用途走向量化接口（chat 与 embedding 是两条调用链）；
+     * thinking=思考模式开关（Boolean 三态：null 跟随 provider 默认，true/false 经 extra_body.thinking 透传）。
      */
-    public record RouteTarget(String provider, String model, Double temperature, Integer maxTokens, boolean embedding) {
+    public record RouteTarget(String provider, String model, Double temperature, Integer maxTokens,
+            boolean embedding, Boolean thinking) {
+
+        public RouteTarget(String provider, String model, Double temperature, Integer maxTokens, boolean embedding) {
+            this(provider, model, temperature, maxTokens, embedding, null);
+        }
     }
 
     public RouteTarget target(String purposeCode) {

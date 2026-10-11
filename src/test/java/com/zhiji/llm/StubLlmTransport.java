@@ -1,5 +1,6 @@
 package com.zhiji.llm;
 
+import com.zhiji.llm.service.LlmCallSpec;
 import com.zhiji.llm.service.LlmTransport;
 import java.util.List;
 import java.util.concurrent.atomic.AtomicInteger;
@@ -46,8 +47,7 @@ public class StubLlmTransport implements LlmTransport {
     }
 
     @Override
-    public String call(String provider, String model, Double temperature, Integer maxTokens,
-            String systemPrompt, String userPrompt) {
+    public String call(LlmCallSpec spec, String systemPrompt, String userPrompt) {
         int index = callCount.getAndIncrement();
         if (nextError != null) {
             throw nextError;
@@ -56,6 +56,14 @@ public class StubLlmTransport implements LlmTransport {
             return scripted[Math.min(index, scripted.length - 1)];
         }
         return nextText;
+    }
+
+    @Override
+    public String stream(LlmCallSpec spec, String systemPrompt, String userPrompt,
+            java.util.function.Consumer<String> onDelta) {
+        String text = call(spec, systemPrompt, userPrompt);
+        onDelta.accept(text);
+        return text;
     }
 
     @Override

@@ -48,16 +48,42 @@ zhiji:
     # 真实密钥写在运行目录的 config/application-local.properties（复制 .example 模板，不入库，见该模板头部说明），
     # 或用环境变量（ZHIJI_LLM_ARK_KEY 等）；两者同时存在时本地文件优先。
     # 三家都提供 OpenAI 兼容端点，加 provider 只加一条配置，不改业务代码。
+    # models：该 provider 的 key 实际支持的模型清单（设置页下拉数据源）；
+    # default-model：该 provider 的默认模型（种子路由与存量路由归一化的取值来源，模型下线时改这里即可全量切换）。
     providers:
       ark:
         base-url: https://ark.cn-beijing.volces.com/api/coding/v3
         api-key: ${ZHIJI_LLM_ARK_KEY:}
+        default-model: deepseek-v4.1-flash
+        models:
+          - doubao-seed-evolving
+          - doubao-seed-2.1-pro
+          - doubao-seed-2.1-lite
+          - doubao-seed-2.0-mini
+          - minimax-m3
+          - glm-5.3
+          - glm-5.3-flash
+          - deepseek-v4.1-flash
+          - deepseek-v4-flash
+          - deepseek-v4-pro
+          - kimi-k2.7-code
+          - kimi-k2.8-preview
+          - kimi-k3
       deepseek:
         base-url: https://api.deepseek.com/v1
         api-key: ${ZHIJI_LLM_DEEPSEEK_KEY:}
+        default-model: deepseek-chat
+        models:
+          - deepseek-chat
+          - deepseek-reasoner
       glm:
         base-url: https://open.bigmodel.cn/api/paas/v4
         api-key: ${ZHIJI_LLM_GLM_KEY:}
+        default-model: glm-4.7
+        models:
+          - glm-4.7
+          - glm-4.7-air
+          - glm-4.7-flash
 
 mybatis-plus:
   configuration:

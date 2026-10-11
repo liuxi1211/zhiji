@@ -43,7 +43,8 @@ class SpringAiTransportTest {
 
     @Test
     void callOptionsCarryPerRequestTimeout() {
-        OpenAiChatOptions options = transport.callOptions("doubao-seed-2-0-lite-260428", 0.0, 2048);
+        OpenAiChatOptions options = transport.optionsOf(
+                LlmCallSpec.of("ark", "doubao-seed-2-0-lite-260428", 0.0, 2048, null, null));
         assertThat(options.getModel()).isEqualTo("doubao-seed-2-0-lite-260428");
         assertThat(options.getTemperature()).isEqualTo(0.0);
         assertThat(options.getMaxTokens()).isEqualTo(2048);
@@ -52,9 +53,30 @@ class SpringAiTransportTest {
 
     @Test
     void callOptionsLeaveSamplingDefaultsWhenNotGiven() {
-        OpenAiChatOptions options = transport.callOptions("doubao-seed-2-1-turbo-260628", null, null);
+        OpenAiChatOptions options = transport.optionsOf(
+                LlmCallSpec.of("ark", "doubao-seed-2-1-turbo-260628", null, null, null, null));
         assertThat(options.getTemperature()).isNull();
         assertThat(options.getMaxTokens()).isNull();
+    }
+
+    @Test
+    void callOptionsCarryRequestLevelTimeoutOverride() {
+        OpenAiChatOptions options = transport.optionsOf(
+                LlmCallSpec.of("ark", "doubao-seed-2-0-lite-260428", null, null, null, 180));
+        assertThat(options.getTimeout()).isEqualTo(Duration.ofSeconds(180));
+    }
+
+    @Test
+    void callOptionsCarryThinkingExtraBody() {
+        OpenAiChatOptions enabled = transport.optionsOf(
+                LlmCallSpec.of("ark", "doubao-seed-2-0-lite-260428", null, null, true, null));
+        assertThat(enabled.getExtraBody()).containsEntry("thinking", Map.of("type", "enabled"));
+        OpenAiChatOptions disabled = transport.optionsOf(
+                LlmCallSpec.of("ark", "doubao-seed-2-0-lite-260428", null, null, false, null));
+        assertThat(disabled.getExtraBody()).containsEntry("thinking", Map.of("type", "disabled"));
+        OpenAiChatOptions untouched = transport.optionsOf(
+                LlmCallSpec.of("ark", "doubao-seed-2-0-lite-260428", null, null, null, null));
+        assertThat(untouched.getExtraBody()).isNull();
     }
 
     @Test

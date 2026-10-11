@@ -216,6 +216,12 @@ public class KbAdminController {
         return sourceAiService.rewrite(req.contentMd());
     }
 
+    /** 直达模式流式改写（SSE）：不绑定素材行，逐片段推送；协议见 RewriteStreamSupport。 */
+    @PostMapping(value = "/ai/rewrite-stream", produces = org.springframework.http.MediaType.TEXT_EVENT_STREAM_VALUE)
+    public org.springframework.web.servlet.mvc.method.annotation.SseEmitter aiRewriteStream(@RequestBody AiContentReq req) {
+        return com.zhiji.source.api.RewriteStreamSupport.stream(sourceAiService, req.contentMd());
+    }
+
     @PostMapping("/ai/summary")
     public SourceAiService.SummaryResp aiSummary(@RequestBody AiContentReq req) {
         return new SourceAiService.SummaryResp(sourceAiService.summarize(req.contentMd()));
