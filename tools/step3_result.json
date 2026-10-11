@@ -1,0 +1,142 @@
+[
+  {
+    "source_id": 5,
+    "domain": "engineering",
+    "topic": "CI/CD",
+    "difficulty": "junior",
+    "summary_chars": 105
+  },
+  {
+    "source_id": 6,
+    "domain": "engineering",
+    "topic": "CI/CD",
+    "difficulty": "junior",
+    "summary_chars": 119
+  },
+  {
+    "source_id": 7,
+    "domain": "engineering",
+    "topic": "CI/CD",
+    "difficulty": "junior",
+    "summary_chars": 83
+  },
+  {
+    "source_id": 8,
+    "domain": "engineering",
+    "topic": "CI/CD",
+    "difficulty": "junior",
+    "summary_chars": 126
+  },
+  {
+    "source_id": 9,
+    "domain": "middleware",
+    "topic": "消息队列",
+    "difficulty": "junior",
+    "summary_chars": 81
+  },
+  {
+    "source_id": 10,
+    "domain": "java",
+    "topic": "Spring 生态",
+    "difficulty": "junior",
+    "summary_chars": 132
+  },
+  {
+    "source_id": 11,
+    "domain": "java",
+    "topic": "集合框架",
+    "difficulty": "junior",
+    "summary_chars": 102
+  },
+  {
+    "source_id": 12,
+    "domain": "engineering",
+    "topic": "CI/CD",
+    "difficulty": "junior",
+    "summary_chars": 100
+  },
+  {
+    "source_id": 13,
+    "domain": "java",
+    "topic": "JVM",
+    "difficulty": "junior",
+    "summary_chars": 85
+  },
+  {
+    "source_id": 14,
+    "domain": "engineering",
+    "topic": "CI/CD",
+    "difficulty": "junior",
+    "summary_chars": 96
+  },
+  {
+    "source_id": 15,
+    "domain": "engineering",
+    "topic": "CI/CD",
+    "difficulty": "junior",
+    "summary_chars": 107
+  },
+  {
+    "source_id": 16,
+    "domain": "engineering",
+    "topic": "CI/CD",
+    "difficulty": "junior",
+    "summary_chars": 72
+  },
+  {
+    "source_id": 17,
+    "domain": "distributed",
+    "topic": "服务治理",
+    "difficulty": "junior",
+    "summary_chars": 93
+  },
+  {
+    "source_id": 18,
+    "domain": "database",
+    "topic": "MySQL",
+    "difficulty": "junior",
+    "summary_chars": 88
+  },
+  {
+    "source_id": 19,
+    "domain": "distributed",
+    "topic": "服务治理",
+    "difficulty": "junior",
+    "summary_chars": 94
+  },
+  {
+    "source_id": 20,
+    "domain": "middleware",
+    "topic": "Elasticsearch",
+    "difficulty": "junior",
+    "summary_chars": 92
+  },
+  {
+    "source_id": 21,
+    "domain": "distributed",
+    "topic": "秒杀与系统设计",
+    "difficulty": "junior",
+    "summary_chars": 79
+  },
+  {
+    "source_id": 22,
+    "domain": "distributed",
+    "topic": "服务治理",
+    "difficulty": "junior",
+    "summary_chars": 96
+  },
+  {
+    "source_id": 23,
+    "domain": "middleware",
+    "topic": "消息队列",
+    "difficulty": "junior",
+    "summary_chars": 75
+  },
+  {
+    "source_id": 24,
+    "domain": "distributed",
+    "topic": "服务治理",
+    "difficulty": "junior",
+    "summary_chars": 72
+  }
+]

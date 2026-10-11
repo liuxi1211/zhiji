@@ -76,9 +76,12 @@ public class SourceController {
     }
 
     @GetMapping
-    public List<SourceService.SourceItemView> list(@RequestParam(required = false) String status,
-            @RequestParam(required = false) Long parentId) {
-        return sourceService.list(status, parentId);
+    public SourceService.SourcePage list(@RequestParam(required = false) String status,
+            @RequestParam(required = false) String domainCode,
+            @RequestParam(required = false) String keyword,
+            @RequestParam(defaultValue = "1") int page,
+            @RequestParam(defaultValue = "20") int pageSize) {
+        return sourceService.page(status, domainCode, keyword, page, pageSize);
     }
 
     @GetMapping("/{id}")

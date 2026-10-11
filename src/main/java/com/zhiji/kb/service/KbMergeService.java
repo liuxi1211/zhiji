@@ -39,6 +39,8 @@ public class KbMergeService {
 
     private static final int MAX_CONTENT_CHARS = 12_000;
 
+    private static final int MERGE_MAX_TOKENS = 16_000;
+
     private final KbContentService contentService;
     private final LlmClient llmClient;
 
@@ -83,9 +85,13 @@ public class KbMergeService {
         String corpus = buildCorpus(contentType, distinct);
         String prompt = PromptTemplate.render(readTemplate("prompts/kb_merge.txt"),
                 Map.of("contentType", contentType, "corpus", corpus));
-        // 多份语料合并输出全结构产物，分钟级任务：超时放宽，走请求级覆盖（timeoutSeconds）
+        // 多份语料合并输出全结构产物，分钟级任务：超时放宽，走请求级覆盖（timeoutSeconds）。
+        // 输出预算同款坑：思考模型推理 token 计入输出预算，路由默认 4096 会被思考耗尽 → 正文零输出，
+        // 显式放宽到 16k（与 SourceAiService 改写同模式），并关闭思考保证 JSON 直接产出。
         MergeResp resp = llmClient.completeJson(LlmRequest.admin(LlmPurpose.KB_MERGE, prompt)
                 .timeoutSeconds(com.zhiji.source.service.SourceAiService.JSON_TASK_TIMEOUT_SECONDS)
+                .maxTokens(MERGE_MAX_TOKENS)
+                .thinking(false)
                 .build(), MergeResp.class);
         String difficulty = resp.difficulty() == null ? "" : resp.difficulty().strip();
         if (!List.of("junior", "mid", "senior", "expert").contains(difficulty)) {

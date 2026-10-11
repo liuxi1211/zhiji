@@ -6,17 +6,20 @@ import type {
   SourceDomainTopicsResp,
   SourceInferItem,
   SourceItemView,
+  SourceListParams,
+  SourcePageView,
   SourceRewriteResp,
   SourceSplitResp,
   SourceSplitSliceInput,
   SourceUpdateReq
 } from './types'
 
-export async function listSources(status?: string, parentId?: number): Promise<SourceItemView[]> {
-  const params: Record<string, string | number> = {}
-  if (status) params.status = status
-  if (parentId != null) params.parentId = parentId
-  return (await request.get<SourceItemView[]>('/admin/sources', { params })).data
+export async function listSources(params: SourceListParams): Promise<SourcePageView> {
+  const query: Record<string, string | number> = { page: params.page, pageSize: params.pageSize }
+  if (params.status) query.status = params.status
+  if (params.domainCode) query.domainCode = params.domainCode
+  if (params.keyword) query.keyword = params.keyword
+  return (await request.get<SourcePageView>('/admin/sources', { params: query })).data
 }
 
 export async function getSource(id: number): Promise<SourceItemView> {

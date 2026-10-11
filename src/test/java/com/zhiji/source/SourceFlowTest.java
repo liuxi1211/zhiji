@@ -146,7 +146,7 @@ class SourceFlowTest {
         assertThat(submitted).hasSize(1);
         assertThat(submitted.get(0).status()).isEqualTo("submitted");
         // 提交在标准库产生待审核内容（进门先过审核门，不校不上线）
-        assertThat(kbReviewService.queue(null).stream()
+        assertThat(kbReviewService.queue(null, 1, 100).items().stream()
                 .anyMatch(item -> "无概述素材".equals(item.title()))).isTrue();
         // 已入库素材长期保留：不可编辑、不可删、不可放弃
         assertThatThrownBy(() -> sourceService.update(submitted.get(0).id(), "改标题", null, null, null, null, null, null))

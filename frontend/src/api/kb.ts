@@ -12,6 +12,7 @@ import type {
   KbUpdateDocReq,
   KbUpdateKpReq,
   KpView,
+  PageResult,
   SourceClassifyResp
 } from './types'
 
@@ -41,11 +42,17 @@ export async function moveTopic(id: number, domainCode: string): Promise<KbTopic
 
 // —— 目录与内容 ——
 
-export async function listContents(topicId: number, type?: string, status?: string): Promise<KbContentItemView[]> {
-  const params: Record<string, string | number> = { topicId }
+export async function listContents(
+  topicId: number,
+  type?: string,
+  status?: string,
+  page = 1,
+  pageSize = 20
+): Promise<PageResult<KbContentItemView>> {
+  const params: Record<string, string | number> = { topicId, page, pageSize }
   if (type) params.type = type
   if (status) params.status = status
-  return (await request.get<KbContentItemView[]>('/admin/kb/contents', { params })).data
+  return (await request.get<PageResult<KbContentItemView>>('/admin/kb/contents', { params })).data
 }
 
 export async function listPeers(topicId: number, type?: string): Promise<KbContentItemView[]> {
@@ -54,10 +61,15 @@ export async function listPeers(topicId: number, type?: string): Promise<KbConte
   return (await request.get<KbContentItemView[]>('/admin/kb/peers', { params })).data
 }
 
-export async function searchContents(keyword: string, type?: string): Promise<KbContentItemView[]> {
-  const params: Record<string, string> = { keyword }
+export async function searchContents(
+  keyword: string,
+  type?: string,
+  page = 1,
+  pageSize = 20
+): Promise<PageResult<KbContentItemView>> {
+  const params: Record<string, string | number> = { keyword, page, pageSize }
   if (type) params.type = type
-  return (await request.get<KbContentItemView[]>('/admin/kb/search', { params })).data
+  return (await request.get<PageResult<KbContentItemView>>('/admin/kb/search', { params })).data
 }
 
 export async function getKp(id: number): Promise<KpView> {
@@ -142,14 +154,15 @@ export async function aiDifficultyContent(
 
 // —— 审核队列（内容生产台） ——
 
-export async function reviewQueue(contentType?: string): Promise<KbContentItemView[]> {
-  const params: Record<string, string> = {}
+export async function reviewQueue(contentType?: string, page = 1, pageSize = 20): Promise<PageResult<KbContentItemView>> {
+  const params: Record<string, string | number> = { page, pageSize }
   if (contentType) params.contentType = contentType
-  return (await request.get<KbContentItemView[]>('/admin/kb/reviews/queue', { params })).data
+  return (await request.get<PageResult<KbContentItemView>>('/admin/kb/reviews/queue', { params })).data
 }
 
-export async function reviewDue(): Promise<KbContentItemView[]> {
-  return (await request.get<KbContentItemView[]>('/admin/kb/reviews/due')).data
+export async function reviewDue(page = 1, pageSize = 20): Promise<PageResult<KbContentItemView>> {
+  return (await request.get<PageResult<KbContentItemView>>('/admin/kb/reviews/due', { params: { page, pageSize } }))
+    .data
 }
 
 export async function reviewDetail(contentType: KbContentType, id: number): Promise<KbReviewDetail> {

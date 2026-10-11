@@ -46,11 +46,16 @@ const blank = (): KbKpDraft => ({
   freqManual: 0
 })
 
-const draft = reactive<KbKpDraft>(props.initial ? structuredClone(props.initial) : blank())
+// structuredClone 无法克隆 Vue 响应式 Proxy（DataCloneError），草稿均为纯 JSON 结构，用 JSON 深拷贝
+function deepClone<T>(value: T): T {
+  return JSON.parse(JSON.stringify(value)) as T
+}
+
+const draft = reactive<KbKpDraft>(props.initial ? deepClone(props.initial) : blank())
 watch(
   () => props.initial,
   (value) => {
-    Object.assign(draft, value ? structuredClone(value) : blank())
+    Object.assign(draft, value ? deepClone(value) : blank())
   }
 )
 
@@ -96,8 +101,8 @@ async function searchPrereq(keyword: string) {
   }
   prereqLoading.value = true
   try {
-    const hits = await searchContents(keyword.trim(), 'kp')
-    prereqOptions.value = hits
+    const result = await searchContents(keyword.trim(), 'kp')
+    prereqOptions.value = result.items
       .filter((item) => item.id !== (props.initial as unknown as { id?: number })?.id)
       .map((item) => ({ id: item.id, title: item.title }))
   } catch {
@@ -116,7 +121,7 @@ function submit() {
     ElMessage.warning('概述齐备才能进入标准库（入库门槛）')
     return
   }
-  emit('save', structuredClone(draft))
+  emit('save', deepClone(draft))
 }
 </script>
 

@@ -10,6 +10,7 @@ import com.zhiji.kb.service.KbMergeService;
 import com.zhiji.kb.service.KbMergeService.MergeResp;
 import com.zhiji.kb.service.KbTopicService;
 import com.zhiji.kb.service.KbTopicService.TopicView;
+import com.zhiji.common.web.PageResult;
 import com.zhiji.source.service.SourceAiService;
 import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.Size;
@@ -93,10 +94,12 @@ public class KbAdminController {
     // —— 目录与内容 ——
 
     @GetMapping("/contents")
-    public List<ContentItemView> contents(@RequestParam long topicId,
+    public PageResult<ContentItemView> contents(@RequestParam long topicId,
             @RequestParam(required = false) String type,
-            @RequestParam(required = false) String status) {
-        return contentService.listByTopic(topicId, type, status);
+            @RequestParam(required = false) String status,
+            @RequestParam(defaultValue = "1") int page,
+            @RequestParam(defaultValue = "20") int pageSize) {
+        return contentService.listByTopicPage(topicId, type, status, page, pageSize);
     }
 
     @GetMapping("/peers")
@@ -105,9 +108,11 @@ public class KbAdminController {
     }
 
     @GetMapping("/search")
-    public List<ContentItemView> search(@RequestParam String keyword,
-            @RequestParam(required = false) String type) {
-        return contentService.search(keyword, type);
+    public PageResult<ContentItemView> search(@RequestParam String keyword,
+            @RequestParam(required = false) String type,
+            @RequestParam(defaultValue = "1") int page,
+            @RequestParam(defaultValue = "20") int pageSize) {
+        return contentService.searchPage(keyword, type, page, pageSize);
     }
 
     @GetMapping("/kp/{id}")

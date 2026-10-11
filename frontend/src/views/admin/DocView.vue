@@ -48,8 +48,13 @@ const TYPE_LABELS: Record<SourceType, string> = {
 }
 
 const loading = ref(false)
-// 全量拉取后本地筛选：B 端素材量级小，换来筛选零延迟
+// 服务端分页 + 服务端筛选：素材量级增长后不再全量拉取；状态分段计数与领域候选来自全库 facets
 const items = ref<SourceItemView[]>([])
+const total = ref(0)
+const page = ref(1)
+const pageSize = ref(20)
+const statusCounts = ref<Record<string, number>>({})
+const domainList = ref<string[]>([])
 const filterForm = reactive({ status: '', domain: '' })
 const keyword = ref('')
 
@@ -66,36 +71,18 @@ function domainName(code: string): string {
   return constants.name('domain', code)
 }
 
-const filtered = computed(() => {
-  const kw = keyword.value.trim().toLowerCase()
-  return items.value.filter((item) => {
-    if (filterForm.status && item.status !== filterForm.status) return false
-    if (filterForm.domain && !domainCodesOf(item).includes(filterForm.domain)) return false
-    if (kw && !item.title.toLowerCase().includes(kw) && !(item.summary ?? '').toLowerCase().includes(kw)) {
-      return false
-    }
-    return true
-  })
-})
+// 状态分段计数与全部计数都来自 facets（全库口径，不随当前筛选变化）
+const totalCount = computed(() => Object.values(statusCounts.value).reduce((sum, count) => sum + count, 0))
 
-// 筛选候选只列当前仓库里实际出现过的领域，避免一排永远筛不出结果的空选项
-const domainFilterOptions = computed(() => {
-  const names = new Map<string, string>()
-  for (const item of items.value) {
-    for (const code of domainCodesOf(item)) {
-      if (!names.has(code)) names.set(code, domainName(code))
-    }
-  }
-  return [...names].map(([code, name]) => ({ code, name }))
-})
-
-const totalCount = computed(() => items.value.length)
+const domainFilterOptions = computed(() =>
+  domainList.value.map((code) => ({ code, name: domainName(code) }))
+)
 
 const statusOptions = computed(() =>
   (Object.keys(STATUS_LABELS) as SourceStatus[]).map((status) => ({
     value: status,
     label: STATUS_LABELS[status],
-    count: items.value.filter((item) => item.status === status).length
+    count: statusCounts.value[status] ?? 0
   }))
 )
 
@@ -107,12 +94,37 @@ function messageOf(error: unknown, fallback: string): string {
 async function load() {
   loading.value = true
   try {
-    items.value = await listSources()
+    const result = await listSources({
+      page: page.value,
+      pageSize: pageSize.value,
+      status: filterForm.status || undefined,
+      domainCode: filterForm.domain || undefined,
+      keyword: keyword.value.trim() || undefined
+    })
+    items.value = result.items
+    total.value = result.total
+    statusCounts.value = result.statusCounts
+    domainList.value = result.domains
+    // 删除/放弃等操作后当前页可能已超出范围：回退一页重取
+    if (!result.items.length && page.value > 1) {
+      page.value -= 1
+      await load()
+    }
   } catch (error) {
     ElMessage.error(messageOf(error, '加载素材失败'))
   } finally {
     loading.value = false
   }
+}
+
+function onFilterChange() {
+  page.value = 1
+  void load()
+}
+
+function onPageSizeChange() {
+  page.value = 1
+  void load()
 }
 
 onMounted(() => void load())
@@ -357,7 +369,7 @@ async function remove(item: SourceItemView) {
       <!-- 卡头：状态分段筛选 + 领域筛选 + 搜索刷新，全部走 element-plus 标准控件 -->
       <template #header>
         <div class="table-tools">
-          <el-radio-group v-model="filterForm.status">
+          <el-radio-group v-model="filterForm.status" @change="onFilterChange">
             <el-radio-button value="">
               全部<span class="seg-count zj-num">{{ totalCount }}</span>
             </el-radio-button>
@@ -370,6 +382,7 @@ async function remove(item: SourceItemView) {
             class="domain-filter"
             placeholder="全部领域"
             clearable
+            @change="onFilterChange"
           >
             <el-option v-for="opt in domainFilterOptions" :key="opt.code" :label="opt.name" :value="opt.code" />
           </el-select>
@@ -380,6 +393,8 @@ async function remove(item: SourceItemView) {
               clearable
               :prefix-icon="Search"
               class="keyword"
+              @keyup.enter="onFilterChange"
+              @clear="onFilterChange"
             />
             <el-button :icon="Refresh" circle aria-label="刷新列表" @click="load" />
           </div>
@@ -394,7 +409,7 @@ async function remove(item: SourceItemView) {
         @change="onImportFile"
       />
 
-      <el-table :data="filtered">
+      <el-table :data="items">
         <el-table-column label="标题" min-width="280">
           <template #default="{ row }">
             <div class="title-cell">
@@ -460,10 +475,23 @@ async function remove(item: SourceItemView) {
               {{ keyword.trim() ? '换个关键词试试，或清空搜索看全部。' : '手写、导入文件、网页抓取，三种方式都能把料收进来。' }}
             </p>
             <el-button v-if="!keyword.trim()" type="primary" size="small" :icon="Plus" @click="openCreate">写第一篇</el-button>
-            <el-button v-else size="small" @click="keyword = ''">清空搜索</el-button>
+            <el-button v-else size="small" @click="keyword = ''; onFilterChange()">清空搜索</el-button>
           </div>
         </template>
       </el-table>
+
+      <el-pagination
+        v-model:current-page="page"
+        v-model:page-size="pageSize"
+        class="pager"
+        background
+        layout="total, sizes, prev, pager, next, jumper"
+        :total="total"
+        :page-sizes="[20, 50, 100]"
+        :hide-on-single-page="false"
+        @current-change="load"
+        @size-change="onPageSizeChange"
+      />
     </el-card>
 
     <!-- 新增（手写）：正文起步即要写，宽度与行数比小表单弹窗放宽一档 -->
@@ -687,6 +715,12 @@ async function remove(item: SourceItemView) {
 
 .more-btn {
   padding: 5px 8px;
+}
+
+/* 分页器：靠右、与表格留一拍呼吸感 */
+.pager {
+  margin-top: 14px;
+  justify-content: flex-end;
 }
 
 /* —— 空状态 —— */

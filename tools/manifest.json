@@ -1,0 +1,142 @@
+[
+  {
+    "path": "toBeBetterJavaer/pdf/jianli.md",
+    "kind": "article",
+    "source_id": 5,
+    "title": "jianli",
+    "orig_chars": 5205
+  },
+  {
+    "path": "JavaGuide/ai-coding/principles/claude-code-multi-agent.md",
+    "kind": "article",
+    "source_id": 6,
+    "title": "claude-code-multi-agent",
+    "orig_chars": 16751
+  },
+  {
+    "path": "toBeBetterJavaer/sidebar/sjtu/sheng-cun-ji-qiao/untitled/guang-zhan-keng-zhan-hao-keng.md",
+    "kind": "article",
+    "source_id": 7,
+    "title": "guang-zhan-keng-zhan-hao-keng",
+    "orig_chars": 841
+  },
+  {
+    "path": "toBeBetterJavaer/ai/video/harness-five-elements.md",
+    "kind": "article",
+    "source_id": 8,
+    "title": "harness-five-elements",
+    "orig_chars": 3201
+  },
+  {
+    "path": "toBeBetterJavaer/sidebar/sanfene/rocketmq.md",
+    "kind": "article",
+    "source_id": 9,
+    "title": "rocketmq",
+    "orig_chars": 42939
+  },
+  {
+    "path": "JCSprout/MD/spring/spring-bean-lifecycle.md",
+    "kind": "article",
+    "source_id": 10,
+    "title": "spring-bean-lifecycle",
+    "orig_chars": 5739
+  },
+  {
+    "path": "toBeBetterJavaer/common-tool/arrays.md",
+    "kind": "article",
+    "source_id": 11,
+    "title": "arrays",
+    "orig_chars": 10049
+  },
+  {
+    "path": "toBeBetterJavaer/ai/video/why-post-training-beats-params.md",
+    "kind": "article",
+    "source_id": 12,
+    "title": "why-post-training-beats-params",
+    "orig_chars": 2345
+  },
+  {
+    "path": "toBeBetterJavaer/exception/shijian.md",
+    "kind": "article",
+    "source_id": 13,
+    "title": "shijian",
+    "orig_chars": 13722
+  },
+  {
+    "path": "toBeBetterJavaer/sidebar/itwanger/ai/codex-usage-tips.md",
+    "kind": "article",
+    "source_id": 14,
+    "title": "codex-usage-tips",
+    "orig_chars": 6980
+  },
+  {
+    "path": "JavaGuide/high-quality-technical-articles/interview/summary-of-spring-recruitment.md",
+    "kind": "question",
+    "source_id": 15,
+    "title": "summary-of-spring-recruitment",
+    "orig_chars": 8206
+  },
+  {
+    "path": "JavaGuide/ai/interview-questions/ai-interview-guide.md",
+    "kind": "question",
+    "source_id": 16,
+    "title": "ai-interview-guide",
+    "orig_chars": 3926
+  },
+  {
+    "path": "Java-Interview-Advanced/docs/high-availability/hystrix-execution-isolation.md",
+    "kind": "question",
+    "source_id": 17,
+    "title": "hystrix-execution-isolation",
+    "orig_chars": 3832
+  },
+  {
+    "path": "toBeBetterJavaer/interview/mysql-suoyin-15.md",
+    "kind": "question",
+    "source_id": 18,
+    "title": "mysql-suoyin-15",
+    "orig_chars": 8621
+  },
+  {
+    "path": "Java-Interview-Advanced/docs/high-availability/hystrix-timeout.md",
+    "kind": "question",
+    "source_id": 19,
+    "title": "hystrix-timeout",
+    "orig_chars": 3903
+  },
+  {
+    "path": "Java-Interview-Advanced/docs/high-concurrency/es-introduction.md",
+    "kind": "question",
+    "source_id": 20,
+    "title": "es-introduction",
+    "orig_chars": 1787
+  },
+  {
+    "path": "Java-Interview-Advanced/docs/high-availability/e-commerce-website-detail-page-architecture.md",
+    "kind": "question",
+    "source_id": 21,
+    "title": "e-commerce-website-detail-page-architecture",
+    "orig_chars": 1543
+  },
+  {
+    "path": "JavaGuide/distributed-system/distributed-system-interview-questions.md",
+    "kind": "question",
+    "source_id": 22,
+    "title": "distributed-system-interview-questions",
+    "orig_chars": 6374
+  },
+  {
+    "path": "toBeBetterJavaer/interview/kafka-40.md",
+    "kind": "question",
+    "source_id": 23,
+    "title": "kafka-40",
+    "orig_chars": 14205
+  },
+  {
+    "path": "Java-Interview-Advanced/docs/distributed-system/distributed-system-idempotency.md",
+    "kind": "question",
+    "source_id": 24,
+    "title": "distributed-system-idempotency",
+    "orig_chars": 1114
+  }
+]

@@ -3,6 +3,7 @@ package com.zhiji.kb.service;
 import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
 import com.zhiji.common.exception.BizException;
 import com.zhiji.common.security.AuthContext;
+import com.zhiji.common.web.PageResult;
 import com.zhiji.kb.domain.KbDoc;
 import com.zhiji.kb.domain.KbKp;
 import com.zhiji.kb.domain.KbReview;
@@ -195,6 +196,15 @@ public class KbContentService {
         return items;
     }
 
+    /** 目录分页：kp/doc 两表合并列表（各自 updatedAt 倒序），全量汇总后按页切片，total 为真实总数。 */
+    public PageResult<ContentItemView> listByTopicPage(long topicId, String contentType, String status,
+            int page, int pageSize) {
+        List<ContentItemView> items = listByTopic(topicId, contentType, status);
+        int p = PageResult.normalizePage(page);
+        int size = PageResult.normalizePageSize(pageSize);
+        return PageResult.of(PageResult.slice(items, p, size), items.size());
+    }
+
     /** 同位清单（同位去重的工作面）：同主题下未下线内容，重复一眼可见，无需算法（5.2）。 */
     public List<ContentItemView> peers(long topicId, String contentType) {
         return listByTopic(topicId, contentType, null).stream()
@@ -215,8 +225,7 @@ public class KbContentService {
                             .or().like(KbKp::getSummary, like)
                             .or().like(KbKp::getFrameworkMd, like)
                             .or().like(KbKp::getVariants, like))
-                    .orderByDesc(KbKp::getUpdatedAt)
-                    .last("LIMIT 50"));
+                    .orderByDesc(KbKp::getUpdatedAt));
             hits.forEach(kp -> items.add(toItemView("kp", kp, topicName(kp.getTopicId()))));
         }
         if (contentType == null || contentType.isBlank() || "doc".equals(contentType)) {
@@ -224,11 +233,18 @@ public class KbContentService {
                     .and(w -> w.like(KbDoc::getTitle, like)
                             .or().like(KbDoc::getSummary, like)
                             .or().like(KbDoc::getContentMd, like))
-                    .orderByDesc(KbDoc::getUpdatedAt)
-                    .last("LIMIT 50"));
+                    .orderByDesc(KbDoc::getUpdatedAt));
             hits.forEach(doc -> items.add(toItemView("doc", doc, topicName(doc.getTopicId()))));
         }
         return items;
+    }
+
+    /** 搜索分页：同一 LIKE 能力，kp/doc 合并列表按页切片（原先 LIMIT 50 的硬上限由分页取代）。 */
+    public PageResult<ContentItemView> searchPage(String keyword, String contentType, int page, int pageSize) {
+        List<ContentItemView> items = search(keyword, contentType);
+        int p = PageResult.normalizePage(page);
+        int size = PageResult.normalizePageSize(pageSize);
+        return PageResult.of(PageResult.slice(items, p, size), items.size());
     }
 
     // —— 编辑（知识库本体维护线：available/pending/draft 可编辑，available 直接生效不重审） ——

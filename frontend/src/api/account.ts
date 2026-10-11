@@ -1,8 +1,8 @@
 import request from './request'
-import type { StaffAccountView, StaffRole } from './types'
+import type { PageResult, StaffAccountView, StaffRole } from './types'
 
-export async function listStaffAccounts(): Promise<StaffAccountView[]> {
-  return (await request.get<StaffAccountView[]>('/admin/accounts')).data
+export async function listStaffAccounts(page = 1, pageSize = 20): Promise<PageResult<StaffAccountView>> {
+  return (await request.get<PageResult<StaffAccountView>>('/admin/accounts', { params: { page, pageSize } })).data
 }
 
 export interface CreateStaffReq {

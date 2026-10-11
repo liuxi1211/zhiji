@@ -1,0 +1,109 @@
+{
+  "all_articles": 1319,
+  "all_questions": 155,
+  "picked_articles": [
+    {
+      "path": "toBeBetterJavaer/pdf/jianli.md",
+      "size": 12184,
+      "title_guess": "jianli"
+    },
+    {
+      "path": "JavaGuide/ai-coding/principles/claude-code-multi-agent.md",
+      "size": 31163,
+      "title_guess": "claude-code-multi-agent"
+    },
+    {
+      "path": "toBeBetterJavaer/sidebar/sjtu/sheng-cun-ji-qiao/untitled/guang-zhan-keng-zhan-hao-keng.md",
+      "size": 2483,
+      "title_guess": "guang-zhan-keng-zhan-hao-keng",
+      "h1": "广占坑，占好坑"
+    },
+    {
+      "path": "toBeBetterJavaer/ai/video/harness-five-elements.md",
+      "size": 6397,
+      "title_guess": "harness-five-elements"
+    },
+    {
+      "path": "toBeBetterJavaer/sidebar/sanfene/rocketmq.md",
+      "size": 73156,
+      "title_guess": "rocketmq"
+    },
+    {
+      "path": "JCSprout/MD/spring/spring-bean-lifecycle.md",
+      "size": 6557,
+      "title_guess": "spring-bean-lifecycle"
+    },
+    {
+      "path": "toBeBetterJavaer/common-tool/arrays.md",
+      "size": 16472,
+      "title_guess": "arrays"
+    },
+    {
+      "path": "toBeBetterJavaer/ai/video/why-post-training-beats-params.md",
+      "size": 4879,
+      "title_guess": "why-post-training-beats-params"
+    },
+    {
+      "path": "toBeBetterJavaer/exception/shijian.md",
+      "size": 22098,
+      "title_guess": "shijian"
+    },
+    {
+      "path": "toBeBetterJavaer/sidebar/itwanger/ai/codex-usage-tips.md",
+      "size": 14270,
+      "title_guess": "codex-usage-tips"
+    }
+  ],
+  "picked_questions": [
+    {
+      "path": "JavaGuide/high-quality-technical-articles/interview/summary-of-spring-recruitment.md",
+      "size": 20508,
+      "title_guess": "summary-of-spring-recruitment"
+    },
+    {
+      "path": "JavaGuide/ai/interview-questions/ai-interview-guide.md",
+      "size": 7168,
+      "title_guess": "ai-interview-guide"
+    },
+    {
+      "path": "Java-Interview-Advanced/docs/high-availability/hystrix-execution-isolation.md",
+      "size": 6560,
+      "title_guess": "hystrix-execution-isolation"
+    },
+    {
+      "path": "toBeBetterJavaer/interview/mysql-suoyin-15.md",
+      "size": 16479,
+      "title_guess": "mysql-suoyin-15"
+    },
+    {
+      "path": "Java-Interview-Advanced/docs/high-availability/hystrix-timeout.md",
+      "size": 5271,
+      "title_guess": "hystrix-timeout"
+    },
+    {
+      "path": "Java-Interview-Advanced/docs/high-concurrency/es-introduction.md",
+      "size": 3443,
+      "title_guess": "es-introduction"
+    },
+    {
+      "path": "Java-Interview-Advanced/docs/high-availability/e-commerce-website-detail-page-architecture.md",
+      "size": 3539,
+      "title_guess": "e-commerce-website-detail-page-architecture"
+    },
+    {
+      "path": "JavaGuide/distributed-system/distributed-system-interview-questions.md",
+      "size": 10984,
+      "title_guess": "distributed-system-interview-questions"
+    },
+    {
+      "path": "toBeBetterJavaer/interview/kafka-40.md",
+      "size": 29120,
+      "title_guess": "kafka-40"
+    },
+    {
+      "path": "Java-Interview-Advanced/docs/distributed-system/distributed-system-idempotency.md",
+      "size": 2948,
+      "title_guess": "distributed-system-idempotency"
+    }
+  ]
+}

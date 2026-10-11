@@ -1,6 +1,8 @@
 package com.zhiji.kb.domain;
 
+import com.baomidou.mybatisplus.annotation.FieldStrategy;
 import com.baomidou.mybatisplus.annotation.IdType;
+import com.baomidou.mybatisplus.annotation.TableField;
 import com.baomidou.mybatisplus.annotation.TableId;
 import com.baomidou.mybatisplus.annotation.TableName;
 
@@ -37,6 +39,8 @@ public class KbDoc {
     /** draft / pending / available / deprecated / merged（kb_status 常量组） */
     private String status;
 
+    /** 合并下线指向的产物资料（恢复时须写回 NULL：update 策略 ALWAYS，null 也参与 SET） */
+    @TableField(updateStrategy = FieldStrategy.ALWAYS)
     private Long mergedIntoId;
 
     private String mergeSources;

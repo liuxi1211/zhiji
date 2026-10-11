@@ -1,9 +1,12 @@
 package com.zhiji.source.service;
 
 import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
+import com.baomidou.mybatisplus.core.conditions.query.QueryWrapper;
+import com.baomidou.mybatisplus.extension.plugins.pagination.Page;
 import com.zhiji.common.constant.ConstantRegistry;
 import com.zhiji.common.exception.BizException;
 import com.zhiji.common.security.AuthContext;
+import com.zhiji.common.web.PageResult;
 import com.zhiji.kb.service.KbContentService;
 import com.zhiji.kb.service.KbTopicService;
 import com.zhiji.source.config.SourceProperties;
@@ -84,21 +87,78 @@ public class SourceService {
     public record SplitResp(List<SplitSliceResp> slices) {
     }
 
-    public List<SourceItemView> list(String status, Long parentId) {
+    /** 素材库分页响应：items/total 之外带全库 facets——状态分段计数与领域候选不随筛选变化（与原全量口径一致）。 */
+    public record SourcePage(List<SourceItemView> items, long total,
+            Map<String, Long> statusCounts, List<String> domains) {
+    }
+
+    /**
+     * 素材库分页查询（只列母素材）：状态 / 领域 / 关键词（标题或概述 LIKE）过滤，
+     * updatedAt 倒序。领域 OTHER 是展示层的伪领域（主题名以 OTHER· 开头），SQL 侧用同规则展开。
+     */
+    public SourcePage page(String status, String domainCode, String keyword, int page, int pageSize) {
+        int p = PageResult.normalizePage(page);
+        int size = PageResult.normalizePageSize(pageSize);
         LambdaQueryWrapper<SourceItem> wrapper = new LambdaQueryWrapper<>();
+        wrapper.isNull(SourceItem::getParentId);
         if (status != null && !status.isBlank()) {
             wrapper.eq(SourceItem::getStatus, status);
         }
-        if (parentId != null) {
-            wrapper.eq(SourceItem::getParentId, parentId);
-        } else {
-            // 缺省只列母素材：拆分出的子素材经母素材详情或筛选查看
-            wrapper.isNull(SourceItem::getParentId);
+        if (keyword != null && !keyword.isBlank()) {
+            String like = "%" + keyword.strip() + "%";
+            wrapper.and(w -> w.like(SourceItem::getTitle, like).or().like(SourceItem::getSummary, like));
+        }
+        if (domainCode != null && !domainCode.isBlank()) {
+            if ("OTHER".equals(domainCode)) {
+                wrapper.and(w -> w.eq(SourceItem::getDomainCode, "OTHER")
+                        .or().likeRight(SourceItem::getTopicName, "OTHER·"));
+            } else {
+                wrapper.eq(SourceItem::getDomainCode, domainCode);
+            }
         }
         wrapper.orderByDesc(SourceItem::getUpdatedAt);
+        Page<SourceItem> result = mapper.selectPage(Page.of(p, size), wrapper);
         Map<Long, Long> childCounts = childCounts();
         Map<String, String> domainNames = domainNames();
-        return mapper.selectList(wrapper).stream().map(item -> toView(item, childCounts, domainNames)).toList();
+        List<SourceItemView> items = result.getRecords().stream()
+                .map(item -> toView(item, childCounts, domainNames))
+                .toList();
+        SourceFacets facets = facets();
+        return new SourcePage(items, result.getTotal(), facets.statusCounts(), facets.domains());
+    }
+
+    /** 全库 facets：状态分段计数 + 领域候选（含 OTHER 伪领域），供筛选区渲染。 */
+    private SourceFacets facets() {
+        Map<String, Long> statusCounts = new LinkedHashMap<>();
+        for (Map<String, Object> row : mapper.selectMaps(new QueryWrapper<SourceItem>()
+                .select("status", "COUNT(*) AS cnt")
+                .isNull("parent_id")
+                .groupBy("status"))) {
+            Object status = row.get("status");
+            Object cnt = row.get("cnt");
+            if (status != null && cnt instanceof Number number) {
+                statusCounts.put(String.valueOf(status), number.longValue());
+            }
+        }
+        List<String> domains = new ArrayList<>();
+        for (Object code : mapper.selectObjs(new QueryWrapper<SourceItem>()
+                .select("DISTINCT domain_code")
+                .isNull("parent_id")
+                .isNotNull("domain_code"))) {
+            if (code != null && !domains.contains(String.valueOf(code))) {
+                domains.add(String.valueOf(code));
+            }
+        }
+        Long otherCount = mapper.selectCount(new QueryWrapper<SourceItem>()
+                .isNull("parent_id")
+                .and(w -> w.eq("domain_code", "OTHER").or().likeRight("topic_name", "OTHER·")));
+        if (otherCount != null && otherCount > 0 && !domains.contains("OTHER")) {
+            domains.add("OTHER");
+        }
+        return new SourceFacets(statusCounts, domains);
+    }
+
+    public record SourceFacets(Map<String, Long> statusCounts, List<String> domains) {
     }
 
     public List<SourceItemView> children(long parentId) {
@@ -565,9 +625,18 @@ public class SourceService {
     }
 
     private Map<Long, Long> childCounts() {
-        return mapper.selectList(new LambdaQueryWrapper<SourceItem>().isNotNull(SourceItem::getParentId))
-                .stream()
-                .collect(Collectors.groupingBy(SourceItem::getParentId, Collectors.counting()));
+        Map<Long, Long> counts = new HashMap<>();
+        for (Map<String, Object> row : mapper.selectMaps(new QueryWrapper<SourceItem>()
+                .select("parent_id", "COUNT(*) AS cnt")
+                .isNotNull("parent_id")
+                .groupBy("parent_id"))) {
+            Object parentId = row.get("parent_id");
+            Object cnt = row.get("cnt");
+            if (parentId != null && cnt instanceof Number number) {
+                counts.put(Long.valueOf(String.valueOf(parentId)), number.longValue());
+            }
+        }
+        return counts;
     }
 
     private Map<String, String> domainNames() {

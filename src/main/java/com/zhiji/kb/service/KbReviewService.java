@@ -2,6 +2,7 @@ package com.zhiji.kb.service;
 
 import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
 import com.zhiji.common.exception.BizException;
+import com.zhiji.common.web.PageResult;
 import com.zhiji.kb.domain.KbDoc;
 import com.zhiji.kb.domain.KbKp;
 import com.zhiji.kb.domain.KbReview;
@@ -49,8 +50,8 @@ public class KbReviewService {
         this.contentService = contentService;
     }
 
-    /** 待办队列：pending 内容按入队先后排（打开的理由是"有事要做"，按待办量组织）。 */
-    public List<ContentItemView> queue(String contentType) {
+    /** 待办队列：pending 内容按入队先后排（打开的理由是"有事要做"，按待办量组织）；kp/doc 合并后按页切片。 */
+    public PageResult<ContentItemView> queue(String contentType, int page, int pageSize) {
         List<ContentItemView> items = new ArrayList<>();
         if (contentType == null || contentType.isBlank() || "kp".equals(contentType)) {
             for (KbKp kp : kpMapper.selectList(new LambdaQueryWrapper<KbKp>()
@@ -64,7 +65,9 @@ public class KbReviewService {
                 items.add(item("doc", doc));
             }
         }
-        return items;
+        int p = PageResult.normalizePage(page);
+        int size = PageResult.normalizePageSize(pageSize);
+        return PageResult.of(PageResult.slice(items, p, size), items.size());
     }
 
     /** 审核详情：内容全量（用户侧预览所见即所得）+ 审核留痕历史。 */
@@ -125,8 +128,8 @@ public class KbReviewService {
         return itemView(contentType, id);
     }
 
-    /** 复核到期列表：available 且 review_due_at <= 今天（一期列表筛选人工巡检，不自动扫描）。 */
-    public List<ContentItemView> due() {
+    /** 复核到期列表：available 且 review_due_at <= 今天（一期列表筛选人工巡检，不自动扫描）；合并后按页切片。 */
+    public PageResult<ContentItemView> due(int page, int pageSize) {
         String today = KbContentService.today();
         List<ContentItemView> items = new ArrayList<>();
         for (KbKp kp : kpMapper.selectList(new LambdaQueryWrapper<KbKp>()
@@ -143,7 +146,9 @@ public class KbReviewService {
                 .orderByAsc(KbDoc::getReviewDueAt))) {
             items.add(item("doc", doc));
         }
-        return items;
+        int p = PageResult.normalizePage(page);
+        int size = PageResult.normalizePageSize(pageSize);
+        return PageResult.of(PageResult.slice(items, p, size), items.size());
     }
 
     /** 送复审：available → pending，重新回审核队列复检（留痕 action=recheck）。 */

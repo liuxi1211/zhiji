@@ -1,0 +1,182 @@
+[
+  {
+    "source_id": 5,
+    "content_type": "doc",
+    "topic_id": 19,
+    "domain": "engineering",
+    "topic": "CI/CD",
+    "kb_status_returned": "submitted",
+    "kb_id": 1
+  },
+  {
+    "source_id": 6,
+    "content_type": "doc",
+    "topic_id": 19,
+    "domain": "engineering",
+    "topic": "CI/CD",
+    "kb_status_returned": "submitted",
+    "kb_id": 2
+  },
+  {
+    "source_id": 7,
+    "content_type": "doc",
+    "topic_id": 19,
+    "domain": "engineering",
+    "topic": "CI/CD",
+    "kb_status_returned": "submitted",
+    "kb_id": 3
+  },
+  {
+    "source_id": 8,
+    "content_type": "doc",
+    "topic_id": 19,
+    "domain": "engineering",
+    "topic": "CI/CD",
+    "kb_status_returned": "submitted",
+    "kb_id": 4
+  },
+  {
+    "source_id": 9,
+    "content_type": "doc",
+    "topic_id": 9,
+    "domain": "middleware",
+    "topic": "消息队列",
+    "kb_status_returned": "submitted",
+    "kb_id": 5
+  },
+  {
+    "source_id": 10,
+    "content_type": "doc",
+    "topic_id": 3,
+    "domain": "java",
+    "topic": "Spring 生态",
+    "kb_status_returned": "submitted",
+    "kb_id": 6
+  },
+  {
+    "source_id": 11,
+    "content_type": "doc",
+    "topic_id": 4,
+    "domain": "java",
+    "topic": "集合框架",
+    "kb_status_returned": "submitted",
+    "kb_id": 7
+  },
+  {
+    "source_id": 12,
+    "content_type": "doc",
+    "topic_id": 19,
+    "domain": "engineering",
+    "topic": "CI/CD",
+    "kb_status_returned": "submitted",
+    "kb_id": 8
+  },
+  {
+    "source_id": 13,
+    "content_type": "doc",
+    "topic_id": 1,
+    "domain": "java",
+    "topic": "JVM",
+    "kb_status_returned": "submitted",
+    "kb_id": 9
+  },
+  {
+    "source_id": 14,
+    "content_type": "doc",
+    "topic_id": 19,
+    "domain": "engineering",
+    "topic": "CI/CD",
+    "kb_status_returned": "submitted",
+    "kb_id": 10
+  },
+  {
+    "source_id": 15,
+    "content_type": "kp",
+    "topic_id": 19,
+    "domain": "engineering",
+    "topic": "CI/CD",
+    "kb_status_returned": "submitted",
+    "kb_id": 1
+  },
+  {
+    "source_id": 16,
+    "content_type": "kp",
+    "topic_id": 19,
+    "domain": "engineering",
+    "topic": "CI/CD",
+    "kb_status_returned": "submitted",
+    "kb_id": 2
+  },
+  {
+    "source_id": 17,
+    "content_type": "kp",
+    "topic_id": 12,
+    "domain": "distributed",
+    "topic": "服务治理",
+    "kb_status_returned": "submitted",
+    "kb_id": 3
+  },
+  {
+    "source_id": 18,
+    "content_type": "kp",
+    "topic_id": 5,
+    "domain": "database",
+    "topic": "MySQL",
+    "kb_status_returned": "submitted",
+    "kb_id": 4
+  },
+  {
+    "source_id": 19,
+    "content_type": "kp",
+    "topic_id": 12,
+    "domain": "distributed",
+    "topic": "服务治理",
+    "kb_status_returned": "submitted",
+    "kb_id": 5
+  },
+  {
+    "source_id": 20,
+    "content_type": "kp",
+    "topic_id": 10,
+    "domain": "middleware",
+    "topic": "Elasticsearch",
+    "kb_status_returned": "submitted",
+    "kb_id": 6
+  },
+  {
+    "source_id": 21,
+    "content_type": "kp",
+    "topic_id": 13,
+    "domain": "distributed",
+    "topic": "秒杀与系统设计",
+    "kb_status_returned": "submitted",
+    "kb_id": 7
+  },
+  {
+    "source_id": 22,
+    "content_type": "kp",
+    "topic_id": 12,
+    "domain": "distributed",
+    "topic": "服务治理",
+    "kb_status_returned": "submitted",
+    "kb_id": 8
+  },
+  {
+    "source_id": 23,
+    "content_type": "kp",
+    "topic_id": 9,
+    "domain": "middleware",
+    "topic": "消息队列",
+    "kb_status_returned": "submitted",
+    "kb_id": 9
+  },
+  {
+    "source_id": 24,
+    "content_type": "kp",
+    "topic_id": 12,
+    "domain": "distributed",
+    "topic": "服务治理",
+    "kb_status_returned": "submitted",
+    "kb_id": 10
+  }
+]

@@ -70,6 +70,12 @@
       <artifactId>mybatis-plus-spring-boot4-starter</artifactId>
       <version>${mybatis-plus.version}</version>
     </dependency>
+    <!-- MP 3.5.9+ 把分页插件拆到独立模块：PaginationInnerInterceptor 与 jsqlparser 方言在此 -->
+    <dependency>
+      <groupId>com.baomidou</groupId>
+      <artifactId>mybatis-plus-jsqlparser</artifactId>
+      <version>${mybatis-plus.version}</version>
+    </dependency>
 
     <dependency>
       <groupId>org.xerial</groupId>

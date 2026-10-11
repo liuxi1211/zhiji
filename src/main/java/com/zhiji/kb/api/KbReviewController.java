@@ -1,10 +1,10 @@
 package com.zhiji.kb.api;
 
 import com.zhiji.kb.service.KbContentService.ContentItemView;
+import com.zhiji.common.web.PageResult;
 import com.zhiji.kb.service.KbReviewService;
 import com.zhiji.kb.service.KbReviewService.ReviewChecks;
 import com.zhiji.kb.service.KbReviewService.ReviewDetail;
-import java.util.List;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
@@ -29,13 +29,16 @@ public class KbReviewController {
     }
 
     @GetMapping("/queue")
-    public List<ContentItemView> queue(@RequestParam(required = false) String contentType) {
-        return reviewService.queue(contentType);
+    public PageResult<ContentItemView> queue(@RequestParam(required = false) String contentType,
+            @RequestParam(defaultValue = "1") int page,
+            @RequestParam(defaultValue = "20") int pageSize) {
+        return reviewService.queue(contentType, page, pageSize);
     }
 
     @GetMapping("/due")
-    public List<ContentItemView> due() {
-        return reviewService.due();
+    public PageResult<ContentItemView> due(@RequestParam(defaultValue = "1") int page,
+            @RequestParam(defaultValue = "20") int pageSize) {
+        return reviewService.due(page, pageSize);
     }
 
     @GetMapping("/{type}/{id}/detail")

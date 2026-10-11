@@ -1,16 +1,17 @@
 package com.zhiji.account.api;
 
 import com.zhiji.account.service.AccountAdminService;
+import com.zhiji.common.web.PageResult;
 import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.Pattern;
 import jakarta.validation.constraints.Size;
-import java.util.List;
 import org.springframework.validation.annotation.Validated;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
+import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 
 /**
@@ -42,8 +43,9 @@ public class AccountAdminController {
     }
 
     @GetMapping
-    public List<AccountAdminService.StaffAccountView> list() {
-        return accountAdminService.list();
+    public PageResult<AccountAdminService.StaffAccountView> list(@RequestParam(defaultValue = "1") int page,
+                                                                 @RequestParam(defaultValue = "20") int pageSize) {
+        return accountAdminService.page(page, pageSize);
     }
 
     @PostMapping

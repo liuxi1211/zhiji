@@ -80,6 +80,12 @@ export interface ApiError {
   fields?: Record<string, string>
 }
 
+/** 分页响应统一契约：items 为当前页数据，total 为当前筛选条件下的总行数 */
+export interface PageResult<T> {
+  items: T[]
+  total: number
+}
+
 /** LLM 调用入口（用途）：业务按用途调用，不认具体模型名（核心模块定义 4.2） */
 export type LlmPurpose =
   | 'judge_practice'
@@ -306,6 +312,23 @@ export interface SourceInferResp {
 
 export interface SourceDomainTopicsResp {
   topics: string[]
+}
+
+/** 素材库分页响应：items/total 之外带全库 facets（状态分段计数与领域候选，不随筛选变化） */
+export interface SourcePageView {
+  items: SourceItemView[]
+  total: number
+  statusCounts: Record<string, number>
+  domains: string[]
+}
+
+/** 素材库列表查询参数（page 从 1 起；status/domainCode/keyword 缺省为不过滤） */
+export interface SourceListParams {
+  page: number
+  pageSize: number
+  status?: string
+  domainCode?: string
+  keyword?: string
 }
 
 // —— 标准知识库（核心模块定义 5.2，B 端） ——

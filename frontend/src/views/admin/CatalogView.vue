@@ -49,6 +49,11 @@ const typeFilter = ref('')
 const statusFilter = ref('')
 const keyword = ref('')
 const dueCount = ref(0)
+// 目录清单与模糊搜索共用一套分页状态：searchActive 决定取数来源（主题清单 or 搜索结果）
+const page = ref(1)
+const pageSize = ref(20)
+const total = ref(0)
+const searchActive = ref(false)
 
 const DIFF_LABELS: Record<string, string> = { junior: '初级', mid: '中级', senior: '高级', expert: '资深' }
 const domainOptions = computed(() => constants.items('domain'))
@@ -69,14 +74,47 @@ async function refreshTopics() {
   topics.value = await listTopics(currentDomain.value || undefined)
 }
 
-async function loadContents() {
-  if (!currentTopicId.value) {
-    contents.value = []
+async function refreshDue() {
+  try {
+    // 只要到期总数，取一页一条即可（total 是全量计数）
+    dueCount.value = (await reviewDue(1, 1)).total
+  } catch {
+    dueCount.value = 0
+  }
+}
+
+// —— 目录清单 / 模糊搜索（服务复盘录题的同一能力），共用分页 ——
+
+const searching = ref(false)
+
+async function fetchContents() {
+  if (searchActive.value) {
+    const result = await searchContents(keyword.value.trim(), typeFilter.value || undefined, page.value, pageSize.value)
+    contents.value = result.items
+    total.value = result.total
     return
   }
+  if (!currentTopicId.value) {
+    contents.value = []
+    total.value = 0
+    return
+  }
+  const result = await listContents(
+    currentTopicId.value,
+    typeFilter.value || undefined,
+    statusFilter.value || undefined,
+    page.value,
+    pageSize.value
+  )
+  contents.value = result.items
+  total.value = result.total
+}
+
+/** 按当前筛选与页码重新取数：保存/下线/恢复后调用，保持页面位置与搜索态 */
+async function refresh() {
   loading.value = true
   try {
-    contents.value = await listContents(currentTopicId.value, typeFilter.value || undefined, statusFilter.value || undefined)
+    await fetchContents()
   } catch (error) {
     ElMessage.error(messageOf(error, '加载内容失败'))
   } finally {
@@ -84,23 +122,19 @@ async function loadContents() {
   }
 }
 
+/** 切回目录清单模式：重置页码并重新取数 */
+async function loadContents() {
+  searchActive.value = false
+  page.value = 1
+  await refresh()
+}
+
 async function onDomainChange() {
   currentTopicId.value = null
   contents.value = []
+  total.value = 0
   await refreshTopics()
 }
-
-async function refreshDue() {
-  try {
-    dueCount.value = (await reviewDue()).length
-  } catch {
-    dueCount.value = 0
-  }
-}
-
-// —— 模糊搜索（服务复盘录题的同一能力） ——
-
-const searching = ref(false)
 
 async function doSearch() {
   if (!keyword.value.trim()) {
@@ -108,9 +142,11 @@ async function doSearch() {
     return
   }
   searching.value = true
+  searchActive.value = true
+  page.value = 1
   loading.value = true
   try {
-    contents.value = await searchContents(keyword.value.trim(), typeFilter.value || undefined)
+    await fetchContents()
   } catch (error) {
     ElMessage.error(messageOf(error, '搜索失败'))
   } finally {
@@ -122,6 +158,11 @@ async function doSearch() {
 function clearSearch() {
   keyword.value = ''
   void loadContents()
+}
+
+function onPageSizeChange() {
+  page.value = 1
+  void refresh()
 }
 
 // —— 组织结构调整（只动位置，不动内容本身） ——
@@ -240,7 +281,7 @@ async function saveKp(draft: KbKpDraft) {
     })
     ElMessage.success('已保存（编辑即时生效，不重走审核）')
     editorVisible.value = false
-    await loadContents()
+    await refresh()
   } catch (error) {
     ElMessage.error(messageOf(error, '保存失败'))
   } finally {
@@ -261,7 +302,7 @@ async function saveDoc(draft: KbDocDraft) {
     })
     ElMessage.success('已保存（挂载动作即人工发布决策）')
     editorVisible.value = false
-    await loadContents()
+    await refresh()
   } catch (error) {
     ElMessage.error(messageOf(error, '保存失败'))
   } finally {
@@ -280,7 +321,7 @@ async function doOffline(item: KbContentItemView) {
   try {
     await offlineContent(item.contentType, item.id)
     ElMessage.success('已弃用下线（全链路封死：不再作合并目标/前置依赖/挂载对象）')
-    await loadContents()
+    await refresh()
   } catch (error) {
     ElMessage.error(messageOf(error, '下线失败'))
   }
@@ -290,7 +331,7 @@ async function doRestore(item: KbContentItemView) {
   try {
     await restoreContent(item.contentType, item.id)
     ElMessage.success('已恢复为草稿，需重新提交审核')
-    await loadContents()
+    await refresh()
   } catch (error) {
     ElMessage.error(messageOf(error, '恢复失败'))
   }
@@ -300,7 +341,7 @@ async function doResubmit(item: KbContentItemView) {
   try {
     await reviewResubmit(item.contentType, item.id)
     ElMessage.success('已重新提交审核队列')
-    await loadContents()
+    await refresh()
   } catch (error) {
     ElMessage.error(messageOf(error, '提交失败'))
   }
@@ -441,8 +482,19 @@ function statusTagType(status: KbStatus): 'primary' | 'success' | 'info' | 'warn
               <el-button v-if="row.status === 'deprecated' || row.status === 'merged'" size="small" text type="warning" @click="doRestore(row)">恢复</el-button>
             </template>
           </el-table-column>
-          <template #empty>该主题下暂无内容——点右上角「新建知识点 / 新建资料讲解」走新增向导</template>
+          <template #empty>{{ searchActive ? '没有匹配的搜索结果——换个关键词试试' : '该主题下暂无内容——点右上角「新建知识点 / 新建资料讲解」走新增向导' }}</template>
         </el-table>
+
+        <el-pagination
+          v-model:current-page="page"
+          v-model:page-size="pageSize"
+          background
+          layout="total, sizes, prev, pager, next"
+          :total="total"
+          :page-sizes="[20, 50, 100]"
+          @current-change="refresh"
+          @size-change="onPageSizeChange"
+        />
       </main>
     </div>
 
@@ -593,6 +645,11 @@ function statusTagType(status: KbStatus): 'primary' | 'success' | 'info' | 'warn
   flex-direction: column;
   gap: 12px;
   min-width: 0;
+}
+
+/* 分页器靠右，与表格右缘对齐 */
+.catalog-main :deep(.el-pagination) {
+  justify-content: flex-end;
 }
 
 .content-filter {

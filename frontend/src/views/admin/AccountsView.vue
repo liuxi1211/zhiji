@@ -8,19 +8,33 @@ import type { StaffAccountView, StaffRole } from '@/api/types'
 const constants = useConstantsStore()
 const accounts = ref<StaffAccountView[]>([])
 const loading = ref(false)
+const page = ref(1)
+const pageSize = ref(20)
+const total = ref(0)
 const createVisible = ref(false)
 const createForm = reactive({ username: '', password: '', role: 'editor' as StaffRole })
 
 async function load() {
   loading.value = true
   try {
-    accounts.value = await listStaffAccounts()
+    const result = await listStaffAccounts(page.value, pageSize.value)
+    accounts.value = result.items
+    total.value = result.total
+    if (!result.items.length && page.value > 1) {
+      page.value -= 1
+      await load()
+    }
   } catch (error) {
     const err = error as { message?: string }
     ElMessage.error(err.message ?? '加载失败')
   } finally {
     loading.value = false
   }
+}
+
+function onPageSizeChange() {
+  page.value = 1
+  void load()
 }
 onMounted(() => {
   void constants.ensure()
@@ -77,7 +91,7 @@ async function resetPassword(row: StaffAccountView) {
     <el-card shadow="never">
       <template #header>
         <div class="toolbar">
-          <span>共 <b class="zj-num">{{ accounts.length }}</b> 个后台账号</span>
+          <span>共 <b class="zj-num">{{ total }}</b> 个后台账号</span>
           <el-button type="primary" size="small" @click="createVisible = true">新增账号</el-button>
         </div>
       </template>
@@ -109,6 +123,17 @@ async function resetPassword(row: StaffAccountView) {
         </template>
       </el-table-column>
       </el-table>
+      <el-pagination
+        v-model:current-page="page"
+        v-model:page-size="pageSize"
+        class="pager"
+        background
+        layout="total, sizes, prev, pager, next"
+        :total="total"
+        :page-sizes="[20, 50, 100]"
+        @current-change="load"
+        @size-change="onPageSizeChange"
+      />
     </el-card>
 
     <el-dialog v-model="createVisible" title="新增后台账号" width="420px">
@@ -144,5 +169,10 @@ async function resetPassword(row: StaffAccountView) {
 .toolbar b {
   color: var(--zj-primary);
   font-weight: 700;
+}
+
+.pager {
+  margin-top: 12px;
+  justify-content: flex-end;
 }
 </style>

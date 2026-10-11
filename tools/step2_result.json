@@ -1,0 +1,122 @@
+[
+  {
+    "source_id": 5,
+    "rewrite_chars": 4611,
+    "db_ok": true,
+    "status_ok": true
+  },
+  {
+    "source_id": 6,
+    "rewrite_chars": 10542,
+    "db_ok": true,
+    "status_ok": true
+  },
+  {
+    "source_id": 7,
+    "rewrite_chars": 981,
+    "db_ok": true,
+    "status_ok": true
+  },
+  {
+    "source_id": 8,
+    "rewrite_chars": 2541,
+    "db_ok": true,
+    "status_ok": true
+  },
+  {
+    "source_id": 9,
+    "rewrite_chars": 6263,
+    "db_ok": true,
+    "status_ok": true
+  },
+  {
+    "source_id": 10,
+    "rewrite_chars": 5758,
+    "db_ok": true,
+    "status_ok": true
+  },
+  {
+    "source_id": 11,
+    "rewrite_chars": 9070,
+    "db_ok": true,
+    "status_ok": true
+  },
+  {
+    "source_id": 12,
+    "rewrite_chars": 1986,
+    "db_ok": true,
+    "status_ok": true
+  },
+  {
+    "source_id": 13,
+    "rewrite_chars": 11556,
+    "db_ok": true,
+    "status_ok": true
+  },
+  {
+    "source_id": 14,
+    "rewrite_chars": 5052,
+    "db_ok": true,
+    "status_ok": true
+  },
+  {
+    "source_id": 15,
+    "rewrite_chars": 7926,
+    "db_ok": true,
+    "status_ok": true
+  },
+  {
+    "source_id": 16,
+    "rewrite_chars": 2973,
+    "db_ok": true,
+    "status_ok": true
+  },
+  {
+    "source_id": 17,
+    "rewrite_chars": 3972,
+    "db_ok": true,
+    "status_ok": true
+  },
+  {
+    "source_id": 18,
+    "rewrite_chars": 7993,
+    "db_ok": true,
+    "status_ok": true
+  },
+  {
+    "source_id": 19,
+    "rewrite_chars": 3960,
+    "db_ok": true,
+    "status_ok": true
+  },
+  {
+    "source_id": 20,
+    "rewrite_chars": 2095,
+    "db_ok": true,
+    "status_ok": true
+  },
+  {
+    "source_id": 21,
+    "rewrite_chars": 1617,
+    "db_ok": true,
+    "status_ok": true
+  },
+  {
+    "source_id": 22,
+    "rewrite_chars": 5368,
+    "db_ok": true,
+    "status_ok": true
+  },
+  {
+    "source_id": 23,
+    "rewrite_chars": 11647,
+    "db_ok": true,
+    "status_ok": true
+  },
+  {
+    "source_id": 24,
+    "rewrite_chars": 1164,
+    "db_ok": true,
+    "status_ok": true
+  }
+]

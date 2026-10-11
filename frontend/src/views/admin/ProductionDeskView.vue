@@ -49,6 +49,9 @@ function messageOf(error: unknown, fallback: string): string {
 // —— Tab1 审核队列 ——
 
 const queueItems = ref<KbContentItemView[]>([])
+const queuePage = ref(1)
+const queuePageSize = ref(20)
+const queueTotal = ref(0)
 const reviewVisible = ref(false)
 const reviewing = ref(false)
 const detail = ref<KbReviewDetail | null>(null)
@@ -62,12 +65,23 @@ const contentTitle = computed(() => detail.value?.kp?.title ?? detail.value?.doc
 async function loadQueue() {
   loading.value = true
   try {
-    queueItems.value = await reviewQueue()
+    const result = await reviewQueue(undefined, queuePage.value, queuePageSize.value)
+    queueItems.value = result.items
+    queueTotal.value = result.total
+    if (!result.items.length && queuePage.value > 1) {
+      queuePage.value -= 1
+      await loadQueue()
+    }
   } catch (error) {
     ElMessage.error(messageOf(error, '加载审核队列失败'))
   } finally {
     loading.value = false
   }
+}
+
+function onQueuePageSizeChange() {
+  queuePage.value = 1
+  void loadQueue()
 }
 
 async function openReview(item: KbContentItemView) {
@@ -206,16 +220,30 @@ function goMerge() {
 // —— Tab3 复核到期 ——
 
 const dueItems = ref<KbContentItemView[]>([])
+const duePage = ref(1)
+const duePageSize = ref(20)
+const dueTotal = ref(0)
 
 async function loadDue() {
   loading.value = true
   try {
-    dueItems.value = await reviewDue()
+    const result = await reviewDue(duePage.value, duePageSize.value)
+    dueItems.value = result.items
+    dueTotal.value = result.total
+    if (!result.items.length && duePage.value > 1) {
+      duePage.value -= 1
+      await loadDue()
+    }
   } catch (error) {
     ElMessage.error(messageOf(error, '加载复核到期列表失败'))
   } finally {
     loading.value = false
   }
+}
+
+function onDuePageSizeChange() {
+  duePage.value = 1
+  void loadDue()
 }
 
 async function doRecheck(item: KbContentItemView) {
@@ -282,6 +310,17 @@ onMounted(async () => {
           </el-table-column>
           <template #empty>队列已清空——没有待审内容</template>
         </el-table>
+        <el-pagination
+          v-model:current-page="queuePage"
+          v-model:page-size="queuePageSize"
+          class="pager"
+          background
+          layout="total, sizes, prev, pager, next"
+          :total="queueTotal"
+          :page-sizes="[20, 50, 100]"
+          @current-change="loadQueue"
+          @size-change="onQueuePageSizeChange"
+        />
       </el-tab-pane>
 
       <!-- Tab2 同位管理 -->
@@ -338,6 +377,17 @@ onMounted(async () => {
           </el-table-column>
           <template #empty>没有到期待复检的内容</template>
         </el-table>
+        <el-pagination
+          v-model:current-page="duePage"
+          v-model:page-size="duePageSize"
+          class="pager"
+          background
+          layout="total, sizes, prev, pager, next"
+          :total="dueTotal"
+          :page-sizes="[20, 50, 100]"
+          @current-change="loadDue"
+          @size-change="onDuePageSizeChange"
+        />
       </el-tab-pane>
     </el-tabs>
 
@@ -454,6 +504,12 @@ onMounted(async () => {
   margin: 0 0 10px;
   font-size: var(--zj-fs-sm);
   color: var(--zj-ink-600);
+}
+
+/* 队列分页器靠右 */
+.pager {
+  margin-top: 12px;
+  justify-content: flex-end;
 }
 
 .review-drawer {

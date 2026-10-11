@@ -197,7 +197,7 @@ class KbFlowTest {
         KbContentService.DocView doc = contentService.getDoc(docId);
         assertThat(doc.status()).isEqualTo("pending");
         assertThat(doc.sourceUrl()).isEqualTo("https://example.com/article");
-        assertThat(reviewService.queue("doc")).anyMatch(item -> item.id() == docId);
+        assertThat(reviewService.queue("doc", 1, 100).items()).anyMatch(item -> item.id() == docId);
         asNobody();
     }
 
@@ -301,10 +301,10 @@ class KbFlowTest {
         long id = createKp(topicId, "到期题", "摘要");
         passKp(id);
         // 未到期不在巡检列表
-        assertThat(reviewService.due()).noneMatch(item -> item.id() == id);
+        assertThat(reviewService.due(1, 100).items()).noneMatch(item -> item.id() == id);
         // 模拟到期：复核时间改到昨天
         contentService.markStatus("kp", id, "available", LocalDate.now().minusDays(1).toString());
-        assertThat(reviewService.due()).anyMatch(item -> item.id() == id);
+        assertThat(reviewService.due(1, 100).items()).anyMatch(item -> item.id() == id);
         // 送复审 → pending → 再放行换新复核时间
         reviewService.recheck("kp", id);
         assertThat(contentService.getKp(id).status()).isEqualTo("pending");

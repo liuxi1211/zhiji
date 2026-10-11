@@ -1,11 +1,13 @@
 package com.zhiji.account.service;
 
 import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
+import com.baomidou.mybatisplus.extension.plugins.pagination.Page;
 import com.zhiji.account.domain.StaffAccount;
 import com.zhiji.account.repo.StaffAccountMapper;
 import com.zhiji.common.exception.BizException;
 import com.zhiji.common.security.AuthContext;
 import com.zhiji.common.security.PasswordHasher;
+import com.zhiji.common.web.PageResult;
 import java.util.List;
 import org.springframework.stereotype.Service;
 
@@ -26,12 +28,11 @@ public class AccountAdminService {
                                    String createdAt, String lastLoginAt) {
     }
 
-    public List<StaffAccountView> list() {
-        return staffMapper.selectList(new LambdaQueryWrapper<StaffAccount>()
-                        .orderByDesc(StaffAccount::getCreatedAt))
-                .stream()
-                .map(this::toView)
-                .toList();
+    public PageResult<StaffAccountView> page(int page, int pageSize) {
+        Page<StaffAccount> result = staffMapper.selectPage(Page.of(PageResult.normalizePage(page),
+                        PageResult.normalizePageSize(pageSize)),
+                new LambdaQueryWrapper<StaffAccount>().orderByDesc(StaffAccount::getCreatedAt));
+        return PageResult.of(result.getRecords().stream().map(this::toView).toList(), result.getTotal());
     }
 
     public StaffAccountView create(String username, String rawPassword, String role) {
