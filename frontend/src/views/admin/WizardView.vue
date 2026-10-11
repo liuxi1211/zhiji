@@ -65,7 +65,9 @@ const mode = ref<'source' | 'direct'>('direct')
 const parentSourceId = ref<number | null>(null)
 const step = ref(0)
 const loading = ref(false)
-const items = ref<WizardItem[]>([])
+// 首帧即渲染第 1 步表单（v-show 恒渲染，activeItem 被 activeItem!.title 解引用）：
+// items 必须初始就有一条空白草稿，否则 activeItem 为 null，首帧渲染直接抛 TypeError 白屏
+const items = ref<WizardItem[]>([newItem({})])
 // 定类：直达新建的入口（知识库目录的「新建知识点 / 新建资料讲解」）会以 ?type=kp|doc 预置，
 // 预置入口不再被改写的定类建议覆盖；素材接续与无预置时仍按「改写建议 → 缺省面试题线」推导
 function presetType(queryType: unknown): queryType is KbContentType {

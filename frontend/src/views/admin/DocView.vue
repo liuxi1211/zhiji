@@ -2,6 +2,7 @@
 // 素材库（核心模块定义 5.1 辅通道）：素材仓库，职责只有两件事——
 // ① 承接素材：手写新增 / 导入（txt、md 及打包图片资源的压缩包）/ URL 抓取（失败回退空稿）；
 // ② 轻量整理：编辑正文 + AI 改写（可提前完成的部分，产物永远回到人手里，6.4 AI 边界）。
+// 素材阶段只归属「领域」；主题在「进标准库」时由新增向导引导、大模型推断，此处不展示不维护。
 // 入库动作只有一个「进标准库」按钮：点击后引导该素材进入新增向导（/admin/wizard）接续走完剩余流程。
 import { computed, onMounted, reactive, ref } from 'vue'
 import { useRouter } from 'vue-router'
@@ -19,19 +20,25 @@ import {
   updateSource
 } from '@/api/source'
 import type { SourceItemView, SourceStatus, SourceType } from '@/api/types'
-import StatusMeterBar from '@/components/StatusMeterBar.vue'
-import type { MeterSegment } from '@/components/StatusMeterBar.vue'
+import { useConstantsStore } from '@/stores/constants'
 import { createMarkdown } from '@/utils/markdown'
 
 // asset: 引用渲染为 B 端资产接口地址（导入 zip 图片「落盘即真相」的路径约定，与向导/标准库共用同一规则）
 const md = createMarkdown()
 
 const router = useRouter()
+const constants = useConstantsStore()
 
 const STATUS_LABELS: Record<SourceStatus, string> = {
   pending: '待加工',
   submitted: '已进标准库',
   discarded: '已放弃'
+}
+// 状态 → el-tag 语义色：待加工用 warning 强调待办，已入库收敛为 info，已放弃 danger
+const TAG_TYPES: Record<SourceStatus, 'warning' | 'info' | 'danger'> = {
+  pending: 'warning',
+  submitted: 'info',
+  discarded: 'danger'
 }
 const TYPE_LABELS: Record<SourceType, string> = {
   manual: '手写',
@@ -41,15 +48,29 @@ const TYPE_LABELS: Record<SourceType, string> = {
 }
 
 const loading = ref(false)
-// 全量拉取后本地筛选：B 端素材量级小，换来状态读数恒可见 + 筛选零延迟
+// 全量拉取后本地筛选：B 端素材量级小，换来筛选零延迟
 const items = ref<SourceItemView[]>([])
-const statusFilter = ref('')
+const filterForm = reactive({ status: '', domain: '' })
 const keyword = ref('')
+
+// 领域归属：入过库的素材带 domainCode；未入库但主题名以 OTHER· 开头的归入 OTHER
+// （大模型推断的兜底领域，常量组不下发，展示名兜底为 code 本身）
+function domainCodesOf(item: SourceItemView): string[] {
+  const codes: string[] = []
+  if (item.domainCode) codes.push(item.domainCode)
+  if (item.topicName?.startsWith('OTHER·')) codes.push('OTHER')
+  return codes
+}
+
+function domainName(code: string): string {
+  return constants.name('domain', code)
+}
 
 const filtered = computed(() => {
   const kw = keyword.value.trim().toLowerCase()
   return items.value.filter((item) => {
-    if (statusFilter.value && item.status !== statusFilter.value) return false
+    if (filterForm.status && item.status !== filterForm.status) return false
+    if (filterForm.domain && !domainCodesOf(item).includes(filterForm.domain)) return false
     if (kw && !item.title.toLowerCase().includes(kw) && !(item.summary ?? '').toLowerCase().includes(kw)) {
       return false
     }
@@ -57,14 +78,26 @@ const filtered = computed(() => {
   })
 })
 
-const segments = computed<MeterSegment[]>(() => {
-  const countOf = (status: SourceStatus) => items.value.filter((item) => item.status === status).length
-  return [
-    { key: 'pending', label: STATUS_LABELS.pending, count: countOf('pending'), tone: 'primary' },
-    { key: 'submitted', label: STATUS_LABELS.submitted, count: countOf('submitted'), tone: 'success' },
-    { key: 'discarded', label: STATUS_LABELS.discarded, count: countOf('discarded'), tone: 'neutral' }
-  ]
+// 筛选候选只列当前仓库里实际出现过的领域，避免一排永远筛不出结果的空选项
+const domainFilterOptions = computed(() => {
+  const names = new Map<string, string>()
+  for (const item of items.value) {
+    for (const code of domainCodesOf(item)) {
+      if (!names.has(code)) names.set(code, domainName(code))
+    }
+  }
+  return [...names].map(([code, name]) => ({ code, name }))
 })
+
+const totalCount = computed(() => items.value.length)
+
+const statusOptions = computed(() =>
+  (Object.keys(STATUS_LABELS) as SourceStatus[]).map((status) => ({
+    value: status,
+    label: STATUS_LABELS[status],
+    count: items.value.filter((item) => item.status === status).length
+  }))
+)
 
 function messageOf(error: unknown, fallback: string): string {
   const err = error as { message?: string }
@@ -282,7 +315,6 @@ async function remove(item: SourceItemView) {
     <header class="zj-page-head doc-head">
       <div class="doc-head-text">
         <h1>素材库</h1>
-        <p>收料 → 轻量整理 → 进标准库：手写、导入文件、网页抓取三路收料；整理好的素材经「进标准库」进入新增向导。</p>
       </div>
       <div class="doc-head-actions">
         <el-dropdown @command="onImportCommand">
@@ -302,20 +334,34 @@ async function remove(item: SourceItemView) {
     </header>
 
     <el-card shadow="never">
-      <!-- 卡头：状态量具（读数即筛选）+ 搜索刷新 -->
+      <!-- 卡头：状态分段筛选 + 领域筛选 + 搜索刷新，全部走 element-plus 标准控件 -->
       <template #header>
-        <div class="meter-row">
-          <StatusMeterBar v-model="statusFilter" :segments="segments" class="meter" />
-          <div class="meter-tools">
+        <div class="table-tools">
+          <el-radio-group v-model="filterForm.status">
+            <el-radio-button value="">
+              全部<span class="seg-count zj-num">{{ totalCount }}</span>
+            </el-radio-button>
+            <el-radio-button v-for="opt in statusOptions" :key="opt.value" :value="opt.value">
+              {{ opt.label }}<span class="seg-count zj-num">{{ opt.count }}</span>
+            </el-radio-button>
+          </el-radio-group>
+          <el-select
+            v-model="filterForm.domain"
+            class="domain-filter"
+            placeholder="全部领域"
+            clearable
+          >
+            <el-option v-for="opt in domainFilterOptions" :key="opt.code" :label="opt.name" :value="opt.code" />
+          </el-select>
+          <div class="tools-right">
             <el-input
               v-model="keyword"
-              size="small"
               placeholder="搜索标题 / 概述"
               clearable
               :prefix-icon="Search"
               class="keyword"
             />
-            <el-button size="small" :icon="Refresh" circle aria-label="刷新列表" @click="load" />
+            <el-button :icon="Refresh" circle aria-label="刷新列表" @click="load" />
           </div>
         </div>
       </template>
@@ -328,8 +374,8 @@ async function remove(item: SourceItemView) {
         @change="onImportFile"
       />
 
-      <el-table :data="filtered" size="small">
-        <el-table-column label="标题" min-width="260">
+      <el-table :data="filtered">
+        <el-table-column label="标题" min-width="280">
           <template #default="{ row }">
             <div class="title-cell">
               <el-link :underline="false" class="title-link" @click="openEditor(row.id)">{{ row.title }}</el-link>
@@ -338,11 +384,11 @@ async function remove(item: SourceItemView) {
             <div v-if="row.summary" class="row-summary">{{ row.summary }}</div>
           </template>
         </el-table-column>
-        <el-table-column label="状态" width="104">
+        <el-table-column label="状态" width="110">
           <template #default="{ row }">
-            <span class="status-chip" :class="`is-${row.status}`">
-              <i class="dot" aria-hidden="true"></i>{{ STATUS_LABELS[row.status as SourceStatus] }}
-            </span>
+            <el-tag size="small" :type="TAG_TYPES[row.status as SourceStatus]" disable-transitions>
+              {{ STATUS_LABELS[row.status as SourceStatus] }}
+            </el-tag>
           </template>
         </el-table-column>
         <el-table-column label="来源" width="96">
@@ -350,9 +396,11 @@ async function remove(item: SourceItemView) {
             <span class="type-chip">{{ TYPE_LABELS[row.sourceType as SourceType] }}</span>
           </template>
         </el-table-column>
-        <el-table-column label="领域 / 主题" width="160">
+        <el-table-column label="领域" width="120">
           <template #default="{ row }">
-            <span v-if="row.domainName">{{ row.domainName }}<template v-if="row.topicName"> / {{ row.topicName }}</template></span>
+            <span v-if="domainCodesOf(row).length" class="type-chip">
+              {{ domainName(row.domainCode ?? 'OTHER') }}
+            </span>
             <span v-else class="dim">—</span>
           </template>
         </el-table-column>
@@ -398,14 +446,14 @@ async function remove(item: SourceItemView) {
       </el-table>
     </el-card>
 
-    <!-- 新增（手写） -->
-    <el-dialog v-model="createVisible" title="新增素材" width="640">
+    <!-- 新增（手写）：正文起步即要写，宽度与行数比小表单弹窗放宽一档 -->
+    <el-dialog v-model="createVisible" title="新增素材" width="720">
       <el-form label-position="top">
         <el-form-item label="标题" required>
           <el-input v-model="createForm.title" maxlength="120" placeholder="如：G1 回收流程整理" />
         </el-form-item>
         <el-form-item label="正文（Markdown）">
-          <el-input v-model="createForm.contentMd" type="textarea" :rows="10" placeholder="先记个大概也行，回头再整理" />
+          <el-input v-model="createForm.contentMd" type="textarea" :rows="12" placeholder="先记个大概也行，回头再整理" />
         </el-form-item>
       </el-form>
       <template #footer>
@@ -428,15 +476,16 @@ async function remove(item: SourceItemView) {
       </template>
     </el-dialog>
 
-    <!-- 轻量整理：编辑 + AI 改写；概述 / 难度 / 分类 / 拆分 / 入库走新增向导（5.2） -->
-    <el-dialog v-model="editorVisible" width="760" top="6vh" destroy-on-close>
+    <!-- 轻量整理：编辑 + AI 改写；弹窗够大即可，宽度封顶 880 —— Markdown 行太宽反而难读
+      * （概述 / 难度 / 分类 / 拆分 / 入库走新增向导 5.2） -->
+    <el-dialog v-model="editorVisible" width="min(880px, 92vw)" top="5vh" destroy-on-close>
       <template #header>
         <div class="editor-head">
           <span class="editor-head-title">编辑素材</span>
           <span v-if="current" class="editor-head-meta">
-            <span class="status-chip" :class="`is-${current.status}`">
-              <i class="dot" aria-hidden="true"></i>{{ STATUS_LABELS[current.status] }}
-            </span>
+            <el-tag size="small" :type="TAG_TYPES[current.status]" disable-transitions>
+              {{ STATUS_LABELS[current.status] }}
+            </el-tag>
             <span class="type-chip">{{ TYPE_LABELS[current.sourceType] }}</span>
             <span class="editor-head-id zj-num">#{{ current.id }}</span>
           </span>
@@ -473,7 +522,7 @@ async function remove(item: SourceItemView) {
               v-if="editorTab === 'edit'"
               v-model="form.contentMd"
               type="textarea"
-              :rows="16"
+              :rows="8"
               class="content-input"
             />
             <div v-else class="preview" v-html="renderMarkdown(form.contentMd)"></div>
@@ -513,10 +562,6 @@ async function remove(item: SourceItemView) {
   min-width: 0;
 }
 
-.doc-head-text p {
-  max-width: 560px;
-}
-
 .doc-head-actions {
   display: flex;
   align-items: center;
@@ -524,28 +569,44 @@ async function remove(item: SourceItemView) {
   flex: none;
 }
 
-/* —— 卡头：量具条 + 工具 —— */
-.meter-row {
+/* —— 卡头工具行：状态分段筛选 / 领域下拉靠左，搜索刷新靠右 —— */
+.table-tools {
   display: flex;
-  align-items: flex-end;
-  justify-content: space-between;
-  gap: var(--zj-space-4);
+  align-items: center;
+  gap: var(--zj-space-3);
   flex-wrap: wrap;
 }
 
-.meter {
-  flex: 1 1 340px;
-  max-width: 640px;
-}
-
-.meter-tools {
+.tools-right {
   display: flex;
   align-items: center;
   gap: var(--zj-space-2);
+  margin-left: auto;
 }
 
 .keyword {
   width: 220px;
+}
+
+.domain-filter {
+  width: 140px;
+}
+
+/* 分段按钮上的读数：小一号、弱一档；选中态继承白色保证对比度 */
+.table-tools :deep(.el-radio-button__inner) {
+  display: inline-flex;
+  align-items: center;
+}
+
+.seg-count {
+  margin-left: 6px;
+  font-size: 11px;
+  color: var(--zj-ink-500);
+}
+
+.table-tools :deep(.el-radio-button__original-radio:checked + .el-radio-button__inner) .seg-count {
+  color: currentColor;
+  opacity: 0.8;
 }
 
 /* —— 表格单元 —— */
@@ -583,31 +644,7 @@ async function remove(item: SourceItemView) {
   max-width: 420px;
 }
 
-/* 状态签：小圆点承色、文字保底可读，替代默认 el-tag 的彩色块 */
-.status-chip {
-  display: inline-flex;
-  align-items: center;
-  gap: 6px;
-  font-size: 12px;
-  color: var(--zj-ink-600);
-}
-
-.status-chip .dot {
-  width: 6px;
-  height: 6px;
-  border-radius: 50%;
-  background: var(--zj-ink-400);
-}
-
-.status-chip.is-pending .dot {
-  background: var(--zj-primary);
-}
-
-.status-chip.is-submitted .dot {
-  background: var(--el-color-success);
-}
-
-/* 来源签：线框轻签，与状态签的视觉重量分层 */
+/* 来源签：线框轻签，与状态 el-tag 的彩色底形成视觉分层 */
 .type-chip {
   display: inline-flex;
   align-items: center;
@@ -708,14 +745,16 @@ async function remove(item: SourceItemView) {
 }
 
 .content-input :deep(textarea) {
+  /* 行数只是兜底：编辑区高度按视口自适应，大屏小屏都尽量占满弹窗可用高度 */
+  min-height: 56vh;
   font-family: 'JetBrains Mono', Consolas, monospace;
   font-size: 13px;
   line-height: 1.6;
 }
 
 .preview {
-  min-height: 320px;
-  max-height: 480px;
+  min-height: 56vh;
+  max-height: 64vh;
   overflow-y: auto;
   padding: 12px 16px;
   border: 1px solid var(--zj-line-soft);
@@ -744,8 +783,24 @@ async function remove(item: SourceItemView) {
     width: 160px;
   }
 
+  .domain-filter {
+    width: 120px;
+  }
+
   .row-summary {
     max-width: 240px;
+  }
+}
+
+/* 宽屏：外层内容区放开到 1760 后，标题/摘要列同步放宽截断，
+ * 让增量宽度变成更多信息而非更多空白（≤1600 视口维持原行宽节奏） */
+@media (min-width: 1600px) {
+  .title-link :deep(.el-link__inner) {
+    max-width: 440px;
+  }
+
+  .row-summary {
+    max-width: 640px;
   }
 }
 </style>

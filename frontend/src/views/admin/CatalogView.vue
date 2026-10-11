@@ -465,7 +465,8 @@ function statusTagType(status: KbStatus): 'primary' | 'success' | 'info' | 'warn
     </el-dialog>
 
     <!-- 内容编辑抽屉 -->
-    <el-drawer v-model="editorVisible" size="680px" :title="`编辑 · ${editing?.title ?? ''}`">
+    <!-- 内容编辑抽屉：KpEditor 是十几字段的长表单（叙述框架/追问链/样例×3），窄抽屉放不下 -->
+    <el-drawer v-model="editorVisible" size="min(960px, 92vw)" :title="`编辑 · ${editing?.title ?? ''}`">
       <KpEditor
         v-if="editing?.contentType === 'kp' && kpDraft"
         :initial="kpDraft"

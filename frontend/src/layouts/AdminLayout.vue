@@ -352,9 +352,13 @@ function logout() {
   padding: var(--zj-space-5);
 }
 
-/* 超宽屏下不让内容无限拉长：限制阅读宽度并居中 */
+/* 宽屏适配：内容区随视口流式拉伸，但封顶 1760px 防行宽失控。
+ * 1280 固定上限在 2K（可用宽约 2280px）下两侧各空出 500px+，是"内容缩在中间"的根源；
+ * min(1760px, 100%) 保证 1920 及以下视口行为不变，2K/4K 下表格、栅格自动吃满增量。
+ * 各页内部均为流式栅格（1fr 网格 / auto-fill / el-table），无需逐页改动。
+ */
 .admin-main > * {
-  max-width: 1280px;
+  max-width: min(1760px, 100%);
   margin-inline: auto;
 }
 

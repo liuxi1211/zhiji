@@ -342,7 +342,8 @@ onMounted(async () => {
     </el-tabs>
 
     <!-- 审核抽屉：内容预览（所见即用户所得）+ 四项校验 + 放行/退回/废弃 -->
-    <el-drawer v-model="reviewVisible" size="640px" :title="`审核 · ${contentTitle}`">
+    <!-- 审核抽屉：内容预览（所见即用户所得）+ 四项校验 + 放行/退回/废弃；成品预览需要足够宽度 -->
+    <el-drawer v-model="reviewVisible" size="min(880px, 92vw)" :title="`审核 · ${contentTitle}`">
       <div v-if="detail" v-loading="reviewing" class="review-drawer">
         <div class="preview-block">
           <KpDisplay v-if="detail.contentType === 'kp' && detail.kp" :kp="detail.kp" />
