@@ -44,6 +44,7 @@ export interface CaptchaResp {
 export interface CustomerAuthResp {
   token: string
   username: string
+  customerId: number
 }
 
 export interface CustomerMeResp {
@@ -631,4 +632,97 @@ export interface JudgeAnswerResp {
   answer: JudgeAnswerView
   degraded: boolean
   advice: string
+}
+
+// —— 个人档案（核心模块定义 4.1，T10） ——
+
+/** 目标职级五档（6.5 Target Level）：与 JudgeLevel 同口径，全产品的深度标尺 */
+export type TargetLevel = JudgeLevel
+
+/** 档案状态机：草稿 → 确认 → 定稿；存在未确认技能条不得定稿，未定稿不参与学习路径生成 */
+export type ProfileStatus = 'draft' | 'confirmed' | 'finalized'
+
+/** 技能条拍板状态：措辞或锚点变更后回到待确认，重走拍板 */
+export type ClaimStatus = 'unconfirmed' | 'confirmed'
+
+/** 技能条来源：AI 起草采纳 / 手动添加 */
+export type ClaimSource = 'ai' | 'manual'
+
+/** 档案列表项：含技能条计数，供"我的"页档案切换与状态一览 */
+export interface ProfileListItem {
+  id: number
+  name: string
+  status: ProfileStatus
+  targetLevel: TargetLevel | null
+  active: boolean
+  claimCount: number
+  unconfirmedCount: number
+  createdAt: string
+  updatedAt: string
+}
+
+/** 技能条锚点视图：id + 题面实时反查 */
+export interface ClaimAnchor {
+  id: number
+  title: string
+}
+
+/** 技能条（Skill Claim）：一段简历措辞 + 锚定知识点集合 */
+export interface ClaimView {
+  id: number
+  wording: string
+  anchorIds: number[]
+  anchors: ClaimAnchor[]
+  source: ClaimSource
+  status: ClaimStatus
+  sortOrder: number
+}
+
+/** 项目素材（Case）：背景/数字/冲突/结果四段，供叙事练习与模拟考追问消费 */
+export interface CaseView {
+  id: number
+  projectName: string
+  background: string
+  metrics: string
+  conflict: string
+  result: string
+  createdAt: string
+  updatedAt: string
+}
+
+/** 档案详情：档案 + 技能条 + 项目素材 */
+export interface ProfileDetail {
+  id: number
+  name: string
+  resumeText: string
+  years: number | null
+  position: string
+  jdText: string
+  techStack: string
+  targetLevel: TargetLevel | null
+  planWeeks: number | null
+  dailyMinutes: number | null
+  status: ProfileStatus
+  active: boolean
+  finalizedAt: string | null
+  createdAt: string
+  updatedAt: string
+  claims: ClaimView[]
+  cases: CaseView[]
+}
+
+/** AI 起草的技能条草稿（产物不落库，逐条采纳） */
+export interface ClaimDraft {
+  wording: string
+  anchors: ClaimAnchor[]
+}
+
+/** C 端知识点候选（锚点挑选）：只含已上线知识点的轻量字段 */
+export interface KpCandidate {
+  id: number
+  title: string
+  summary: string | null
+  difficulty: string
+  domainCode: string
+  topicName: string
 }

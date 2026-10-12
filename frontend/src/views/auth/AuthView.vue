@@ -33,7 +33,7 @@ async function submit() {
       : await customerLogin({ ...form, captchaId: captchaId.value })
     auth.setCustomer(result.token, result.username)
     ElMessage.success(mode.value === 'register' ? '注册成功' : '登录成功')
-    // 默认简历档案随建档模块（T10）创建；现阶段先进我的页看档案占位
+    // 注册即创建默认档案（T10 落地），进我的页继续建档
     void router.push('/profile')
   } catch (error) {
     const err = error as { message?: string }

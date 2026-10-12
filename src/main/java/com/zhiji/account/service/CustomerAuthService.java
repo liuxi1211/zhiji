@@ -28,7 +28,7 @@ public class CustomerAuthService {
         this.captchaService = captchaService;
     }
 
-    public record AuthResult(String token, String username) {
+    public record AuthResult(String token, String username, long customerId) {
     }
 
     public record Me(long id, String username) {
@@ -46,7 +46,7 @@ public class CustomerAuthService {
         account.setPasswordHash(passwordHasher.hash(rawPassword));
         account.setStatus("active");
         customerMapper.insert(account);
-        return new AuthResult(tokenService.issueCustomer(account), account.getUsername());
+        return new AuthResult(tokenService.issueCustomer(account), account.getUsername(), account.getId());
     }
 
     public AuthResult login(String username, String rawPassword, String captchaId, String captchaCode) {
@@ -61,7 +61,7 @@ public class CustomerAuthService {
         }
         account.setLastLoginAt(LocalDateTime.now().format(LOG_TIME));
         customerMapper.updateById(account);
-        return new AuthResult(tokenService.issueCustomer(account), account.getUsername());
+        return new AuthResult(tokenService.issueCustomer(account), account.getUsername(), account.getId());
     }
 
     public Me me(long customerId) {

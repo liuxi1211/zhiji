@@ -208,3 +208,60 @@ CREATE TABLE IF NOT EXISTS judge_answer (
 );
 
 CREATE INDEX IF NOT EXISTS idx_judge_answer_session ON judge_answer (session_id);
+
+-- T10 个人档案模块（核心模块定义 4.1）：简历档案/技能条/项目素材，全产品的个人上下文锚点。
+-- 档案状态机 draft(建档中) → confirmed(技能条齐) → finalized(定稿)；存在未确认技能条不得定稿，
+-- 未定稿不参与学习路径生成（消费方 T11+）。is_active 为当前档案标记，部分唯一索引保证每客户至多一个。
+CREATE TABLE IF NOT EXISTS prf_profile (
+    id             INTEGER PRIMARY KEY AUTOINCREMENT,
+    customer_id    INTEGER NOT NULL REFERENCES sys_customer (id),
+    name           TEXT    NOT NULL,                   -- 档案名（如"Java 后端"）
+    resume_text    TEXT    NOT NULL DEFAULT '',        -- 简历全文（一期粘贴文本，上传解析后置）
+    years          INTEGER,                            -- 工作年限（补齐表单，职级缺省推测依据）
+    position       TEXT    NOT NULL DEFAULT '',        -- 目标岗位
+    jd_text        TEXT    NOT NULL DEFAULT '',        -- 目标岗位 JD
+    tech_stack     TEXT    NOT NULL DEFAULT '',        -- 技术栈（自由文本）
+    target_level   TEXT    CHECK (target_level IS NULL OR target_level IN ('junior','mid','senior','expert','master')),
+    plan_weeks     INTEGER,                            -- 备考周期（周）
+    daily_minutes  INTEGER,                            -- 每日可投入时间（分钟）
+    status         TEXT    NOT NULL DEFAULT 'draft'
+                   CHECK (status IN ('draft','confirmed','finalized')),
+    is_active      INTEGER NOT NULL DEFAULT 0,         -- 当前档案标记
+    finalized_at   TEXT,
+    created_at     TEXT    NOT NULL DEFAULT (datetime('now')),
+    updated_at     TEXT    NOT NULL DEFAULT (datetime('now'))
+);
+
+CREATE INDEX IF NOT EXISTS idx_prf_profile_customer ON prf_profile (customer_id);
+CREATE UNIQUE INDEX IF NOT EXISTS ux_prf_profile_active ON prf_profile (customer_id) WHERE is_active = 1;
+
+-- 技能条（Skill Claim，6.5）：一段简历措辞 + 锚定知识点集合。锚点必须真实存在且 available（代码校验，
+-- 红线：AI 不编造考点）；anchor_ids JSON 数组 [kpId]，String 列由 service 层序列化（先例 KbKp）。
+CREATE TABLE IF NOT EXISTS prf_claim (
+    id           INTEGER PRIMARY KEY AUTOINCREMENT,
+    profile_id   INTEGER NOT NULL REFERENCES prf_profile (id),
+    wording      TEXT    NOT NULL,                    -- 简历措辞
+    anchor_ids   TEXT    NOT NULL DEFAULT '[]',       -- 锚定知识点 id [kpId]
+    source       TEXT    NOT NULL DEFAULT 'ai' CHECK (source IN ('ai','manual')),  -- AI 起草采纳 / 手动添加
+    status       TEXT    NOT NULL DEFAULT 'unconfirmed' CHECK (status IN ('unconfirmed','confirmed')),
+    sort_order   INTEGER NOT NULL DEFAULT 0,
+    created_at   TEXT    NOT NULL DEFAULT (datetime('now')),
+    updated_at   TEXT    NOT NULL DEFAULT (datetime('now'))
+);
+
+CREATE INDEX IF NOT EXISTS idx_prf_claim_profile ON prf_claim (profile_id, sort_order);
+
+-- 项目素材（Case，6.5）：建档沉淀的项目细节（背景/数字/冲突/结果），供叙事练习与模拟考追问消费（T11+）。
+CREATE TABLE IF NOT EXISTS prf_case (
+    id           INTEGER PRIMARY KEY AUTOINCREMENT,
+    profile_id   INTEGER NOT NULL REFERENCES prf_profile (id),
+    project_name TEXT    NOT NULL,
+    background   TEXT    NOT NULL DEFAULT '',         -- 背景
+    metrics      TEXT    NOT NULL DEFAULT '',         -- 数字
+    conflict     TEXT    NOT NULL DEFAULT '',         -- 冲突/难点
+    result       TEXT    NOT NULL DEFAULT '',         -- 结果
+    created_at   TEXT    NOT NULL DEFAULT (datetime('now')),
+    updated_at   TEXT    NOT NULL DEFAULT (datetime('now'))
+);
+
+CREATE INDEX IF NOT EXISTS idx_prf_case_profile ON prf_case (profile_id);
