@@ -55,14 +55,15 @@ public class JudgeAiService {
         this.llmClient = llmClient;
     }
 
-    public AlignedJudgment align(String question, String answer, List<PointSpec> specs) {
+    public AlignedJudgment align(String question, String answer, List<PointSpec> specs, Long profileId) {
         String pointsJson = jsonMapper.writeValueAsString(specs);
         String prompt = PromptTemplate.render(readTemplate("prompts/judge.txt"), Map.of(
                 "question", question,
                 "answer", answer,
                 "points", pointsJson));
         // completeJson 自带「非法 JSON 重试一次 → SYS_PROVIDER_ERROR」，正好承接 6.1 重试降级路径
-        RawJudgment raw = llmClient.completeJson(LlmRequest.user(LlmPurpose.JUDGE_PRACTICE, null, prompt).build(),
+        // profileId：C 端练习按档案计量（单用户限额）；试判台传 null（折算 0 哨兵，不受档案限额）
+        RawJudgment raw = llmClient.completeJson(LlmRequest.user(LlmPurpose.JUDGE_PRACTICE, profileId, prompt).build(),
                 RawJudgment.class);
         return sanitize(raw, answer, specs);
     }

@@ -2,15 +2,15 @@
 // 资料讲解编辑器：目录编辑抽屉与合并页产物编辑共用。
 // 挂载知识点即人工发布决策（挂载动作即发布）；目标知识点不能已下线（下线全链路封死）。
 import { computed, reactive, ref, watch } from 'vue'
+import { View } from '@element-plus/icons-vue'
 import { ElMessage } from 'element-plus'
 import { searchContents } from '@/api/kb'
-import type { KbDocDraft } from '@/api/types'
-import { createMarkdown } from '@/utils/markdown'
+import DocDisplay from '@/components/kb/DocDisplay.vue'
+import type { KbDocDraft, DocView } from '@/api/types'
 
 const props = defineProps<{ initial: KbDocDraft | null; saving?: boolean }>()
 const emit = defineEmits<{ (e: 'save', draft: KbDocDraft): void }>()
 
-const md = createMarkdown()
 const DIFF_OPTIONS = [
   { value: 'junior', label: '初级' },
   { value: 'mid', label: '中级' },
@@ -33,7 +33,29 @@ watch(
   }
 )
 
-const contentHtml = computed(() => md.render(draft.contentMd || '（暂无内容）'))
+// —— 渲染预览（所见即所得）：草稿实时组装成用户侧渲染形态，弹窗内用 DocDisplay 展示 ——
+
+const previewVisible = ref(false)
+
+const previewDoc = computed<DocView>(() => ({
+  id: 0,
+  domainCode: '',
+  topicId: 0,
+  topicName: '',
+  title: draft.title,
+  summary: draft.summary,
+  contentMd: draft.contentMd,
+  difficulty: draft.difficulty,
+  sourceUrl: null,
+  kpId: draft.kpId,
+  status: 'draft',
+  mergedIntoId: null,
+  mergeSources: [],
+  reviewDueAt: null,
+  createdBy: 0,
+  createdAt: '',
+  updatedAt: ''
+}))
 
 // 挂载目标：远程模糊搜索知识点
 const kpOptions = ref<{ id: number; title: string }[]>([])
@@ -84,10 +106,7 @@ function submit() {
       </el-form-item>
       <el-form-item label="讲解正文">
         <el-input v-model="draft.contentMd" type="textarea" :rows="14" placeholder="Markdown 讲解正文快照" />
-        <details class="md-preview">
-          <summary>预览</summary>
-          <div class="md-body" v-html="contentHtml"></div>
-        </details>
+        <p class="hint">点右下角「预览效果」查看 Markdown 渲染后的样子</p>
       </el-form-item>
       <el-form-item label="挂载知识点">
         <el-select
@@ -106,8 +125,19 @@ function submit() {
     </el-form>
 
     <div class="editor-actions">
+      <el-button :icon="View" @click="previewVisible = true">预览效果</el-button>
       <el-button type="primary" :loading="saving" @click="submit">保存</el-button>
     </div>
+
+    <!-- 渲染预览：与用户侧详情完全同构（DocDisplay），草稿实时反映 -->
+    <el-dialog v-model="previewVisible" title="渲染预览（用户侧所见）" width="min(860px, 92vw)" append-to-body>
+      <div class="preview-scroll">
+        <DocDisplay :doc="previewDoc" />
+      </div>
+      <template #footer>
+        <el-button @click="previewVisible = false">关闭</el-button>
+      </template>
+    </el-dialog>
   </div>
 </template>
 
@@ -118,28 +148,20 @@ function submit() {
   gap: 12px;
 }
 
-.md-preview {
-  width: 100%;
-  margin-top: 6px;
-  font-size: 12px;
-  color: var(--zj-ink-600);
-}
-
-.md-preview summary {
-  cursor: pointer;
-}
-
-.md-body {
-  margin-top: 6px;
-  padding: 8px 10px;
-  border: 1px dashed var(--zj-line);
-  border-radius: 6px;
-  font-size: var(--zj-fs-sm);
-  color: var(--zj-ink-700);
+.hint {
+  margin: 0;
+  font-size: 11px;
+  color: var(--zj-ink-500, #999);
 }
 
 .editor-actions {
   display: flex;
   justify-content: flex-end;
+}
+
+/* 预览弹窗内容限高内滚 */
+.preview-scroll {
+  max-height: 65vh;
+  overflow: auto;
 }
 </style>

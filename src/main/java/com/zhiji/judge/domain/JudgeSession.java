@@ -16,7 +16,7 @@ public class JudgeSession {
 
     private Long kpId;
 
-    /** 目标职级（junior/mid/senior/expert/master），全产品深度标尺 */
+    /** 目标职级（junior/mid/senior/expert），全产品深度标尺 */
     private String level;
 
     /** 判定范围界：层号超过它的追问层可作答但不计入档位；null=未标定取最大层 */
@@ -35,6 +35,9 @@ public class JudgeSession {
     private Integer degraded;
 
     private String closedAt;
+
+    /** 归属侧别：staff=试判台（B 端员工）/ customer=练习模式（C 端客户，created_by 存档案 id） */
+    private String ownerType;
 
     private Long createdBy;
 
@@ -110,6 +113,14 @@ public class JudgeSession {
 
     public void setClosedAt(String closedAt) {
         this.closedAt = closedAt;
+    }
+
+    public String getOwnerType() {
+        return ownerType;
+    }
+
+    public void setOwnerType(String ownerType) {
+        this.ownerType = ownerType;
     }
 
     public Long getCreatedBy() {

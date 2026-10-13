@@ -35,7 +35,8 @@ CREATE TABLE IF NOT EXISTS sys_customer (
     last_login_at TEXT
 );
 
--- T2 llm 支撑模块：运行参数（模型路由 / 限额 / 全站熔断）存配置表，B 端 /admin/settings 读写，改动即生效。
+-- 系统运行参数（通用配置层，一行一个配置域：config_key = {module}.{name}，value 为 JSON）。
+-- 首批域：llm.route（模型路由）/ llm.limits（限额熔断）；B 端 /admin/configs 读写，改动即生效。
 CREATE TABLE IF NOT EXISTS sys_config (
     id           INTEGER PRIMARY KEY AUTOINCREMENT,
     config_key   TEXT    NOT NULL UNIQUE,
@@ -70,6 +71,8 @@ CREATE TABLE IF NOT EXISTS src_item (
     title        TEXT    NOT NULL,
     content_md   TEXT    NOT NULL DEFAULT '',               -- Markdown 正文；图片引用形如 asset:source/{itemId}/{file}
     summary      TEXT,                                      -- 素材概述（百字内）：齐备是提交入库的门槛（5.1 边界）
+    content_type TEXT CHECK (content_type IS NULL OR content_type IN ('kp','doc')),
+                                                            -- 目标类型标记：kp 面试题线 / doc 文章线；初始导入无法判定时留空，人工填写或采纳 AI 建议
     difficulty   TEXT    CHECK (difficulty IS NULL OR difficulty IN ('junior','mid','senior','expert')),
     domain_code  TEXT,                                      -- 领域代码（常量组 domain，人工点选；AI 分类��在所选领域内）
     topic_name   TEXT,                                      -- 主题位置（AI 建议或人工填写，仅入库前的工作位信息）
@@ -120,7 +123,7 @@ CREATE TABLE IF NOT EXISTS kb_kp (
     scoring_points TEXT NOT NULL DEFAULT '[]',    -- 分级评分要点 [{"id","level":"pass|good|excellent","content"}]（判定引擎的尺子）
     answer_samples TEXT NOT NULL DEFAULT '[]',    -- 三档回答样例 [{"level":"pass|good|excellent","content"}]
     difficulty     TEXT NOT NULL CHECK (difficulty IN ('junior','mid','senior','expert')),
-    level_rules    TEXT NOT NULL DEFAULT '[]',    -- 职级要求与停止点 [{"level":"junior|mid|senior|expert|master","required":0/1,"stop_layer":N}]
+    level_rules    TEXT NOT NULL DEFAULT '[]',    -- 职级要求与停止点 [{"level":"junior|mid|senior|expert","required":0/1,"stop_layer":N}]
     prerequisites  TEXT NOT NULL DEFAULT '[]',    -- 前置依赖 [kpId]（学习维度，与追问层/主题正交）
     freq_manual    INTEGER NOT NULL DEFAULT 0,    -- 频率信号·人工标定
     freq_signal    INTEGER NOT NULL DEFAULT 0,    -- 频率信号·面经回流（复盘模块 T9 接入，一期恒 0）
@@ -179,14 +182,16 @@ CREATE INDEX IF NOT EXISTS idx_kb_review_content ON kb_review (content_type, con
 CREATE TABLE IF NOT EXISTS judge_session (
     id          INTEGER PRIMARY KEY AUTOINCREMENT,
     kp_id       INTEGER NOT NULL REFERENCES kb_kp (id),
-    level       TEXT NOT NULL CHECK (level IN ('junior','mid','senior','expert','master')),
+    level       TEXT NOT NULL CHECK (level IN ('junior','mid','senior','expert')),
     stop_layer  INTEGER,                       -- 判定范围界（创建时快照自 level_rules；空=未标定，取最大 active 层）
     status      TEXT NOT NULL DEFAULT 'open' CHECK (status IN ('open','closed')),
     grade       TEXT CHECK (grade IS NULL OR grade IN ('excellent','good','pass','fail')),
     grade_note  TEXT,                          -- 无法评级原因/公式说明
     degraded    INTEGER NOT NULL DEFAULT 0,    -- 会话中出现降级自评
     closed_at   TEXT,
-    created_by  INTEGER NOT NULL,              -- 员工 id（sys_staff.id，试判台=内容维护者）
+    owner_type  TEXT NOT NULL DEFAULT 'staff'  -- staff=试判台（B 端员工）/ customer=练习模式（C 端客户，created_by 存档案 id）
+                CHECK (owner_type IN ('staff','customer')),
+    created_by  INTEGER NOT NULL,              -- staff：员工 id（sys_staff.id）；customer：档案 id（prf_profile.id）
     created_at  TEXT NOT NULL DEFAULT (datetime('now'))
 );
 
@@ -221,7 +226,8 @@ CREATE TABLE IF NOT EXISTS prf_profile (
     position       TEXT    NOT NULL DEFAULT '',        -- 目标岗位
     jd_text        TEXT    NOT NULL DEFAULT '',        -- 目标岗位 JD
     tech_stack     TEXT    NOT NULL DEFAULT '',        -- 技术栈（自由文本）
-    target_level   TEXT    CHECK (target_level IS NULL OR target_level IN ('junior','mid','senior','expert','master')),
+    good_at        TEXT    NOT NULL DEFAULT '',        -- 想突出的/擅长的（用户自述亮点）
+    target_level   TEXT    CHECK (target_level IS NULL OR target_level IN ('junior','mid','senior','expert')),
     plan_weeks     INTEGER,                            -- 备考周期（周）
     daily_minutes  INTEGER,                            -- 每日可投入时间（分钟）
     status         TEXT    NOT NULL DEFAULT 'draft'
@@ -235,21 +241,52 @@ CREATE TABLE IF NOT EXISTS prf_profile (
 CREATE INDEX IF NOT EXISTS idx_prf_profile_customer ON prf_profile (customer_id);
 CREATE UNIQUE INDEX IF NOT EXISTS ux_prf_profile_active ON prf_profile (customer_id) WHERE is_active = 1;
 
--- 技能条（Skill Claim，6.5）：一段简历措辞 + 锚定知识点集合。锚点必须真实存在且 available（代码校验，
+-- 技能条（Skill Claim，6.5）：小标题 + 简历措辞 + 锚定知识点集合。锚点必须真实存在且 available（代码校验，
 -- 红线：AI 不编造考点）；anchor_ids JSON 数组 [kpId]，String 列由 service 层序列化（先例 KbKp）。
+-- 建档对话流（PRD v2）：技能条由对话起草采纳，锚点在定稿后由映射补齐（anchor_status：unmapped 未映射 /
+-- mapped 已锚定 / pending 低置信待确认 / zero 零命中）。
 CREATE TABLE IF NOT EXISTS prf_claim (
-    id           INTEGER PRIMARY KEY AUTOINCREMENT,
-    profile_id   INTEGER NOT NULL REFERENCES prf_profile (id),
-    wording      TEXT    NOT NULL,                    -- 简历措辞
-    anchor_ids   TEXT    NOT NULL DEFAULT '[]',       -- 锚定知识点 id [kpId]
-    source       TEXT    NOT NULL DEFAULT 'ai' CHECK (source IN ('ai','manual')),  -- AI 起草采纳 / 手动添加
-    status       TEXT    NOT NULL DEFAULT 'unconfirmed' CHECK (status IN ('unconfirmed','confirmed')),
-    sort_order   INTEGER NOT NULL DEFAULT 0,
-    created_at   TEXT    NOT NULL DEFAULT (datetime('now')),
-    updated_at   TEXT    NOT NULL DEFAULT (datetime('now'))
+    id            INTEGER PRIMARY KEY AUTOINCREMENT,
+    profile_id    INTEGER NOT NULL REFERENCES prf_profile (id),
+    title         TEXT    NOT NULL DEFAULT '',         -- 小标题（如"存储与分库分表"）
+    wording       TEXT    NOT NULL,                    -- 简历措辞
+    anchor_ids    TEXT    NOT NULL DEFAULT '[]',       -- 锚定知识点 id [kpId]
+    anchor_status TEXT    NOT NULL DEFAULT 'unmapped' CHECK (anchor_status IN ('unmapped','mapped','pending','zero')),
+    source        TEXT    NOT NULL DEFAULT 'ai' CHECK (source IN ('ai','manual')),  -- 对话采纳 / 手动添加
+    status        TEXT    NOT NULL DEFAULT 'unconfirmed' CHECK (status IN ('unconfirmed','confirmed')),
+    sort_order    INTEGER NOT NULL DEFAULT 0,
+    created_at    TEXT    NOT NULL DEFAULT (datetime('now')),
+    updated_at    TEXT    NOT NULL DEFAULT (datetime('now'))
 );
 
 CREATE INDEX IF NOT EXISTS idx_prf_claim_profile ON prf_claim (profile_id, sort_order);
+
+-- 建档对话消息（Intake Brainstorm，PRD v2 4.4）：role=user 为用户反馈原文，role=assistant 为
+-- 教练回复（text=给用户看的一句话说明，claims_json=该轮技能条版本 JSON，可空）。
+CREATE TABLE IF NOT EXISTS prf_intake_msg (
+    id          INTEGER PRIMARY KEY AUTOINCREMENT,
+    profile_id  INTEGER NOT NULL REFERENCES prf_profile (id),
+    role        TEXT    NOT NULL CHECK (role IN ('user','assistant')),
+    text        TEXT    NOT NULL DEFAULT '',
+    claims_json TEXT,
+    created_at  TEXT    NOT NULL DEFAULT (datetime('now'))
+);
+
+CREATE INDEX IF NOT EXISTS idx_prf_intake_msg_profile ON prf_intake_msg (profile_id, id);
+
+-- 技能条参考库（Claim Reference Library，PRD v2 5.4）：从优秀简历脱敏收集的条目池，
+-- 按岗位方向打标，对话起草时按方向过滤整池注入作风格锚。
+CREATE TABLE IF NOT EXISTS prf_reference_claim (
+    id         INTEGER PRIMARY KEY AUTOINCREMENT,
+    direction  TEXT    NOT NULL DEFAULT '',            -- 岗位方向（'' = 通用）
+    kind       TEXT    NOT NULL DEFAULT 'bar',         -- bar=单条（笔触示范） / section=整段样板（结构示范）
+    grade      TEXT    NOT NULL DEFAULT '',            -- 职级档位（section 用：junior/mid/senior/expert；bar 空）
+    title      TEXT    NOT NULL DEFAULT '',            -- 条目小标题（可空）
+    content    TEXT    NOT NULL,                       -- 条目正文（section 为多行整段）
+    sort_order INTEGER NOT NULL DEFAULT 0,
+    enabled    INTEGER NOT NULL DEFAULT 1,
+    created_at TEXT    NOT NULL DEFAULT (datetime('now'))
+);
 
 -- 项目素材（Case，6.5）：建档沉淀的项目细节（背景/数字/冲突/结果），供叙事练习与模拟考追问消费（T11+）。
 CREATE TABLE IF NOT EXISTS prf_case (
@@ -265,3 +302,25 @@ CREATE TABLE IF NOT EXISTS prf_case (
 );
 
 CREATE INDEX IF NOT EXISTS idx_prf_case_profile ON prf_case (profile_id);
+
+-- T11 学习路径与练习模块（核心模块定义 4.2）：知识点学习状态（6.5，学习与复习共用数据源）。
+-- 学习路径不落表：阶段/单元由 PathService 每次实时推导（四路信号并集准入），个人进度全挂本表；
+-- 重生成只动阶段与单元序列，不动已积累进度。状态机：
+-- learning → quick|pass|weak；weak → quick|pass；abandoned → learning（恢复）；任意 → abandoned。
+-- quick=速览自评会（抽查范围，T12 验伪）；pass=练习判定通过；weak=速览自评不会（弱点加权）；
+-- 三态均算已推进（单元完成度与复习池入池口径），progressed_at 为 T12 间隔重复的时间起点。
+CREATE TABLE IF NOT EXISTS learn_state (
+    id             INTEGER PRIMARY KEY AUTOINCREMENT,
+    profile_id     INTEGER NOT NULL REFERENCES prf_profile (id),
+    kp_id          INTEGER NOT NULL REFERENCES kb_kp (id),
+    status         TEXT NOT NULL DEFAULT 'learning'
+                   CHECK (status IN ('learning','quick','pass','weak','abandoned')),
+    session_id     INTEGER REFERENCES judge_session (id),  -- 最近一次练习判定会话
+    abandon_reason TEXT,                                   -- 放弃原因（可选填，放弃清单展示）
+    progressed_at  TEXT,                                   -- 达成 quick/pass/weak 的时间
+    created_at     TEXT NOT NULL DEFAULT (datetime('now')),
+    updated_at     TEXT NOT NULL DEFAULT (datetime('now')),
+    UNIQUE (profile_id, kp_id)
+);
+
+CREATE INDEX IF NOT EXISTS idx_learn_state_profile ON learn_state (profile_id, status);

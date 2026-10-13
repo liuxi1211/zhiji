@@ -1,18 +1,17 @@
 <script setup lang="ts">
 // 知识库管理（核心模块定义 5.2，资产家底形态）：领域 → 主题 → 知识点/资料讲解的目录树浏览与检索。
-// 内容编辑、组织结构调整（主题改名/合并/调领域）、直达新建、下线与恢复都在这里。
+// 内容编辑、组织结构调整（主题改名/调领域）、单个内容移动主题、行点击详情预览、下线与恢复都在这里。
 // 打开它的理由是"要看家底"，按目录结构组织（与内容生产台的待办形态互补）。
 import { computed, onMounted, reactive, ref } from 'vue'
 import { useRouter } from 'vue-router'
 import { ElMessage, ElMessageBox } from 'element-plus'
-import { CirclePlus, Document, Edit, MagicStick, Refresh, Search, VideoPlay } from '@element-plus/icons-vue'
+import { CirclePlus, Document, Edit, Refresh, Search, VideoPlay } from '@element-plus/icons-vue'
 import {
   KB_STATUS_LABELS,
   createTopic,
   listContents,
   listTopics,
   moveTopic,
-  mergeTopic,
   offlineContent,
   renameTopic,
   restoreContent,
@@ -30,11 +29,15 @@ import type {
   KbKpDraft,
   KbStatus,
   KbTopicView,
+  DocView,
   KpView,
   SourceDifficulty
 } from '@/api/types'
 import KpEditor from '@/components/kb/KpEditor.vue'
 import DocEditor from '@/components/kb/DocEditor.vue'
+import KpDisplay from '@/components/kb/KpDisplay.vue'
+import DocDisplay from '@/components/kb/DocDisplay.vue'
+import WizardDialog from '@/components/kb/WizardDialog.vue'
 import { useConstantsStore } from '@/stores/constants'
 
 const router = useRouter()
@@ -167,22 +170,21 @@ function onPageSizeChange() {
 
 // —— 组织结构调整（只动位置，不动内容本身） ——
 
-const topicDialog = reactive({ visible: false, mode: 'create' as 'create' | 'rename' | 'merge' | 'move', name: '', targetId: null as number | null, domainCode: '' })
+const topicDialog = reactive({ visible: false, mode: 'create' as 'create' | 'rename' | 'move', name: '', domainCode: '' })
 
-function openTopicDialog(mode: 'create' | 'rename' | 'merge' | 'move') {
+function openTopicDialog(mode: 'create' | 'rename' | 'move') {
   if (mode !== 'create' && !currentTopic.value) {
     ElMessage.warning('先选择一个主题')
     return
   }
   topicDialog.mode = mode
   topicDialog.name = mode === 'rename' ? (currentTopic.value?.name ?? '') : ''
-  topicDialog.targetId = null
   topicDialog.domainCode = mode === 'move' ? (currentTopic.value?.domainCode ?? '') : currentDomain.value || 'java'
   topicDialog.visible = true
 }
 
 const topicDialogTitle = computed(
-  () => ({ create: '新建主题', rename: '重命名主题', merge: '合并主题（内容迁入目标）', move: '调整主题领域归属' })[topicDialog.mode]
+  () => ({ create: '新建主题', rename: '重命名主题', move: '调整主题领域归属' })[topicDialog.mode]
 )
 
 async function confirmTopicDialog() {
@@ -194,14 +196,6 @@ async function confirmTopicDialog() {
     } else if (topicDialog.mode === 'rename') {
       await renameTopic(currentTopicId.value!, topicDialog.name)
       ElMessage.success('主题已改名（调整即时生效于目录视图）')
-    } else if (topicDialog.mode === 'merge') {
-      if (!topicDialog.targetId) {
-        ElMessage.warning('选择合并目标主题')
-        return
-      }
-      await mergeTopic(currentTopicId.value!, topicDialog.targetId)
-      ElMessage.success('主题已合并，内容已迁入目标主题')
-      currentTopicId.value = topicDialog.targetId
     } else {
       await moveTopic(currentTopicId.value!, topicDialog.domainCode)
       currentDomain.value = topicDialog.domainCode
@@ -213,6 +207,88 @@ async function confirmTopicDialog() {
   } catch (error) {
     ElMessage.error(messageOf(error, '操作失败'))
   }
+}
+
+// —— 单个内容移动主题（走 updateKp/updateDoc 的 topicId 稀疏更新，限同领域） ——
+
+const moveDialog = reactive({
+  visible: false,
+  item: null as KbContentItemView | null,
+  targetId: null as number | null,
+  loadingTargets: false
+})
+const moveTargets = ref<KbTopicView[]>([])
+
+async function openMoveContent(item: KbContentItemView) {
+  moveDialog.item = item
+  moveDialog.targetId = null
+  moveDialog.visible = true
+  moveDialog.loadingTargets = true
+  try {
+    // 目标主题按内容自身领域拉取（搜索态下行的领域可能与当前左栏筛选不同），排除当前位置
+    moveTargets.value = (await listTopics(item.domainCode)).filter(
+      (topic) => topic.status === 'active' && topic.id !== item.topicId
+    )
+  } catch (error) {
+    ElMessage.error(messageOf(error, '加载目标主题失败'))
+  } finally {
+    moveDialog.loadingTargets = false
+  }
+}
+
+async function confirmMoveContent() {
+  const item = moveDialog.item
+  if (!item || !moveDialog.targetId) {
+    ElMessage.warning('选择目标主题')
+    return
+  }
+  try {
+    if (item.contentType === 'kp') {
+      await updateKp(item.id, { topicId: moveDialog.targetId })
+    } else {
+      await updateDoc(item.id, { topicId: moveDialog.targetId })
+    }
+    ElMessage.success('已移动到目标主题（领域不变，组织位置调整）')
+    moveDialog.visible = false
+    await refresh()
+  } catch (error) {
+    ElMessage.error(messageOf(error, '移动失败'))
+  }
+}
+
+// —— 行点击详情预览（复用用户侧渲染组件，详情页即渲染效果） ——
+
+const previewVisible = ref(false)
+const previewLoading = ref(false)
+const previewItem = ref<KbContentItemView | null>(null)
+const previewKp = ref<KpView | null>(null)
+const previewDoc = ref<DocView | null>(null)
+
+async function openPreview(item: KbContentItemView, column?: { label?: string }) {
+  // 操作列内的点击不触发预览（按钮已 stop 冒泡，此处兜底空白区域）
+  if (column?.label === '操作') return
+  previewItem.value = item
+  previewKp.value = null
+  previewDoc.value = null
+  previewVisible.value = true
+  previewLoading.value = true
+  try {
+    if (item.contentType === 'kp') {
+      previewKp.value = await getKp(item.id)
+    } else {
+      previewDoc.value = await getDoc(item.id)
+    }
+  } catch (error) {
+    ElMessage.error(messageOf(error, '加载详情失败'))
+  } finally {
+    previewLoading.value = false
+  }
+}
+
+function editFromPreview() {
+  const item = previewItem.value
+  previewVisible.value = false
+  if (item) void openEditor(item)
 }
 
 // —— 内容编辑（知识库本体维护线：available 直接生效不重审） ——
@@ -347,6 +423,16 @@ async function doResubmit(item: KbContentItemView) {
   }
 }
 
+// —— 直达新建（新增向导弹窗）：定类由入口预置，向导内可改选；提交后刷新当前主题内容清单 ——
+
+const wizardVisible = ref(false)
+const wizardType = ref<'kp' | 'doc' | null>(null)
+
+function openWizard(type: 'kp' | 'doc') {
+  wizardType.value = type
+  wizardVisible.value = true
+}
+
 onMounted(async () => {
   await constants.ensure()
   try {
@@ -388,9 +474,9 @@ function statusTagType(status: KbStatus): 'primary' | 'success' | 'info' | 'warn
         <el-badge :value="dueCount" :hidden="dueCount === 0">
           <el-button @click="router.push('/admin/production')">复核到期巡检</el-button>
         </el-badge>
-        <!-- 直达新建的两条线入口（5.2）：定类由入口预置，向导内不被改写建议覆盖；跳过加工不豁免审核 -->
-        <el-button type="primary" :icon="CirclePlus" @click="router.push('/admin/wizard?type=kp')">新建知识点</el-button>
-        <el-button :icon="Document" @click="router.push('/admin/wizard?type=doc')">新建资料讲解</el-button>
+        <!-- 直达新建的两条线入口（5.2）：定类由入口预置（弹窗内可改选）；跳过加工不豁免审核 -->
+        <el-button type="primary" :icon="CirclePlus" @click="openWizard('kp')">新建知识点</el-button>
+        <el-button :icon="Document" @click="openWizard('doc')">新建资料讲解</el-button>
       </div>
     </header>
 
@@ -400,6 +486,8 @@ function statusTagType(status: KbStatus): 'primary' | 'success' | 'info' | 'warn
         <el-select v-model="currentDomain" placeholder="全部领域" clearable style="width: 100%" @change="onDomainChange">
           <el-option v-for="option in domainOptions" :key="option.code" :label="option.name" :value="option.code" />
         </el-select>
+        <!-- 新建不依赖选中项，置顶通栏（侧栏惯例位）；改名/调整领域依赖选中项，沉底做上下文操作 -->
+        <el-button class="topic-create" :icon="CirclePlus" @click="openTopicDialog('create')">新建主题</el-button>
         <div class="topic-list">
           <div
             v-for="topic in visibleTopics"
@@ -414,9 +502,7 @@ function statusTagType(status: KbStatus): 'primary' | 'success' | 'info' | 'warn
           <p v-if="!visibleTopics.length" class="topic-empty">暂无主题</p>
         </div>
         <div class="topic-ops">
-          <el-button size="small" :icon="CirclePlus" @click="openTopicDialog('create')">新建主题</el-button>
           <el-button size="small" :icon="Edit" :disabled="!currentTopicId" @click="openTopicDialog('rename')">改名</el-button>
-          <el-button size="small" :icon="MagicStick" :disabled="!currentTopicId" @click="openTopicDialog('merge')">合并主题</el-button>
           <el-button size="small" :disabled="!currentTopicId" @click="openTopicDialog('move')">调整领域</el-button>
         </div>
       </aside>
@@ -446,7 +532,7 @@ function statusTagType(status: KbStatus): 'primary' | 'success' | 'info' | 'warn
           <el-button :icon="Refresh" circle @click="loadContents" />
         </div>
 
-        <el-table :data="contents" v-loading="loading" border>
+        <el-table :data="contents" v-loading="loading" border height="100%" @row-click="openPreview">
           <el-table-column label="类型" width="90">
             <template #default="{ row }">
               <el-tag :type="row.contentType === 'kp' ? 'primary' : 'success'" size="small">
@@ -471,15 +557,20 @@ function statusTagType(status: KbStatus): 'primary' | 'success' | 'info' | 'warn
           </el-table-column>
           <el-table-column label="操作" width="270" fixed="right">
             <template #default="{ row }">
-              <el-button size="small" text type="primary" @click="openEditor(row)">编辑</el-button>
+              <el-button size="small" text type="primary" @click.stop="openEditor(row)">编辑</el-button>
+              <!-- 移动主题：走 updateKp/updateDoc 的 topicId（限同领域，已下线先恢复） -->
+              <el-button
+                v-if="row.status !== 'deprecated' && row.status !== 'merged'"
+                size="small" text type="primary" @click.stop="openMoveContent(row)"
+              >移动</el-button>
               <!-- 试判只对上线知识点开放（后端 D10 校验 kp 必须 available），doc 无可判定性 -->
               <el-button
                 v-if="row.contentType === 'kp' && row.status === 'available'"
-                size="small" text type="success" :icon="VideoPlay" @click="goTrial(row)"
+                size="small" text type="success" :icon="VideoPlay" @click.stop="goTrial(row)"
               >试判</el-button>
-              <el-button v-if="row.status === 'available'" size="small" text type="danger" @click="doOffline(row)">弃用</el-button>
-              <el-button v-if="row.status === 'draft'" size="small" text type="warning" @click="doResubmit(row)">重新提交审核</el-button>
-              <el-button v-if="row.status === 'deprecated' || row.status === 'merged'" size="small" text type="warning" @click="doRestore(row)">恢复</el-button>
+              <el-button v-if="row.status === 'available'" size="small" text type="danger" @click.stop="doOffline(row)">弃用</el-button>
+              <el-button v-if="row.status === 'draft'" size="small" text type="warning" @click.stop="doResubmit(row)">重新提交审核</el-button>
+              <el-button v-if="row.status === 'deprecated' || row.status === 'merged'" size="small" text type="warning" @click.stop="doRestore(row)">恢复</el-button>
             </template>
           </el-table-column>
           <template #empty>{{ searchActive ? '没有匹配的搜索结果——换个关键词试试' : '该主题下暂无内容——点右上角「新建知识点 / 新建资料讲解」走新增向导' }}</template>
@@ -509,20 +600,53 @@ function statusTagType(status: KbStatus): 'primary' | 'success' | 'info' | 'warn
         <el-form-item v-if="topicDialog.mode === 'create' || topicDialog.mode === 'rename'" label="主题名">
           <el-input v-model="topicDialog.name" maxlength="60" placeholder="按「给用户看」的标准命名" />
         </el-form-item>
-        <el-form-item v-if="topicDialog.mode === 'merge'" label="目标主题">
-          <el-select v-model="topicDialog.targetId" style="width: 100%" placeholder="选择同领域目标主题">
-            <el-option
-              v-for="topic in visibleTopics.filter((t) => t.id !== currentTopicId && t.domainCode === currentTopic?.domainCode)"
-              :key="topic.id"
-              :label="topic.name"
-              :value="topic.id"
-            />
-          </el-select>
-        </el-form-item>
       </el-form>
       <template #footer>
         <el-button @click="topicDialog.visible = false">取消</el-button>
         <el-button type="primary" @click="confirmTopicDialog">确定</el-button>
+      </template>
+    </el-dialog>
+
+    <!-- 单个内容移动主题：领域跟随内容不变，只在同领域主题间调整组织位置 -->
+    <el-dialog v-model="moveDialog.visible" title="移动到其他主题" width="420px">
+      <el-form label-width="88px" label-position="left">
+        <el-form-item label="内容">
+          <span class="move-meta">{{ moveDialog.item?.title }}</span>
+        </el-form-item>
+        <el-form-item label="当前位置">
+          <span class="move-meta">{{ moveDialog.item?.topicName }}（{{ moveDialog.item?.domainCode }}）</span>
+        </el-form-item>
+        <el-form-item label="目标主题" required>
+          <el-select
+            v-model="moveDialog.targetId"
+            style="width: 100%"
+            placeholder="选择同领域目标主题"
+            :loading="moveDialog.loadingTargets"
+          >
+            <el-option v-for="topic in moveTargets" :key="topic.id" :label="topic.name" :value="topic.id" />
+          </el-select>
+        </el-form-item>
+      </el-form>
+      <template #footer>
+        <el-button @click="moveDialog.visible = false">取消</el-button>
+        <el-button type="primary" @click="confirmMoveContent">确定</el-button>
+      </template>
+    </el-dialog>
+
+    <!-- 行点击详情预览：复用用户侧渲染组件（KpDisplay/DocDisplay），所见即所得 -->
+    <el-dialog
+      v-model="previewVisible"
+      :title="`详情 · ${previewItem?.title ?? ''}`"
+      width="min(860px, 92vw)"
+      top="24px"
+    >
+      <div v-loading="previewLoading" class="preview-body">
+        <KpDisplay v-if="previewKp" :kp="previewKp" />
+        <DocDisplay v-else-if="previewDoc" :doc="previewDoc" />
+      </div>
+      <template #footer>
+        <el-button @click="previewVisible = false">关闭</el-button>
+        <el-button type="primary" :disabled="previewLoading" @click="editFromPreview">编辑</el-button>
       </template>
     </el-dialog>
 
@@ -542,17 +666,23 @@ function statusTagType(status: KbStatus): 'primary' | 'success' | 'info' | 'warn
         @save="saveDoc"
       />
     </el-drawer>
+
+    <!-- 新增向导弹窗：直达新建入口；提交后刷新当前主题内容清单 -->
+    <WizardDialog v-model="wizardVisible" :preset-type="wizardType" @submitted="refresh" />
   </div>
 </template>
 
 <style scoped>
+/* 整页锁高：页头常驻视口，滚动下沉到左右两栏内部 */
 .catalog-view {
+  height: 100%;
   display: flex;
   flex-direction: column;
   gap: 14px;
 }
 
 .view-head {
+  flex: none;
   display: flex;
   align-items: flex-start;
   justify-content: space-between;
@@ -576,25 +706,30 @@ function statusTagType(status: KbStatus): 'primary' | 'success' | 'info' | 'warn
   align-items: center;
 }
 
+/* 弹性占满页头以下空间；默认 stretch 让两栏等高，各自内部滚动 */
 .catalog-body {
+  flex: 1 1 0;
+  min-height: 0;
   display: grid;
   grid-template-columns: 260px 1fr;
   gap: 14px;
-  align-items: start;
 }
 
 .catalog-side {
   display: flex;
   flex-direction: column;
   gap: 10px;
+  min-height: 0;
   padding: 12px;
   border: 1px solid var(--zj-line);
   border-radius: 10px;
   background: var(--zj-surface);
 }
 
+/* 主题清单弹性伸缩：不再用 52vh 写死，跟随视口高度 */
 .topic-list {
-  max-height: 52vh;
+  flex: 1 1 0;
+  min-height: 0;
   overflow: auto;
   display: flex;
   flex-direction: column;
@@ -634,10 +769,31 @@ function statusTagType(status: KbStatus): 'primary' | 'success' | 'info' | 'warn
   text-align: center;
 }
 
+/* 新建主题：侧栏顶部通栏按钮 */
+.topic-create {
+  width: 100%;
+}
+
 .topic-ops {
   display: flex;
   flex-wrap: wrap;
   gap: 6px;
+}
+
+.move-meta {
+  font-size: var(--zj-fs-sm);
+  color: var(--zj-ink-700);
+}
+
+/* 行可点击进详情预览 */
+.catalog-main :deep(tbody tr) {
+  cursor: pointer;
+}
+
+/* 预览弹窗内容限高内滚：高度到底（top 24 + header + footer + 余量） */
+.preview-body {
+  height: calc(100vh - 200px);
+  overflow: auto;
 }
 
 .catalog-main {
@@ -645,17 +801,27 @@ function statusTagType(status: KbStatus): 'primary' | 'success' | 'info' | 'warn
   flex-direction: column;
   gap: 12px;
   min-width: 0;
+  min-height: 0;
+  overflow: hidden;
+}
+
+.content-filter {
+  flex: none;
+  display: flex;
+  gap: 10px;
+  flex-wrap: wrap;
+}
+
+/* 表格吃满筛选与分页之间的空间，表体内部滚动（配合 el-table 的 height="100%"） */
+.catalog-main .el-table {
+  flex: 1 1 0;
+  min-height: 0;
 }
 
 /* 分页器靠右，与表格右缘对齐 */
 .catalog-main :deep(.el-pagination) {
+  flex: none;
   justify-content: flex-end;
-}
-
-.content-filter {
-  display: flex;
-  gap: 10px;
-  flex-wrap: wrap;
 }
 
 .content-title {
@@ -667,8 +833,10 @@ function statusTagType(status: KbStatus): 'primary' | 'success' | 'info' | 'warn
 }
 
 @media (max-width: 1080px) {
+  /* 窄屏改单列堆叠：上主题栏、下内容清单，仍保持"固定框架 + 各自内滚"，不回退成整页滚动 */
   .catalog-body {
     grid-template-columns: 1fr;
+    grid-template-rows: minmax(180px, 34%) minmax(0, 1fr);
   }
 }
 </style>

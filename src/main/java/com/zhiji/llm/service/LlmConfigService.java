@@ -1,150 +1,49 @@
 package com.zhiji.llm.service;
 
-import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
+import com.zhiji.common.config.ConfigRegistry;
 import com.zhiji.llm.api.LlmPurpose;
-import com.zhiji.llm.config.LlmProperties;
+import com.zhiji.llm.config.LlmLimitsSection;
+import com.zhiji.llm.config.LlmRouteSection;
 import com.zhiji.llm.domain.LlmLimits;
 import com.zhiji.llm.domain.LlmRouteConfig;
 import com.zhiji.llm.domain.LlmRouteConfig.RouteTarget;
-import com.zhiji.llm.domain.SysConfig;
-import com.zhiji.llm.repo.SysConfigMapper;
-import java.util.LinkedHashMap;
-import java.util.Map;
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
 import org.springframework.stereotype.Service;
-import tools.jackson.core.JacksonException;
-import tools.jackson.databind.json.JsonMapper;
 
 /**
- * 运行参数读写（sys_config）：模型路由 llm.route 与限额 llm.limits。
- * 维护内存快照，写后刷新——B 端设置页改完即生效，无需重启。
+ * LLM 运行参数门面：强类型读写通用配置层（sys_config 快照）。
+ * 读写均委托 ConfigRegistry——load/落库/快照刷新在通用层，写后即生效无需重启；
+ * saveRouteConfig/saveLimits 为类型化直写（跳过 HTTP 校验，校验在 LlmRouteSection.validate）。
  */
 @Service
 public class LlmConfigService {
 
-    private static final Logger log = LoggerFactory.getLogger(LlmConfigService.class);
+    private final ConfigRegistry registry;
 
-    public static final String KEY_ROUTE = "llm.route";
-    public static final String KEY_LIMITS = "llm.limits";
-
-    private final SysConfigMapper configMapper;
-    private final LlmProperties properties;
-    private final JsonMapper jsonMapper = new JsonMapper();
-
-    private volatile LlmRouteConfig routeConfig = new LlmRouteConfig(Map.of());
-    private volatile LlmLimits limits = LlmLimits.defaults();
-
-    public LlmConfigService(SysConfigMapper configMapper, LlmProperties properties) {
-        this.configMapper = configMapper;
-        this.properties = properties;
-    }
-
-    public void load() {
-        LlmRouteConfig route = readJson(KEY_ROUTE, LlmRouteConfig.class);
-        if (route != null) {
-            routeConfig = route;
-        }
-        LlmLimits loaded = readJson(KEY_LIMITS, LlmLimits.class);
-        if (loaded != null) {
-            limits = loaded;
-        }
-        log.info("LLM 运行参数已加载：路由 {} 个入口，限额 judge={}/variant={}/profile={}/site={}",
-                routeConfig.purposes() == null ? 0 : routeConfig.purposes().size(),
-                limits.judgeDaily(), limits.variantRewriteDaily(), limits.perProfileDailyTotal(),
-                limits.siteDailyTotal());
+    public LlmConfigService(ConfigRegistry registry) {
+        this.registry = registry;
     }
 
     public LlmRouteConfig routeConfig() {
-        return routeConfig;
+        return registry.get(LlmRouteSection.KEY);
     }
 
     public LlmLimits limits() {
-        return limits;
+        return registry.get(LlmLimitsSection.KEY);
     }
 
     public RouteTarget target(LlmPurpose purpose) {
-        return routeConfig.target(purpose.getCode());
+        return routeConfig().target(purpose.getCode());
+    }
+
+    public LlmRouteConfig defaultRouteConfig() {
+        return registry.defaults(LlmRouteSection.KEY);
     }
 
     public void saveRouteConfig(LlmRouteConfig config) {
-        writeJson(KEY_ROUTE, config);
-        routeConfig = config;
+        registry.saveTyped(LlmRouteSection.KEY, config);
     }
 
     public void saveLimits(LlmLimits newLimits) {
-        writeJson(KEY_LIMITS, newLimits);
-        limits = newLimits;
-    }
-
-    public boolean hasKey(String key) {
-        return configMapper.selectCount(new LambdaQueryWrapper<SysConfig>().eq(SysConfig::getConfigKey, key)) > 0;
-    }
-
-    public void writeJson(String key, Object value) {
-        String json = jsonMapper.writeValueAsString(value);
-        if (configMapper.updateValue(key, json) == 0) {
-            insertNew(key, json);
-        }
-    }
-
-    private void insertNew(String key, String json) {
-        SysConfig config = new SysConfig();
-        config.setConfigKey(key);
-        config.setConfigValue(json);
-        config.setDescription(description(key));
-        configMapper.insert(config);
-    }
-
-    private String description(String key) {
-        if (KEY_ROUTE.equals(key)) {
-            return "模型路由：按用途映射 provider/模型/温度";
-        }
-        if (KEY_LIMITS.equals(key)) {
-            return "LLM 限额与全站每日熔断阈值";
-        }
-        return key;
-    }
-
-    private <T> T readJson(String key, Class<T> type) {
-        SysConfig row = configMapper.selectOne(new LambdaQueryWrapper<SysConfig>().eq(SysConfig::getConfigKey, key));
-        if (row == null || row.getConfigValue() == null || row.getConfigValue().isBlank()) {
-            return null;
-        }
-        try {
-            return jsonMapper.readValue(row.getConfigValue(), type);
-        } catch (JacksonException e) {
-            log.warn("运行参数 {} 解析失败，使用默认值：{}", key, e.getMessage());
-            return null;
-        }
-    }
-
-    /**
-     * 默认路由：按默认档给一份可直接运行的种子配置（管理员可在设置页改）。
-     * 模型名取 provider 配置的 default-model（application.yml 维护，模型换代改 yml 即可）——
-     * 不再硬编码日期快照：快照模型下线后种子配置直接不可用（Stream failed 即此症状）。
-     * embedding 单列：方舟 coding plan 拒绝纯文本 embedding 模型（UnsupportedModel），实测唯 vision-embedding 可用。
-     */
-    public LlmRouteConfig defaultRouteConfig() {
-        String arkModel = defaultModelOf("ark");
-        Map<String, RouteTarget> purposes = new LinkedHashMap<>();
-        for (LlmPurpose purpose : LlmPurpose.values()) {
-            switch (purpose.tier()) {
-                case JUDGE -> purposes.put(purpose.getCode(),
-                        new RouteTarget("ark", arkModel, 0.0, 2048, false));
-                case QUALITY -> purposes.put(purpose.getCode(),
-                        new RouteTarget("ark", arkModel, null, 4096, false));
-                case EMBED -> purposes.put(purpose.getCode(),
-                        new RouteTarget("ark", "doubao-embedding-vision-251215", null, null, true));
-            }
-        }
-        return new LlmRouteConfig(purposes);
-    }
-
-    private String defaultModelOf(String provider) {
-        LlmProperties.Provider target = properties.getProviders().get(provider);
-        return target != null && target.getDefaultModel() != null && !target.getDefaultModel().isBlank()
-                ? target.getDefaultModel()
-                : null;
+        registry.saveTyped(LlmLimitsSection.KEY, newLimits);
     }
 }

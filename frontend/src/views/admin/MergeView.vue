@@ -201,7 +201,7 @@ const gridClass = computed(() => `source-grid cols-${Math.min(sources.value.leng
         <h1>同位合并</h1>
         <p class="view-sub">去重即成稿，成稿即去重：勾选内容并排对照，产出一份标准产物进审核队列</p>
       </div>
-      <el-button :icon="MagicStick" type="primary" :loading="aiBusy" @click="doAiMerge">AI 一键合并</el-button>
+      <el-button class="btn-ai" :icon="MagicStick" type="primary" :loading="aiBusy" @click="doAiMerge">AI 一键合并</el-button>
     </header>
 
     <!-- 产物编辑区（人工参照手写或 AI 产物调整） -->

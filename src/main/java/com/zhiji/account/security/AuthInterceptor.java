@@ -9,7 +9,7 @@ import org.springframework.web.servlet.HandlerInterceptor;
 
 /**
  * 鉴权拦截器：照基础架构PRD 3.3 的权限矩阵实现。
- * 规则按最长前缀匹配——/api/admin/accounts/** 与 /api/admin/settings/** 仅 admin，
+ * 规则按最长前缀匹配——/api/admin/accounts/**、/api/admin/configs/** 与 /api/admin/settings/** 仅 admin，
  * 其余 /api/admin/** 需员工会话，其余 /api/** 需客户会话；两套会话互不认对方 token（D18）。
  * BizException 在拦截器内不走 GlobalExceptionHandler，这里自行写错误体。
  */
@@ -35,7 +35,8 @@ public class AuthInterceptor implements HandlerInterceptor {
         }
         String token = bearer(request);
         // 员工会话区
-        if (uri.startsWith("/api/admin/accounts") || uri.startsWith("/api/admin/settings")) {
+        if (uri.startsWith("/api/admin/accounts") || uri.startsWith("/api/admin/configs")
+                || uri.startsWith("/api/admin/settings")) {
             return requireStaff(request, response, token, true);
         }
         if (uri.startsWith("/api/admin/")) {

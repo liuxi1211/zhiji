@@ -1,12 +1,13 @@
-package com.zhiji.llm.domain;
+package com.zhiji.common.domain;
 
 import com.baomidou.mybatisplus.annotation.IdType;
 import com.baomidou.mybatisplus.annotation.TableId;
 import com.baomidou.mybatisplus.annotation.TableName;
 
 /**
- * 运行参数配置（key-value，value 为 JSON 文本）。
- * 归属 llm 包：模型路由与限额均在此，B 端 /admin/settings 读写，改动即生效。
+ * 系统运行参数配置（key-value，value 为 JSON 文本）。
+ * 通用配置设施的数据载体：一行一个配置域（config_key = {module}.{name}），
+ * B 端 /admin/configs 读写，写后刷内存快照，改动即生效。
  */
 @TableName("sys_config")
 public class SysConfig {

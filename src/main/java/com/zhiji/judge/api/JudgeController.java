@@ -23,6 +23,8 @@ import org.springframework.web.bind.annotation.RestController;
  * 判定引擎接口（B 端员工会话，/api/admin/judge）：判定会话 + 逐问作答 + 降级自评 + 关闭评级。
  * 试判台是内容维护者的质检工具——5.2 审核项「评分要点可判定性」与职级停止点标定的人工验证入口；
  * 判定契约与 C 端练习/模拟考共用（消费方模块接入时复用 service 层）。
+ * 归属：本入口一律 staff（created_by=员工 id），判定调用按 0 哨兵计量、不受档案级限额；
+ * C 端练习走 /api/learn（customer 归属，按档案计量），会话在历史列表里按 owner_type 隔离。
  */
 @RestController
 @RequestMapping("/api/admin/judge")

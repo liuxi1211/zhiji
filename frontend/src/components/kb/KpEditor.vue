@@ -3,16 +3,16 @@
 // 追问层身份永久（红线 2）：新增层生成 fu-<uuid>，既有层只能停用不能删除；
 // 评分要点可增删（无身份约束）；产物永远回到人手里，保存动作由父级决定去向。
 import { computed, reactive, ref, watch } from 'vue'
-import { Delete, Plus } from '@element-plus/icons-vue'
+import { Delete, Plus, View } from '@element-plus/icons-vue'
 import { ElMessage } from 'element-plus'
 import { searchContents } from '@/api/kb'
-import type { KbAnswerSample, KbKpDraft } from '@/api/types'
-import { createMarkdown, newFollowupId, newScoringPointId } from '@/utils/markdown'
+import KpDisplay from '@/components/kb/KpDisplay.vue'
+import type { KbAnswerSample, KbKpDraft, KpView } from '@/api/types'
+import { newFollowupId, newScoringPointId } from '@/utils/markdown'
 
 const props = defineProps<{ initial: KbKpDraft | null; saving?: boolean }>()
 const emit = defineEmits<{ (e: 'save', draft: KbKpDraft): void }>()
 
-const md = createMarkdown()
 const DIFF_OPTIONS = [
   { value: 'junior', label: '初级' },
   { value: 'mid', label: '中级' },
@@ -28,8 +28,7 @@ const LEVEL_OPTIONS = [
   { value: 'junior', label: '初级' },
   { value: 'mid', label: '中级' },
   { value: 'senior', label: '高级' },
-  { value: 'expert', label: '资深' },
-  { value: 'master', label: '专家' }
+  { value: 'expert', label: '资深' }
 ]
 
 const blank = (): KbKpDraft => ({
@@ -59,7 +58,37 @@ watch(
   }
 )
 
-const frameworkHtml = computed(() => md.render(draft.frameworkMd || '（暂无内容）'))
+// —— 渲染预览（所见即所得）：草稿实时组装成用户侧渲染形态，弹窗内用 KpDisplay 展示 ——
+// 元数据字段（id/主题/频率信号等）编辑态拿不到，用占位值补齐 KpView 结构；KpDisplay 对空值已做隐藏。
+
+const previewVisible = ref(false)
+
+const previewKp = computed<KpView>(() => ({
+  id: 0,
+  domainCode: '',
+  topicId: 0,
+  topicName: '',
+  title: draft.title,
+  summary: draft.summary,
+  frameworkMd: draft.frameworkMd,
+  variants: draft.variants,
+  followups: draft.followups,
+  scoringPoints: draft.scoringPoints,
+  answerSamples: draft.answerSamples,
+  difficulty: draft.difficulty,
+  levelRules: draft.levelRules,
+  prerequisites: draft.prerequisites,
+  freqManual: draft.freqManual,
+  freqSignal: 0,
+  freqCoverage: 0,
+  status: 'draft',
+  mergedIntoId: null,
+  mergeSources: [],
+  reviewDueAt: null,
+  createdBy: 0,
+  createdAt: '',
+  updatedAt: ''
+}))
 
 function addVariant() {
   draft.variants.push({ text: '' })
@@ -141,11 +170,8 @@ function submit() {
       </el-form-item>
 
       <el-form-item label="叙述框架">
-        <el-input v-model="draft.frameworkMd" type="textarea" :rows="8" placeholder="Markdown 正文（叙述框架）" />
-        <details class="md-preview">
-          <summary>预览</summary>
-          <div class="md-body" v-html="frameworkHtml"></div>
-        </details>
+        <el-input v-model="draft.frameworkMd" type="textarea" :rows="8" placeholder="Markdown 正文（即参考答案的叙述主体）" />
+        <p class="hint">叙述框架就是答案正文：不要复述题面，直接从作答内容开始；点右下角「预览效果」查看渲染后的样子</p>
       </el-form-item>
 
       <el-form-item label="问法变体">
@@ -226,8 +252,19 @@ function submit() {
     </el-form>
 
     <div class="editor-actions">
+      <el-button :icon="View" @click="previewVisible = true">预览效果</el-button>
       <el-button type="primary" :loading="saving" @click="submit">保存</el-button>
     </div>
+
+    <!-- 渲染预览：与用户侧详情完全同构（KpDisplay），草稿实时反映 -->
+    <el-dialog v-model="previewVisible" title="渲染预览（用户侧所见）" width="min(860px, 92vw)" append-to-body>
+      <div class="preview-scroll">
+        <KpDisplay :kp="previewKp" />
+      </div>
+      <template #footer>
+        <el-button @click="previewVisible = false">关闭</el-button>
+      </template>
+    </el-dialog>
   </div>
 </template>
 
@@ -274,28 +311,14 @@ function submit() {
   margin-left: 8px;
 }
 
-.md-preview {
-  width: 100%;
-  margin-top: 6px;
-  font-size: 12px;
-  color: var(--zj-ink-600);
-}
-
-.md-preview summary {
-  cursor: pointer;
-}
-
-.md-body {
-  margin-top: 6px;
-  padding: 8px 10px;
-  border: 1px dashed var(--zj-line);
-  border-radius: 6px;
-  font-size: var(--zj-fs-sm);
-  color: var(--zj-ink-700);
-}
-
 .editor-actions {
   display: flex;
   justify-content: flex-end;
+}
+
+/* 预览弹窗内容限高内滚（append-to-body 弹窗，scoped 样式够不到，用内联高度+此类） */
+.preview-scroll {
+  max-height: 65vh;
+  overflow: auto;
 }
 </style>

@@ -55,8 +55,7 @@ const LEVEL_OPTIONS = [
   { value: 'junior', label: '初级' },
   { value: 'mid', label: '中级' },
   { value: 'senior', label: '高级' },
-  { value: 'expert', label: '资深' },
-  { value: 'master', label: '专家' }
+  { value: 'expert', label: '资深' }
 ]
 
 async function searchKps() {
@@ -315,7 +314,8 @@ async function presetFromQuery() {
           </el-select>
           <el-button type="primary" :disabled="!kpId" :loading="loading" @click="startNew">开始判定</el-button>
         </div>
-        <el-table v-if="kpOptions.length" :data="kpOptions" highlight-current-row border size="default"
+        <!-- 搜索结果可能很多：限高让筛选行与表头常驻，行滚动发生在表体内部 -->
+        <el-table v-if="kpOptions.length" :data="kpOptions" highlight-current-row border size="default" max-height="46vh"
           class="kp-table" @current-change="(row: KbContentItemView | null) => (kpId = row?.id ?? null)">
           <el-table-column prop="title" label="题面" min-width="280" />
           <el-table-column prop="topicName" label="主题" width="140" />
@@ -333,7 +333,8 @@ async function presetFromQuery() {
 
       <section v-if="history.length" class="panel">
         <h2>历史会话</h2>
-        <el-table :data="history" border size="default">
+        <!-- 历史会话不限页数：同样限高内滚，避免长清单把页面顶出滚动 -->
+        <el-table :data="history" border size="default" max-height="46vh">
           <el-table-column prop="kpTitle" label="知识点" min-width="240" />
           <el-table-column label="职级" width="80">
             <template #default="{ row }">{{ LEVEL_LABELS[row.level] ?? row.level }}</template>

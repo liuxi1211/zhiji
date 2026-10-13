@@ -42,7 +42,7 @@ public class KbContentService {
     private static final DateTimeFormatter DATE = DateTimeFormatter.ofPattern("yyyy-MM-dd");
 
     private static final List<String> DIFFICULTIES = List.of("junior", "mid", "senior", "expert");
-    private static final List<String> LEVELS = List.of("junior", "mid", "senior", "expert", "master");
+    private static final List<String> LEVELS = List.of("junior", "mid", "senior", "expert");
     private static final List<String> GRADES = List.of("pass", "good", "excellent");
 
     private final KbKpMapper kpMapper;
@@ -101,15 +101,22 @@ public class KbContentService {
             Long mergedIntoId, boolean mergeProduct, String reviewDueAt, String createdAt, String updatedAt) {
     }
 
+    /** 资料讲解轻量视图：C 端"看不懂"展开层的清单项（挂载于知识点，5.2 挂载即发布）。 */
+    public record DocBrief(long id, String title, String summary, String difficulty) {
+    }
+
     // —— 创建（三个入口共用：向导提交 / 直达新建 / 合并产物） ——
 
     /**
      * 创建 pending 标准内容 + 审核留痕（进门先过审核门）。contentMd 为正文快照：
      * kp 落 framework_md，doc 落 content_md。sourceUrl 仅文章线溯源（D10）。
+     * followups 仅面试题线消费（向导提交时的追问链草稿，id 已在前端分配）；
+     * 合并产物走 createPending 后再由 updateKp 写入结构化字段。
      */
     @Transactional
     public long createPending(String contentType, String domainCode, long topicId, String title, String summary,
-            String body, String difficulty, String sourceUrl, String reviewSource, List<Long> mergeSources) {
+            String body, String difficulty, String sourceUrl, String reviewSource, List<Long> mergeSources,
+            List<Followup> followups) {
         if (!"kp".equals(contentType) && !"doc".equals(contentType)) {
             throw BizException.validation("定类取值不合法：面试题线(kp)或文章线(doc)");
         }
@@ -120,6 +127,7 @@ public class KbContentService {
         requireDifficulty(difficulty);
         requireTopicInDomain(topicId, domainCode);
         String trimmedTitle = requireTitle(title);
+        List<Followup> safeFollowups = "kp".equals(contentType) ? validateNewFollowups(followups) : List.of();
         String now = now();
         long contentId;
         if ("kp".equals(contentType)) {
@@ -130,6 +138,7 @@ public class KbContentService {
             kp.setSummary(trimSummary(summary));
             kp.setFrameworkMd(body == null ? "" : body);
             kp.setDifficulty(difficulty);
+            kp.setFollowups(safeFollowups.isEmpty() ? null : toJson(safeFollowups));
             kp.setFreqManual(0);
             kp.setFreqSignal(0);
             kp.setFreqCoverage(0);
@@ -171,6 +180,20 @@ public class KbContentService {
     public DocView getDoc(long id) {
         KbDoc doc = requireDoc(id);
         return toDocView(doc);
+    }
+
+    /**
+     * 挂载于某知识点的已上线资料讲解（C 端"看不懂"展开层，5.2 挂载动作即发布决策）。
+     * 只取 available：未上线统一当不存在（6.2 不审不上线）。
+     */
+    public List<DocBrief> listDocsByKp(long kpId) {
+        return docMapper.selectList(new LambdaQueryWrapper<KbDoc>()
+                        .eq(KbDoc::getKpId, kpId)
+                        .eq(KbDoc::getStatus, "available")
+                        .orderByAsc(KbDoc::getId))
+                .stream()
+                .map(doc -> new DocBrief(doc.getId(), doc.getTitle(), doc.getSummary(), doc.getDifficulty()))
+                .toList();
     }
 
     /** 目录：主题下内容清单（可按类型与状态筛选，含已下线——资产家底要看得见全量）。 */
@@ -297,7 +320,7 @@ public class KbContentService {
         if (req.levelRules() != null) {
             req.levelRules().forEach(rule -> {
                 if (rule.level() == null || !LEVELS.contains(rule.level())) {
-                    throw BizException.validation("职级取值不在五档清单内");
+                    throw BizException.validation("职级取值不在四档清单内");
                 }
             });
             kp.setLevelRules(toJson(req.levelRules()));
@@ -531,6 +554,35 @@ public class KbContentService {
     }
 
     // —— 校验与工具 ——
+
+    /** 新内容的追问链校验（入库即受红线 2 约束）：id 必须已分配且不重复，内容不能为空。 */
+    private List<Followup> validateNewFollowups(List<Followup> followups) {
+        if (followups == null || followups.isEmpty()) {
+            return List.of();
+        }
+        Set<String> seen = new HashSet<>();
+        List<Followup> normalized = new ArrayList<>();
+        for (Followup f : followups) {
+            if (f.id() == null || f.id().isBlank()) {
+                throw BizException.validation("追问层缺少稳定身份 id（红线 2）");
+            }
+            if (!seen.add(f.id())) {
+                throw BizException.validation("追问层 id 重复");
+            }
+            if (f.content() == null || f.content().isBlank()) {
+                throw BizException.validation("追问层内容不能为空");
+            }
+            int layer = f.layer();
+            if (layer < 1 || layer > 20) {
+                throw BizException.validation("追问层号取值不合法（1-20）");
+            }
+            normalized.add(new Followup(f.id(), layer, f.direction() == null ? "" : f.direction().strip(),
+                    f.content().strip(), "active".equals(f.status()) || f.status() == null || f.status().isBlank()
+                            ? "active"
+                            : f.status()));
+        }
+        return normalized;
+    }
 
     /** 红线 2 的服务端保证：既有追问层 id 不可改不可删，只允许追加新 id；status 可在 active/disabled 间切换。 */
     private void guardFollowupIds(String existingJson, List<Followup> incoming) {

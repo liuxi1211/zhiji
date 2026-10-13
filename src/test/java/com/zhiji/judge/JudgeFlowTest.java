@@ -121,7 +121,7 @@ class JudgeFlowTest {
                     .findFirst().orElseThrow().id();
         }
         long id = contentService.createPending("kp", "java", topicId, title, "摘要：" + title,
-                "叙述框架：" + title, "mid", null, "wizard", null);
+                "叙述框架：" + title, "mid", null, "wizard", null, null);
         // 结构化列：两层追问；两个 pass 要点、一个 good、一个 excellent；mid 职级 stop_layer=1
         contentService.updateKp(id, new UpdateKpReq(null, null, null, null,
                 List.of(new Followup("fu-" + run + "-1", 1, "原理", "第一层追问内容", "active"),
@@ -162,7 +162,7 @@ class JudgeFlowTest {
         assertThat(session.scoringPoints()).hasSize(4);
         // 非 available 内容不可判
         long pendingKp = contentService.createPending("kp", "java", topicOf(kpId), "待审题", "摘要", "正文", "mid",
-                null, "wizard", null);
+                null, "wizard", null, null);
         assertThatThrownBy(() -> judgeService.createSession(pendingKp, "mid"))
                 .hasMessageContaining("可用状态");
         // 职级不合法

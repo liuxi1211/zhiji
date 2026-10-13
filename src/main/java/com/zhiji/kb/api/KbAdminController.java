@@ -75,14 +75,6 @@ public class KbAdminController {
         return topicService.rename(id, req.name());
     }
 
-    public record MergeTopicReq(long targetId) {
-    }
-
-    @PostMapping("/topics/{id}/merge")
-    public TopicView mergeTopic(@PathVariable long id, @RequestBody MergeTopicReq req) {
-        return topicService.merge(id, req.targetId());
-    }
-
     public record MoveTopicReq(@NotBlank(message = "领域必须人工点选") String domainCode) {
     }
 
@@ -155,13 +147,14 @@ public class KbAdminController {
         return contentService.restore("doc", id);
     }
 
-    // —— 直达新建（5.2：成熟内容走向导第 1 步直接写成品，跳过拆分补概述与分类，不豁免概述门槛） ——
+    // —— 直达新建（5.2：成熟内容走向导第 1 步直接写成品，补概述与分类，不豁免概述门槛） ——
 
     public record DirectSubmitReq(@NotBlank(message = "定类必填") String contentType,
             @NotBlank(message = "领域必须人工点选") String domainCode, long topicId,
             @NotBlank(message = "标题不能为空") String title,
             @NotBlank(message = "概述齐备才能进入标准库") String summary,
-            String contentMd, @NotBlank(message = "难度必须拍板") String difficulty) {
+            String contentMd, @NotBlank(message = "难度必须拍板") String difficulty,
+            List<com.zhiji.kb.service.KbContentService.Followup> followups) {
     }
 
     public record DirectSubmitResp(String contentType, long id) {
@@ -170,7 +163,8 @@ public class KbAdminController {
     @PostMapping("/direct-submit")
     public DirectSubmitResp directSubmit(@Validated @RequestBody DirectSubmitReq req) {
         long id = contentService.createPending(req.contentType(), req.domainCode(), req.topicId(),
-                req.title(), req.summary(), req.contentMd(), req.difficulty(), null, "direct", null);
+                req.title(), req.summary(), req.contentMd(), req.difficulty(), null, "direct", null,
+                req.followups());
         return new DirectSubmitResp(req.contentType(), id);
     }
 
@@ -209,22 +203,31 @@ public class KbAdminController {
 
     // —— 通用 AI 辅助（直达模式：内容不绑定素材行；委托 SourceAiService，与素材库同一套能力，6.4） ——
 
-    public record AiContentReq(String contentMd) {
+    public record AiContentReq(String contentMd, String mode, String instruction) {
     }
 
     public record AiClassifyReq(String contentMd, @NotBlank(message = "领域必须人工点选") String domainCode,
             List<String> topics) {
     }
 
-    @PostMapping("/ai/rewrite")
-    public SourceAiService.RewriteResp aiRewrite(@RequestBody AiContentReq req) {
-        return sourceAiService.rewrite(req.contentMd());
-    }
-
-    /** 直达模式流式改写（SSE）：不绑定素材行，逐片段推送；协议见 RewriteStreamSupport。 */
+    /** 直达模式流式改写（SSE）：不绑定素材行，mode 由前端带当前定类（kp/doc，未定走通用整理），
+     *  instruction 为人工录入的改写要求（可空）；协议见 RewriteStreamSupport。 */
     @PostMapping(value = "/ai/rewrite-stream", produces = org.springframework.http.MediaType.TEXT_EVENT_STREAM_VALUE)
     public org.springframework.web.servlet.mvc.method.annotation.SseEmitter aiRewriteStream(@RequestBody AiContentReq req) {
-        return com.zhiji.source.api.RewriteStreamSupport.stream(sourceAiService, req.contentMd());
+        return com.zhiji.source.api.RewriteStreamSupport.stream(sourceAiService, req.contentMd(), req.mode(),
+                req.instruction());
+    }
+
+    /** 标题生成：内容明确后按定类拟题（kp 题面问句 / doc 文章题名），生成后可再改。 */
+    @PostMapping("/ai/title")
+    public SourceAiService.TitleResp aiTitle(@RequestBody AiContentReq req) {
+        return sourceAiService.title(req.contentMd(), req.mode());
+    }
+
+    /** 追问链识别：问答题正文自带多问/下钻内容时整理成追问层草稿，采纳或无视由人。 */
+    @PostMapping("/ai/followups")
+    public SourceAiService.FollowupsResp aiFollowups(@RequestBody AiContentReq req) {
+        return sourceAiService.followups(req.contentMd());
     }
 
     @PostMapping("/ai/summary")

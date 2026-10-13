@@ -19,7 +19,8 @@ import org.springframework.transaction.annotation.Transactional;
 
 /**
  * 主题服务（核心模块定义 5.2 组织结构线）：主题名字用户可见、可人工改名；
- * 人工可随时变更归类——新建、改名、合并主题、调整主题的领域归属，调整即时生效于目录视图。
+ * 人工可随时变更归类——新建、改名、调整主题的领域归属，调整即时生效于目录视图。
+ * 单个内容的主题调整走 KbContentService.updateKp/updateDoc 的 topicId（限同领域）。
  * 组织结构调整只动"位置"（topic_id / domain_code），不动内容本身。
  */
 @Service
@@ -98,38 +99,6 @@ public class KbTopicService {
         topic.setUpdatedAt(now());
         topicMapper.updateById(topic);
         return toView(topic, contentCounts());
-    }
-
-    /**
-     * 合并主题：其下内容全部迁入目标主题（同领域），本主题标 merged。
-     * 只动位置不动内容；调整即时生效于目录视图。
-     */
-    @Transactional
-    public TopicView merge(long id, long targetId) {
-        if (id == targetId) {
-            throw BizException.validation("不能把主题合并到自身");
-        }
-        KbTopic source = requireActive(id);
-        KbTopic target = requireActive(targetId);
-        if (!source.getDomainCode().equals(target.getDomainCode())) {
-            throw BizException.validation("只能合并同一领域下的主题");
-        }
-        String now = now();
-        for (KbKp kp : kpMapper.selectList(new LambdaQueryWrapper<KbKp>().eq(KbKp::getTopicId, id))) {
-            kp.setTopicId(targetId);
-            kp.setUpdatedAt(now);
-            kpMapper.updateById(kp);
-        }
-        for (KbDoc doc : docMapper.selectList(new LambdaQueryWrapper<KbDoc>().eq(KbDoc::getTopicId, id))) {
-            doc.setTopicId(targetId);
-            doc.setUpdatedAt(now);
-            docMapper.updateById(doc);
-        }
-        source.setStatus("merged");
-        source.setMergedIntoId(targetId);
-        source.setUpdatedAt(now);
-        topicMapper.updateById(source);
-        return toView(source, contentCounts());
     }
 
     /**

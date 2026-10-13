@@ -30,8 +30,9 @@ import org.springframework.test.web.servlet.setup.MockMvcBuilders;
 import org.springframework.web.context.WebApplicationContext;
 
 /**
- * 系统配置接口：仅 admin 可访问（editor 403）、路由/限额读写落库刷新快照、
- * 连通性自检按目标去重、用量对照按单档案峰值比较、路由非法输入被挡在落库前。
+ * 通用配置接口与 LLM 运维接口：/api/admin/configs 仅 admin 可访问（editor 403）、
+ * 配置域读写落库刷新快照、连通性自检按目标去重、用量对照按单档案峰值比较、
+ * 路由域非法输入被挡在落库前。
  */
 @SpringBootTest
 @ActiveProfiles("test")
@@ -67,15 +68,15 @@ class SettingsControllerTest {
     }
 
     @Test
-    void getSettingsRequiresStaffSession() throws Exception {
-        mvc.perform(get("/api/admin/settings"))
+    void getConfigsRequiresStaffSession() throws Exception {
+        mvc.perform(get("/api/admin/configs"))
                 .andExpect(status().isUnauthorized());
     }
 
     @Test
-    void editorForbiddenOnSettings() throws Exception {
+    void editorForbiddenOnConfigs() throws Exception {
         String editorToken = createAndLoginEditor();
-        mvc.perform(get("/api/admin/settings").header("Authorization", "Bearer " + editorToken))
+        mvc.perform(get("/api/admin/configs").header("Authorization", "Bearer " + editorToken))
                 .andExpect(status().isForbidden())
                 .andExpect(jsonPath("$.code").value("AUTH_FORBIDDEN"));
     }
@@ -83,34 +84,34 @@ class SettingsControllerTest {
     @Test
     void adminCanReadAndUpdateLimits() throws Exception {
         String adminToken = login("admin", "admin123");
-        mvc.perform(get("/api/admin/settings").header("Authorization", "Bearer " + adminToken))
+        mvc.perform(get("/api/admin/configs").header("Authorization", "Bearer " + adminToken))
                 .andExpect(status().isOk())
-                .andExpect(jsonPath("$.providers").isArray())
-                .andExpect(jsonPath("$.limits.judgeDaily").isNumber());
+                .andExpect(jsonPath("$[0].key").value("llm.route"))
+                .andExpect(jsonPath("$[1].value.judgeDaily").isNumber());
 
-        mvc.perform(put("/api/admin/settings/limits").header("Authorization", "Bearer " + adminToken)
+        mvc.perform(put("/api/admin/configs/llm.limits").header("Authorization", "Bearer " + adminToken)
                         .contentType(MediaType.APPLICATION_JSON)
                         .content("{\"judgeDaily\":150,\"variantRewriteDaily\":10,"
                                 + "\"perProfileDailyTotal\":250,\"siteDailyTotal\":900}"))
                 .andExpect(status().isOk())
-                .andExpect(jsonPath("$.limits.judgeDaily").value(150));
+                .andExpect(jsonPath("$.value.judgeDaily").value(150));
 
-        mvc.perform(get("/api/admin/settings").header("Authorization", "Bearer " + adminToken))
+        mvc.perform(get("/api/admin/configs").header("Authorization", "Bearer " + adminToken))
                 .andExpect(status().isOk())
-                .andExpect(jsonPath("$.limits.judgeDaily").value(150));
+                .andExpect(jsonPath("$[1].value.judgeDaily").value(150));
     }
 
     @Test
     void adminCanUpdateRoutes() throws Exception {
         String adminToken = login("admin", "admin123");
         // 模型名必须取自 provider 的 models 清单（yml 事实源），用清单内的 deepseek-v4.1-flash
-        mvc.perform(put("/api/admin/settings/routes").header("Authorization", "Bearer " + adminToken)
+        mvc.perform(put("/api/admin/configs/llm.route").header("Authorization", "Bearer " + adminToken)
                         .contentType(MediaType.APPLICATION_JSON)
-                        .content("{\"routes\":{\"judge_practice\":{\"provider\":\"ark\","
+                        .content("{\"purposes\":{\"judge_practice\":{\"provider\":\"ark\","
                                 + "\"model\":\"deepseek-v4.1-flash\",\"temperature\":0.0,"
                                 + "\"maxTokens\":1024,\"embedding\":false}}}"))
                 .andExpect(status().isOk())
-                .andExpect(jsonPath("$.routes.judge_practice.model").value("deepseek-v4.1-flash"));
+                .andExpect(jsonPath("$.value.purposes.judge_practice.model").value("deepseek-v4.1-flash"));
         configService.saveRouteConfig(configService.defaultRouteConfig());
     }
 
@@ -130,9 +131,9 @@ class SettingsControllerTest {
     @Test
     void routesRejectUnknownPurpose() throws Exception {
         String adminToken = login("admin", "admin123");
-        mvc.perform(put("/api/admin/settings/routes").header("Authorization", "Bearer " + adminToken)
+        mvc.perform(put("/api/admin/configs/llm.route").header("Authorization", "Bearer " + adminToken)
                         .contentType(MediaType.APPLICATION_JSON)
-                        .content("{\"routes\":{\"judge_unknown\":{\"provider\":\"ark\","
+                        .content("{\"purposes\":{\"judge_unknown\":{\"provider\":\"ark\","
                                 + "\"model\":\"doubao-seed-2-0-lite-260428\",\"temperature\":0.0,"
                                 + "\"maxTokens\":1024,\"embedding\":false}}}"))
                 .andExpect(status().isBadRequest())
@@ -142,16 +143,16 @@ class SettingsControllerTest {
     @Test
     void routesRejectUnconfiguredProviderAndMissingModel() throws Exception {
         String adminToken = login("admin", "admin123");
-        mvc.perform(put("/api/admin/settings/routes").header("Authorization", "Bearer " + adminToken)
+        mvc.perform(put("/api/admin/configs/llm.route").header("Authorization", "Bearer " + adminToken)
                         .contentType(MediaType.APPLICATION_JSON)
-                        .content("{\"routes\":{\"judge_practice\":{\"provider\":\"openai\","
+                        .content("{\"purposes\":{\"judge_practice\":{\"provider\":\"openai\","
                                 + "\"model\":\"gpt-4o\",\"temperature\":0.0,"
                                 + "\"maxTokens\":1024,\"embedding\":false}}}"))
                 .andExpect(status().isBadRequest())
                 .andExpect(jsonPath("$.message").value(containsString("provider")));
-        mvc.perform(put("/api/admin/settings/routes").header("Authorization", "Bearer " + adminToken)
+        mvc.perform(put("/api/admin/configs/llm.route").header("Authorization", "Bearer " + adminToken)
                         .contentType(MediaType.APPLICATION_JSON)
-                        .content("{\"routes\":{\"judge_practice\":{\"provider\":\"ark\","
+                        .content("{\"purposes\":{\"judge_practice\":{\"provider\":\"ark\","
                                 + "\"model\":\"  \",\"temperature\":0.0,"
                                 + "\"maxTokens\":1024,\"embedding\":false}}}"))
                 .andExpect(status().isBadRequest())
@@ -162,7 +163,7 @@ class SettingsControllerTest {
     @Test
     void routesRejectEmptyPayload() throws Exception {
         String adminToken = login("admin", "admin123");
-        mvc.perform(put("/api/admin/settings/routes").header("Authorization", "Bearer " + adminToken)
+        mvc.perform(put("/api/admin/configs/llm.route").header("Authorization", "Bearer " + adminToken)
                         .contentType(MediaType.APPLICATION_JSON)
                         .content("{}"))
                 .andExpect(status().isBadRequest())

@@ -1,6 +1,5 @@
 import request from './request'
 import type {
-  SourceAiSplitResp,
   SourceClassifyResp,
   SourceCreateReq,
   SourceDomainTopicsResp,
@@ -8,9 +7,7 @@ import type {
   SourceItemView,
   SourceListParams,
   SourcePageView,
-  SourceRewriteResp,
-  SourceSplitResp,
-  SourceSplitSliceInput,
+  SourceSubmitReq,
   SourceUpdateReq
 } from './types'
 
@@ -24,14 +21,6 @@ export async function listSources(params: SourceListParams): Promise<SourcePageV
 
 export async function getSource(id: number): Promise<SourceItemView> {
   return (await request.get<SourceItemView>(`/admin/sources/${id}`)).data
-}
-
-export async function getSourceChildren(id: number): Promise<SourceItemView[]> {
-  return (await request.get<SourceItemView[]>(`/admin/sources/${id}/children`)).data
-}
-
-export async function getSplitPreview(id: number): Promise<string[]> {
-  return (await request.get<string[]>(`/admin/sources/${id}/split-preview`)).data
 }
 
 export async function createSource(req: SourceCreateReq): Promise<SourceItemView> {
@@ -58,14 +47,7 @@ export async function updateSource(id: number, req: SourceUpdateReq): Promise<So
   return (await request.put<SourceItemView>(`/admin/sources/${id}`, req)).data
 }
 
-export async function splitSource(id: number, slices: SourceSplitSliceInput[]): Promise<SourceSplitResp> {
-  return (await request.post<SourceSplitResp>(`/admin/sources/${id}/split`, { slices })).data
-}
-
-export async function submitSource(
-  id: number,
-  req: { domainCode: string; topicId: number; contentType: 'kp' | 'doc' }
-): Promise<SourceItemView[]> {
+export async function submitSource(id: number, req: SourceSubmitReq): Promise<SourceItemView[]> {
   return (await request.post<SourceItemView[]>(`/admin/sources/${id}/submit`, req)).data
 }
 
@@ -85,14 +67,6 @@ export async function getDomainTopics(domainCode: string): Promise<string[]> {
 }
 
 // —— AI 辅助（产物回人手里，不直接落库） ——
-
-export async function aiRewrite(id: number): Promise<SourceRewriteResp> {
-  return (await request.post<SourceRewriteResp>(`/admin/sources/${id}/ai/rewrite`, null, { timeout: 120000 })).data
-}
-
-export async function aiSplit(id: number): Promise<SourceAiSplitResp> {
-  return (await request.post<SourceAiSplitResp>(`/admin/sources/${id}/ai/split`, null, { timeout: 120000 })).data
-}
 
 export async function aiSummary(id: number): Promise<string> {
   const resp = (await request.post<{ summary: string }>(`/admin/sources/${id}/ai/summary`, null, { timeout: 120000 })).data

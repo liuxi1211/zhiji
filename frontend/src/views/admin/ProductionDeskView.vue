@@ -280,7 +280,7 @@ onMounted(async () => {
     <el-tabs v-model="activeTab">
       <!-- Tab1 审核队列 -->
       <el-tab-pane label="审核队列" name="review">
-        <el-table :data="queueItems" v-loading="loading" size="default" border>
+        <el-table :data="queueItems" v-loading="loading" size="default" border height="100%">
           <el-table-column label="类型" width="70">
             <template #default="{ row }">
               <el-tag :type="row.contentType === 'kp' ? 'primary' : 'success'" size="small">
@@ -339,6 +339,7 @@ onMounted(async () => {
           v-loading="loading"
           size="default"
           border
+          height="100%"
           @selection-change="onPeerSelectionChange"
         >
           <el-table-column type="selection" width="44" />
@@ -361,7 +362,7 @@ onMounted(async () => {
       <!-- Tab3 复核到期 -->
       <el-tab-pane label="复核到期" name="due">
         <p class="tab-hint">上线后的内容有复核到期机制：到期回审核队列复检（一期列表人工巡检，不自动扫描）。</p>
-        <el-table :data="dueItems" v-loading="loading" size="default" border>
+        <el-table :data="dueItems" v-loading="loading" size="default" border height="100%">
           <el-table-column label="类型" width="90">
             <template #default="{ row }">{{ row.contentType === 'kp' ? '知识点' : '资料讲解' }}</template>
           </el-table-column>
@@ -458,13 +459,16 @@ onMounted(async () => {
 </template>
 
 <style scoped>
+/* 整页锁高：页头/页签栏常驻视口，滚动下沉到各页签的表格内部 */
 .production-view {
+  height: 100%;
   display: flex;
   flex-direction: column;
   gap: 14px;
 }
 
 .view-head {
+  flex: none;
   display: flex;
   align-items: flex-start;
   justify-content: space-between;
@@ -482,7 +486,38 @@ onMounted(async () => {
   color: var(--zj-ink-600);
 }
 
+/* 页签撑满页头以下空间：页签头固定，激活页签的内容纵向伸缩 */
+.production-view > .el-tabs {
+  flex: 1 1 0;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+}
+
+.production-view :deep(.el-tabs__header) {
+  flex: none;
+}
+
+.production-view :deep(.el-tabs__content) {
+  flex: 1 1 0;
+  min-height: 0;
+  overflow: hidden;
+}
+
+.production-view :deep(.el-tab-pane) {
+  height: 100%;
+  display: flex;
+  flex-direction: column;
+}
+
+/* 每个页签里的表格吃满剩余高度，表体内部滚动（配合 el-table 的 height="100%"） */
+.production-view :deep(.el-tab-pane) > .el-table {
+  flex: 1 1 0;
+  min-height: 0;
+}
+
 .peer-filter {
+  flex: none;
   display: flex;
   gap: 10px;
   align-items: center;
@@ -495,12 +530,14 @@ onMounted(async () => {
 }
 
 .peer-actions {
+  flex: none;
   margin-top: 12px;
   display: flex;
   justify-content: flex-end;
 }
 
 .tab-hint {
+  flex: none;
   margin: 0 0 10px;
   font-size: var(--zj-fs-sm);
   color: var(--zj-ink-600);
@@ -508,6 +545,7 @@ onMounted(async () => {
 
 /* 队列分页器靠右 */
 .pager {
+  flex: none;
   margin-top: 12px;
   justify-content: flex-end;
 }

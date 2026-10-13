@@ -88,14 +88,14 @@ async function resetPassword(row: StaffAccountView) {
       <p>后台人员账号的创建、角色与状态维护；客户账号不在后台管理</p>
     </header>
 
-    <el-card shadow="never">
+    <el-card shadow="never" class="list-card">
       <template #header>
         <div class="toolbar">
           <span>共 <b class="zj-num">{{ total }}</b> 个后台账号</span>
           <el-button type="primary" size="small" @click="createVisible = true">新增账号</el-button>
         </div>
       </template>
-      <el-table v-loading="loading" :data="accounts" size="small">
+      <el-table v-loading="loading" :data="accounts" size="small" height="100%">
       <el-table-column prop="username" label="用户名" min-width="140" />
       <el-table-column label="角色" width="120">
         <template #default="{ row }">{{ constants.name('staff_role', row.role) }}</template>
@@ -160,6 +160,41 @@ async function resetPassword(row: StaffAccountView) {
 </template>
 
 <style scoped>
+/* 整页锁高：页头与分页常驻视口，纵向滚动只发生在表体内部（配合 el-table 的 height="100%"） */
+.accounts {
+  height: 100%;
+  display: flex;
+  flex-direction: column;
+}
+
+.accounts > .zj-page-head {
+  flex: none;
+}
+
+/* 列表卡：卡头与底部分页固定，表格区吃满剩余高度、表体内部滚动 */
+.list-card {
+  flex: 1 1 0;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+}
+
+.list-card :deep(.el-card__header) {
+  flex: none;
+}
+
+.list-card :deep(.el-card__body) {
+  flex: 1 1 0;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+}
+
+.list-card .el-table {
+  flex: 1 1 0;
+  min-height: 0;
+}
+
 .toolbar {
   display: flex;
   align-items: center;
@@ -172,6 +207,7 @@ async function resetPassword(row: StaffAccountView) {
 }
 
 .pager {
+  flex: none;
   margin-top: 12px;
   justify-content: flex-end;
 }

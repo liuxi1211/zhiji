@@ -117,7 +117,7 @@ public class KbMergeService {
         }
         long productId = contentService.createPending("kp", first.domainCode(), first.topicId(),
                 product.title(), product.summary(), product.frameworkMd(), product.difficulty(), null,
-                "merge", distinct);
+                "merge", distinct, null);
         List<Followup> followups = new ArrayList<>();
         if (product.followups() != null) {
             for (AiFollowup f : product.followups()) {
@@ -151,7 +151,7 @@ public class KbMergeService {
         }
         long productId = contentService.createPending("doc", first.domainCode(), first.topicId(),
                 product.title(), product.summary(), product.contentMd(), product.difficulty(), null,
-                "merge", distinct);
+                "merge", distinct, null);
         return contentService.listByTopic(first.topicId(), "doc", null).stream()
                 .filter(item -> item.id() == productId)
                 .findFirst()

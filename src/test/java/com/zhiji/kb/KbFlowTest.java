@@ -135,12 +135,12 @@ class KbFlowTest {
 
     private long createKp(long topicId, String title, String summary) {
         return contentService.createPending("kp", "java", topicId, title, summary, "正文：" + title, "mid",
-                null, "wizard", null);
+                null, "wizard", null, null);
     }
 
     private long createDoc(long topicId, String title) {
         return contentService.createPending("doc", "java", topicId, title, "摘要", "正文：" + title, "mid",
-                "https://example.com/article", "direct", null);
+                "https://example.com/article", "direct", null, null);
     }
 
     private void passKp(long id) {
@@ -151,7 +151,7 @@ class KbFlowTest {
     @Test
     void topicSeedAndRename() {
         asStaff();
-        // 本用例会改名/合并主题，共享测试库重跑需唯一名（每次运行加随机后缀）
+        // 本用例会改名/移动主题，共享测试库重跑需唯一名（每次运行加随机后缀）
         String run = java.util.UUID.randomUUID().toString().substring(0, 8);
         // KbBootstrap 种子：DomainTopic 常量组已落表
         assertThat(topicService.list("java").stream().anyMatch(t -> "JVM".equals(t.name()))).isTrue();
@@ -162,19 +162,18 @@ class KbFlowTest {
         assertThatThrownBy(() -> topicService.rename(duplicate, "目录主题A改名-" + run))
                 .isInstanceOf(BizException.class)
                 .hasMessageContaining("同名");
-        // 合并主题只允许同领域
-        long crossDomain = topicService.create("database", "跨域主题X-" + run).id();
-        assertThatThrownBy(() -> topicService.merge(topicA, crossDomain))
-                .hasMessageContaining("同一领域");
-        // 合并主题：内容迁移、原主题封存
-        long sourceTopic = topicService.create("java", "合并源主题-" + run).id();
+        // 单个内容移动主题（updateKp 的 topicId 稀疏更新）：同领域可移、跨领域拒绝
+        long sourceTopic = topicService.create("java", "迁移源主题-" + run).id();
         long migrated = createKp(sourceTopic, "被迁移题-" + run, "摘要");
-        long targetTopic = topicService.create("java", "合并目标主题-" + run).id();
-        topicService.merge(sourceTopic, targetTopic);
+        long targetTopic = topicService.create("java", "迁移目标主题-" + run).id();
+        contentService.updateKp(migrated, new UpdateKpReq(null, null, null, null, null, null, null, null, null,
+                null, null, targetTopic));
         assertThat(contentService.listByTopic(targetTopic, "kp", null))
                 .anyMatch(item -> item.id() == migrated);
-        assertThatThrownBy(() -> topicService.rename(sourceTopic, "再改名-" + run))
-                .hasMessageContaining("已合并");
+        long crossDomain = topicService.create("database", "跨域主题X-" + run).id();
+        assertThatThrownBy(() -> contentService.updateKp(migrated, new UpdateKpReq(null, null, null, null, null,
+                null, null, null, null, null, null, crossDomain)))
+                .hasMessageContaining("领域");
         asNobody();
     }
 
@@ -184,11 +183,11 @@ class KbFlowTest {
         long topicId = freshTopic("直提主题");
         // 直达新建同样受概述门槛（D7）
         assertThatThrownBy(() -> contentService.createPending("kp", "java", topicId, "无概述题",
-                null, "正文", "mid", null, "direct", null))
+                null, "正文", "mid", null, "direct", null, null))
                 .isInstanceOf(BizException.class)
                 .hasMessageContaining("概述");
         long kpId = contentService.createPending("kp", "java", topicId, "直提题面", "概述", "正文", "mid",
-                null, "direct", null);
+                null, "direct", null, null);
         KpView kp = contentService.getKp(kpId);
         assertThat(kp.status()).isEqualTo("pending");
         assertThat(kp.createdBy()).isEqualTo(1L);
@@ -399,7 +398,7 @@ class KbFlowTest {
     void aiDifficultyAndGenericAi() throws Exception {
         asStaff();
         // 素材侧难度建议端点（向导第 3 步）
-        SourceService.SourceItemView created = sourceService.create("待评级素材", "G1 混合回收的机制内容", null, "manual");
+        SourceService.SourceItemView created = sourceService.create("待评级素材", "G1 混合回收的机制内容", null, "manual", null);
         stub.respond("{\"difficulty\":\"senior\",\"reason\":\"底层机制\"}");
         MvcResult difficulty = mvc.perform(
                         post("/api/admin/sources/" + created.id() + "/ai/difficulty").header("Authorization", staffToken))
@@ -407,12 +406,20 @@ class KbFlowTest {
                 .andReturn();
         assertThat(difficulty.getResponse().getContentAsString(java.nio.charset.StandardCharsets.UTF_8))
                 .contains("senior");
-        // 通用 AI 改写（直达模式，内容不绑定素材行）
+        // 通用 AI（直达模式，内容不绑定素材行）：流式改写可带人工指令，标题生成按定类拟题
         stub.respond("改写后的成品");
-        mvc.perform(post("/api/admin/kb/ai/rewrite").header("Authorization", staffToken)
+        mvc.perform(post("/api/admin/kb/ai/rewrite-stream").header("Authorization", staffToken)
                         .contentType(MediaType.APPLICATION_JSON)
-                        .content("{\"contentMd\":\"原始正文\"}"))
+                        .content("{\"contentMd\":\"原始正文\",\"mode\":\"kp\",\"instruction\":\"多举例子\"}"))
                 .andExpect(status().isOk());
+        stub.respond("什么情况下 G1 会触发 Mixed GC？");
+        MvcResult title = mvc.perform(post("/api/admin/kb/ai/title").header("Authorization", staffToken)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"contentMd\":\"G1 的分代与混合回收。\",\"mode\":\"kp\"}"))
+                .andExpect(status().isOk())
+                .andReturn();
+        assertThat(title.getResponse().getContentAsString(java.nio.charset.StandardCharsets.UTF_8))
+                .contains("Mixed GC");
         asNobody();
     }
 

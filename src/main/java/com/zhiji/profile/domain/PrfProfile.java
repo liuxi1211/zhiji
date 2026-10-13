@@ -38,7 +38,10 @@ public class PrfProfile {
     /** 技术栈（自由文本） */
     private String techStack;
 
-    /** 目标职级（Target Level 五档；null=未设定，定稿前必填） */
+    /** 想突出的 / 擅长的（用户自述亮点，对话起草的补充事实源） */
+    private String goodAt;
+
+    /** 目标职级（Target Level 四档；null=未设定，定稿前必填） */
     @TableField(updateStrategy = FieldStrategy.ALWAYS)
     private String targetLevel;
 
@@ -126,6 +129,14 @@ public class PrfProfile {
 
     public void setTechStack(String techStack) {
         this.techStack = techStack;
+    }
+
+    public String getGoodAt() {
+        return goodAt;
+    }
+
+    public void setGoodAt(String goodAt) {
+        this.goodAt = goodAt;
     }
 
     public String getTargetLevel() {

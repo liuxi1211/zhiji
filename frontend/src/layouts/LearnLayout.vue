@@ -88,13 +88,18 @@ const activeIndex = computed(() => {
 
 <style scoped>
 .learn-layout {
-  display: flex;
-  flex-direction: column;
+  display: grid;
+  grid-template:
+    'header' auto
+    'main' 1fr
+    'tabbar' auto
+    / 1fr;
   min-height: 100%;
   background: var(--zj-paper);
 }
 
 .learn-header {
+  grid-area: header;
   position: sticky;
   top: 0;
   z-index: 10;
@@ -102,7 +107,7 @@ const activeIndex = computed(() => {
   align-items: center;
   justify-content: space-between;
   gap: var(--zj-space-3);
-  padding: var(--zj-space-3) var(--zj-space-5);
+  padding: var(--zj-space-3) var(--zj-space-4);
   background: var(--zj-surface);
   border-bottom: 1px solid var(--zj-line-soft);
 }
@@ -120,20 +125,22 @@ const activeIndex = computed(() => {
 }
 
 .learn-main {
-  flex: 1;
+  grid-area: main;
   width: 100%;
   max-width: 920px;
   margin: 0 auto;
-  padding: var(--zj-space-5) var(--zj-space-5) var(--zj-space-6);
+  padding: var(--zj-space-4) var(--zj-space-4) var(--zj-space-6);
 }
 
 .learn-tabbar {
+  grid-area: tabbar;
   position: sticky;
   bottom: 0;
   z-index: 10;
   display: flex;
   background: var(--zj-surface);
   border-top: 1px solid var(--zj-line-soft);
+  padding-bottom: env(safe-area-inset-bottom);
 }
 
 /* 选中指示：单个元素平移，而非逐项淡入 —— 移动本身说明"从哪到哪" */
@@ -165,11 +172,14 @@ const activeIndex = computed(() => {
   gap: 3px;
   padding: 9px 0 11px;
   color: var(--zj-ink-500);
-  transition: color var(--zj-dur-fast) var(--zj-ease-out);
+  transition: color var(--zj-dur-fast) var(--zj-ease-out),
+    background-color var(--zj-dur-fast) var(--zj-ease-out);
 }
 
-.tab-item:hover {
-  color: var(--zj-ink-900);
+@media (hover: hover) {
+  .tab-item:hover {
+    color: var(--zj-ink-900);
+  }
 }
 
 .tab-item.active {
@@ -190,5 +200,67 @@ const activeIndex = computed(() => {
   font-size: 11px;
   font-weight: 500;
   letter-spacing: 0.01em;
+}
+
+/* —— 桌面（≥1024px）：同一份 tabs 数据物化为左侧栏，应用壳模式 —— */
+@media (min-width: 1024px) {
+  .learn-layout {
+    height: 100%;
+    grid-template:
+      'sidebar header' auto
+      'sidebar main' 1fr
+      / 236px 1fr;
+  }
+
+  .learn-header {
+    position: static;
+    padding: var(--zj-space-3) var(--zj-space-5);
+  }
+
+  .learn-main {
+    overflow-y: auto;
+    padding: var(--zj-space-5) var(--zj-space-6) var(--zj-space-7);
+  }
+
+  .learn-tabbar {
+    grid-area: sidebar;
+    position: static;
+    flex-direction: column;
+    align-items: stretch;
+    gap: 2px;
+    padding: var(--zj-space-4) var(--zj-space-3);
+    background: var(--zj-sidebar);
+    border-top: none;
+  }
+
+  .tab-indicator {
+    display: none;
+  }
+
+  .tab-item {
+    flex: none;
+    flex-direction: row;
+    justify-content: flex-start;
+    gap: var(--zj-space-3);
+    padding: 10px var(--zj-space-3);
+    border-radius: var(--zj-radius-sm);
+    color: var(--zj-sidebar-ink);
+  }
+
+  .tab-item.active {
+    color: var(--zj-ink-900);
+    background: var(--zj-primary-soft);
+  }
+
+  .tab-label {
+    font-size: var(--zj-fs-sm);
+  }
+}
+
+@media (min-width: 1024px) and (hover: hover) {
+  .tab-item:hover {
+    color: var(--zj-surface);
+    background: rgba(255, 255, 255, 0.07);
+  }
 }
 </style>

@@ -1,7 +1,7 @@
-package com.zhiji.llm.repo;
+package com.zhiji.common.repo;
 
 import com.baomidou.mybatisplus.core.mapper.BaseMapper;
-import com.zhiji.llm.domain.SysConfig;
+import com.zhiji.common.domain.SysConfig;
 import org.apache.ibatis.annotations.Param;
 import org.apache.ibatis.annotations.Update;
 

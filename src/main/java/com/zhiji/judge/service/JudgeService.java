@@ -38,7 +38,7 @@ import tools.jackson.databind.json.JsonMapper;
 public class JudgeService {
 
     private static final DateTimeFormatter TS = DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm:ss");
-    private static final List<String> LEVELS = List.of("junior", "mid", "senior", "expert", "master");
+    private static final List<String> LEVELS = List.of("junior", "mid", "senior", "expert");
     private static final List<String> VERDICTS = List.of("correct", "missing", "wrong", "empty");
 
     private final JudgeSessionMapper sessionMapper;
@@ -86,9 +86,19 @@ public class JudgeService {
 
     @Transactional
     public SessionView createSession(long kpId, String level) {
+        return createSession(kpId, level, 0L, "staff");
+    }
+
+    /**
+     * 建会话（带归属）：ownerType=staff（试判台，created_by=员工 id）/ customer（练习模式，created_by=档案 id）。
+     * customer 归属时判定链路以 created_by 作 LLM 计量键（单用户限额），staff 归属按 0 哨兵不限流。
+     */
+    @Transactional
+    public SessionView createSession(long kpId, String level, long profileId, String ownerType) {
         if (!LEVELS.contains(level)) {
-            throw BizException.validation("目标职级取值不合法（junior/mid/senior/expert/master）");
+            throw BizException.validation("目标职级取值不合法（junior/mid/senior/expert）");
         }
+        String owner = "customer".equals(ownerType) ? "customer" : "staff";
         KpView kp = contentService.getKp(kpId);
         if (!"available".equals(kp.status())) {
             throw BizException.validation("知识点不在可用状态（当前 " + kp.status() + "）：判定只对上线内容进行");
@@ -102,10 +112,17 @@ public class JudgeService {
         session.setStatus("open");
         session.setGrade(null);
         session.setDegraded(0);
-        session.setCreatedBy(requireStaffId());
+        session.setOwnerType(owner);
+        // customer：created_by 承载归属档案 id（prf_profile.id）；staff：员工 id
+        session.setCreatedBy("customer".equals(owner) ? profileId : requireStaffId());
         session.setCreatedAt(now());
         sessionMapper.insert(session);
         return toSessionView(session, kp, followups);
+    }
+
+    /** LLM 计量键（6.3）：customer 归属按档案 id 计入单用户限额；staff 归属传 null（0 哨兵，不受档案限额）。 */
+    private Long llmProfileId(JudgeSession session) {
+        return "customer".equals(session.getOwnerType()) ? session.getCreatedBy() : null;
     }
 
     /** 停止点快照（D4）：职级规则里取目标档 stop_layer；未标定取最大 active 层。 */
@@ -155,7 +172,8 @@ public class JudgeService {
         row.setAnswerText(trimmed);
         row.setCreatedAt(now());
         try {
-            JudgeAiService.AlignedJudgment aligned = aiService.align(question, trimmed, pointSpecs(kp));
+            JudgeAiService.AlignedJudgment aligned = aiService.align(question, trimmed, pointSpecs(kp),
+                    llmProfileId(session));
             row.setVerdict(deriveVerdict(trimmed, aligned));
             row.setSource("llm");
             row.setPointsResult(toJson(pointResults(kp, aligned.points())));
@@ -286,6 +304,18 @@ public class JudgeService {
 
     // —— 查询 ——
 
+    /**
+     * 归属校验（消费方 T11 练习模式）：会话须为 customer 归属且 created_by = 该档案 id，否则 404 不泄露存在性。
+     * staff（试判台）会话对 C 端一律不可见，避免跨端越权。
+     */
+    public void assertOwnedByProfile(long sessionId, long profileId) {
+        JudgeSession session = requireSession(sessionId);
+        if (!"customer".equals(session.getOwnerType())
+                || session.getCreatedBy() == null || session.getCreatedBy() != profileId) {
+            throw BizException.notFound("练习会话不存在");
+        }
+    }
+
     public SessionView get(long sessionId) {
         JudgeSession session = requireSession(sessionId);
         KpView kp = contentService.getKp(session.getKpId());
@@ -294,6 +324,8 @@ public class JudgeService {
 
     public List<SessionItemView> list(String status, int page, int size) {
         LambdaQueryWrapper<JudgeSession> wrapper = new LambdaQueryWrapper<>();
+        // 试判台只列 staff 归属会话：C 端练习会话不进 B 端质检的历史列表
+        wrapper.eq(JudgeSession::getOwnerType, "staff");
         if (status != null && !status.isBlank()) {
             wrapper.eq(JudgeSession::getStatus, status);
         }

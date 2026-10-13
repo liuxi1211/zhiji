@@ -21,10 +21,7 @@ export type Verdict = 'hit' | 'shallow' | 'wrong' | 'blank'
 /** 判定驱动的下一动作：下钻/同层换角度/回退前置（内容层回退）/切题 */
 export type NextAction = 'drill' | 'rephrase' | 'fallback' | 'switch'
 
-/** 目标职级五档：初级/中级/高级/资深/专家 */
-export type LevelTarget = 'junior' | 'mid' | 'senior' | 'staff' | 'expert'
-
-/** 评分要点分级：基础/中级/资深（单层回答内要点深度，与职级五档是两套刻度） */
+/** 评分要点分级：基础/中级/资深（单层回答内要点深度，与职级四档是两套刻度） */
 export type RubricLevel = 'basic' | 'mid' | 'senior'
 
 /** 作答来源：打字或语音转写 */
@@ -101,29 +98,55 @@ export type LlmPurpose =
   | 'ai_compose'
   | 'embedding'
 
-/** 单条模型路由目标：provider 名对应后端 zhiji.llm.providers 的 key；thinking 三态 null=跟随默认 */
-export interface LlmRouteTargetView {
-  provider: string
-  model: string
-  temperature: number | null
-  maxTokens: number | null
-  embedding: boolean
-  thinking: boolean | null
+/** 通用配置：下拉选项（value 随 JSON 透传，label 为显示名） */
+export interface ConfigFieldOption {
+  value: unknown
+  label: string
 }
 
-export interface LlmLimitsView {
-  judgeDaily: number
-  variantRewriteDaily: number
-  perProfileDailyTotal: number
-  siteDailyTotal: number
+/** 通用配置：条件可见性（op 取 eq/ne，field 引用同一行或同域内的兄弟字段） */
+export interface ConfigVisibleWhen {
+  field: string
+  op: 'eq' | 'ne'
+  value: unknown
 }
 
-export interface LlmSettingsView {
-  routes: Record<string, LlmRouteTargetView>
-  limits: LlmLimitsView
-  providers: string[]
-  /** provider 支持的模型清单（yml 事实源）：key=provider 名，value=模型列表（设置页下拉数据源） */
-  providerModels: Record<string, string[]>
+/** 通用配置字段元数据：后端 ConfigSection.fields() 下发的渲染契约，前端据此自渲染 */
+export interface ConfigFieldDef {
+  key: string
+  label: string
+  type: 'TEXT' | 'TEXTAREA' | 'NUMBER' | 'SWITCH' | 'SELECT' | 'DATE' | 'TAG' | 'TABLE'
+  min?: number
+  max?: number
+  step?: number
+  options?: ConfigFieldOption[]
+  /** 动态选项数据源：域 sources 里的 key（与静态 options 二选一） */
+  optionsSource?: string
+  /** 选项依赖字段：optionsSource 为映射结构时，用该字段（域内或行内）的值作为取数 key */
+  optionsDependsOn?: string
+  creatable?: boolean
+  /** 三态开关：SELECT 出现空值选项（Boolean 三态 null=跟随默认） */
+  triState?: boolean
+  nullLabel?: string
+  tagText?: string
+  visibleWhen?: ConfigVisibleWhen
+  help?: string
+  width?: number
+  minWidth?: number
+  /** TABLE 专用：固定行来源 "constants:<常量组>"；缺省为自由行（值是数组，可增删） */
+  rowKeySource?: string
+  columns?: ConfigFieldDef[]
+}
+
+/** 通用配置域视图：schema + 当前值 + 动态选项池一次下发（GET /api/admin/configs） */
+export interface ConfigSectionView {
+  key: string
+  title: string
+  description: string
+  order: number
+  fields: ConfigFieldDef[]
+  value: Record<string, unknown>
+  sources: Record<string, unknown>
 }
 
 export interface LlmConnectivityItem {
@@ -226,6 +249,8 @@ export interface SourceItemView {
   contentMd: string
   /** 概述齐备是提交入库的门槛 */
   summary: string | null
+  /** 目标类型标记：kp 面试题线 / doc 文章线；初始导入可空，人工填写或采纳 AI 建议 */
+  contentType: 'kp' | 'doc' | null
   difficulty: SourceDifficulty | null
   domainCode: string | null
   domainName: string | null
@@ -234,7 +259,7 @@ export interface SourceItemView {
   sourceUrl: string | null
   status: SourceStatus
   submittedAt: string | null
-  /** 拆分产出的子素材数（仅母素材有值） */
+  /** 历史拆分产出的子素材数（仅母素材有值；拆分功能已下线，仅存量数据展示用） */
   childCount: number
   createdAt: string
   updatedAt: string
@@ -244,12 +269,15 @@ export interface SourceCreateReq {
   title: string
   contentMd?: string
   sourceUrl?: string
+  contentType?: string
 }
 
 export interface SourceUpdateReq {
   title?: string
   contentMd?: string
   summary?: string
+  /** 传空串清空类型标记 */
+  contentType?: string
   difficulty?: string
   domainCode?: string
   topicName?: string
@@ -262,36 +290,20 @@ export interface SourceSubmitReq {
   topicId: number
   /** 定类分流：面试题线 / 文章线（5.2 进门即分流） */
   contentType: KbContentType
+  /** 追问链（仅面试题线消费；id 已在前端分配，入库即受红线 2 约束） */
+  followups?: KbFollowup[]
 }
 
-export interface SourceSplitSliceInput {
-  title: string
-  contentMd?: string
-}
-
-export interface SourceSplitSliceResp {
-  id: number
-  title: string
-}
-
-export interface SourceSplitResp {
-  slices: SourceSplitSliceResp[]
-}
-
-/** AI 改写产物：正文回编辑器（kp/doc 定类由向导入口预置 + 提交时人工选择） */
-export interface SourceRewriteResp {
+/** 追问链草稿（AI 识别产物，无 id；提交时由前端补 id 与 status 成为 KbFollowup） */
+export interface KbFollowupDraft {
+  layer: number
+  direction: string
   content: string
 }
 
-/** AI 一键拆分预填：anchor 为原文标题锚点，前端据此切正文 */
-export interface SourceSplitSuggestion {
-  title: string
-  anchor: string
-}
-
-export interface SourceAiSplitResp {
-  needSplit: boolean
-  slices: SourceSplitSuggestion[]
+/** AI 改写产物：正文回编辑器 */
+export interface SourceRewriteResp {
+  content: string
 }
 
 /** AI 分类建议：仅领域内推荐主题位置，采纳或无视由人 */
@@ -378,7 +390,7 @@ export interface KbAnswerSample {
 
 /** 职级要求与停止点：目标职级要不要会、下钻到第几层算够 */
 export interface KbLevelRule {
-  level: 'junior' | 'mid' | 'senior' | 'expert' | 'master'
+  level: 'junior' | 'mid' | 'senior' | 'expert'
   required: boolean
   stopLayer: number | null
 }
@@ -490,6 +502,8 @@ export interface KbDirectSubmitReq {
   summary: string
   contentMd?: string
   difficulty: SourceDifficulty
+  /** 追问链（仅面试题线消费；id 已在前端分配，入库即受红线 2 约束） */
+  followups?: KbFollowup[]
 }
 
 export interface KbReviewRecord {
@@ -567,8 +581,8 @@ export type JudgeVerdict = 'correct' | 'missing' | 'wrong' | 'empty'
 /** 单知识点四档（6.1 硬规则 3：公式计算，模型不碰分） */
 export type JudgeGrade = 'excellent' | 'good' | 'pass' | 'fail'
 
-/** 判定目标职级五档（与 KbLevelRule.level 同口径） */
-export type JudgeLevel = 'junior' | 'mid' | 'senior' | 'expert' | 'master'
+/** 判定目标职级四档（与 KbLevelRule.level 同口径） */
+export type JudgeLevel = 'junior' | 'mid' | 'senior' | 'expert'
 
 /** 判定来源：llm=引擎 / self=降级自评 / code=空答短路 */
 export type JudgeSource = 'llm' | 'self' | 'code'
@@ -636,17 +650,20 @@ export interface JudgeAnswerResp {
 
 // —— 个人档案（核心模块定义 4.1，T10） ——
 
-/** 目标职级五档（6.5 Target Level）：与 JudgeLevel 同口径，全产品的深度标尺 */
+/** 目标职级四档（6.5 Target Level）：与 JudgeLevel 同口径，全产品的深度标尺 */
 export type TargetLevel = JudgeLevel
 
 /** 档案状态机：草稿 → 确认 → 定稿；存在未确认技能条不得定稿，未定稿不参与学习路径生成 */
 export type ProfileStatus = 'draft' | 'confirmed' | 'finalized'
 
-/** 技能条拍板状态：措辞或锚点变更后回到待确认，重走拍板 */
+/** 技能条拍板状态：对话整版采纳即拍板；手动加条走未确认 → 拍板 */
 export type ClaimStatus = 'unconfirmed' | 'confirmed'
 
-/** 技能条来源：AI 起草采纳 / 手动添加 */
+/** 技能条来源：对话起草采纳 / 手动添加 */
 export type ClaimSource = 'ai' | 'manual'
+
+/** 锚定映射状态：unmapped 未映射 / mapped 已锚定 / pending 低置信待确认 / zero 零命中 */
+export type AnchorStatus = 'unmapped' | 'mapped' | 'pending' | 'zero'
 
 /** 档案列表项：含技能条计数，供"我的"页档案切换与状态一览 */
 export interface ProfileListItem {
@@ -670,9 +687,11 @@ export interface ClaimAnchor {
 /** 技能条（Skill Claim）：一段简历措辞 + 锚定知识点集合 */
 export interface ClaimView {
   id: number
+  title: string
   wording: string
   anchorIds: number[]
   anchors: ClaimAnchor[]
+  anchorStatus: AnchorStatus
   source: ClaimSource
   status: ClaimStatus
   sortOrder: number
@@ -699,6 +718,7 @@ export interface ProfileDetail {
   position: string
   jdText: string
   techStack: string
+  goodAt: string
   targetLevel: TargetLevel | null
   planWeeks: number | null
   dailyMinutes: number | null
@@ -711,10 +731,33 @@ export interface ProfileDetail {
   cases: CaseView[]
 }
 
-/** AI 起草的技能条草稿（产物不落库，逐条采纳） */
-export interface ClaimDraft {
-  wording: string
-  anchors: ClaimAnchor[]
+/** 建档对话里的一条技能条：小标题 + 正文（未提供的事实以【】占位） */
+export interface IntakeClaim {
+  title: string
+  content: string
+}
+
+/** 建档对话消息：user = 反馈原文；assistant = 教练回复（reply + 该轮完整版本） */
+export interface IntakeMessageView {
+  id: number
+  role: 'user' | 'assistant'
+  text: string
+  claims: IntakeClaim[] | null
+  createdAt: string
+}
+
+/** 建档对话历史：round 为教练输出轮数（上限 5） */
+export interface IntakeHistoryView {
+  round: number
+  messages: IntakeMessageView[]
+}
+
+/** 一轮教练输出；coverageGaps = 用户技术栈中未被草案覆盖的组件（遗漏提示，可一键补写） */
+export interface ChatTurnView {
+  round: number
+  reply: string
+  claims: IntakeClaim[]
+  coverageGaps?: string[]
 }
 
 /** C 端知识点候选（锚点挑选）：只含已上线知识点的轻量字段 */
@@ -725,4 +768,146 @@ export interface KpCandidate {
   difficulty: string
   domainCode: string
   topicName: string
+}
+
+// —— 学习路径与练习（核心模块定义 4.2，T11） ——
+
+/** 知识点学习状态五态（learn_status 常量组） */
+export type LearnStatus = 'learning' | 'quick' | 'pass' | 'weak' | 'abandoned'
+
+/** 路径准入信号：claim 技能条锚定 / baseline 职级基线 / jd JD 命中 */
+export type KpSignal = 'claim' | 'baseline' | 'jd'
+
+/** 路径内的知识点行（轻量字段；详情在练习页取） */
+export interface PathKpView {
+  id: number
+  title: string
+  difficulty: string
+  signals: KpSignal[]
+  state: LearnStatus
+  locked: boolean
+  freqTotal: number
+  followupLayers: number
+  docCount: number
+}
+
+/** 学习单元（阶段内以主题为界的推进单位） */
+export interface PathUnitView {
+  topicId: number
+  topicName: string
+  kpCount: number
+  done: number
+  total: number
+  locked: boolean
+  signals: KpSignal[]
+  kps: PathKpView[]
+}
+
+/** 学习阶段（基础阶段跨域，或领域阶段） */
+export interface PathStageView {
+  key: string
+  kind: 'baseline' | 'domain'
+  domainCode: string | null
+  domainName: string | null
+  title: string
+  done: number
+  total: number
+  units: PathUnitView[]
+}
+
+/** 路径总进度摘要（不含放弃题） */
+export interface PathSummary {
+  done: number
+  total: number
+  passCount: number
+  quickCount: number
+  weakCount: number
+  nextTopicId: number | null
+  nextTopicName: string | null
+  nextStageTitle: string | null
+}
+
+/** 放弃清单项 */
+export interface AbandonedView {
+  kpId: number
+  title: string
+  reason: string | null
+  abandonedAt: string | null
+}
+
+/** 学习路径全量视图 */
+export interface LearnPathView {
+  profileId: number
+  profileName: string
+  targetLevel: string | null
+  summary: PathSummary
+  stages: PathStageView[]
+  abandoned: AbandonedView[]
+}
+
+/** 速览/放弃/恢复的轻量返回 */
+export interface LearnStateView {
+  kpId: number
+  status: LearnStatus
+  progressedAt: string | null
+}
+
+/** 练习会话视图（判定会话 + kp 展示结构 + 挂载资料 + 目标刻度） */
+export interface PracticeSessionView {
+  id: number
+  kpId: number
+  topicId: number
+  kpTitle: string
+  kpSummary: string | null
+  difficulty: string
+  frameworkMd: string
+  level: JudgeLevel
+  stopLayer: number | null
+  followupLayers: number
+  status: 'open' | 'closed'
+  grade: JudgeGrade | null
+  gradeNote: string | null
+  degraded: boolean
+  state: LearnStatus
+  variants: KbVariant[]
+  answerSamples: KbAnswerSample[]
+  docs: DocBrief[]
+  scoringPoints: KbScoringPoint[]
+  followups: KbFollowup[]
+  answers: JudgeAnswerView[]
+  createdAt: string
+  closedAt: string | null
+}
+
+/** 练习小结（close 返回） */
+export interface PracticeCloseView {
+  session: PracticeSessionView
+  state: LearnStatus
+}
+
+/** 题面预览（选题后、选节奏前；不开判定会话） */
+export interface PracticeBriefView {
+  kpId: number
+  topicId: number
+  kpTitle: string
+  kpSummary: string | null
+  difficulty: string
+  frameworkMd: string
+  level: JudgeLevel
+  stopLayer: number | null
+  followupLayers: number
+  state: LearnStatus
+  variants: KbVariant[]
+  answerSamples: KbAnswerSample[]
+  docs: DocBrief[]
+  scoringPoints: KbScoringPoint[]
+  followups: KbFollowup[]
+}
+
+/** 资料讲解轻量项（练习页"看不懂"展开层） */
+export interface DocBrief {
+  id: number
+  title: string
+  summary: string | null
+  difficulty: string
 }

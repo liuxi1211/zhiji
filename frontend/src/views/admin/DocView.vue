@@ -3,11 +3,11 @@
 // ① 承接素材：手写新增 / 导入（txt、md 及打包图片资源的压缩包）/ URL 抓取（失败回退空稿）；
 // ② 轻量整理：编辑正文 + AI 改写（可提前完成的部分，产物永远回到人手里，6.4 AI 边界）。
 // 素材阶段只归属「领域」；主题在「进标准库」时由新增向导引导、大模型推断，此处不展示不维护。
-// 入库动作只有一个「进标准库」按钮：点击后引导该素材进入新增向导（/admin/wizard）接续走完剩余流程。
+// 入库动作只有一个「进标准库」按钮：点击弹出新增向导弹窗接续走完剩余流程。
 import { computed, onMounted, reactive, ref } from 'vue'
-import { useRouter } from 'vue-router'
 import { ElMessage, ElMessageBox } from 'element-plus'
 import { ArrowDown, Delete, Edit, MagicStick, Plus, Position, Refresh, Search, Upload, VideoPause } from '@element-plus/icons-vue'
+import WizardDialog from '@/components/kb/WizardDialog.vue'
 import {
   createSource,
   deleteSource,
@@ -26,7 +26,6 @@ import { createMarkdown } from '@/utils/markdown'
 // asset: 引用渲染为 B 端资产接口地址（导入 zip 图片「落盘即真相」的路径约定，与向导/标准库共用同一规则）
 const md = createMarkdown()
 
-const router = useRouter()
 const constants = useConstantsStore()
 
 const STATUS_LABELS: Record<SourceStatus, string> = {
@@ -46,6 +45,9 @@ const TYPE_LABELS: Record<SourceType, string> = {
   url: 'URL 抓取',
   inferred: '反推出题'
 }
+
+// 目标类型标记（kp 面试题线 / doc 文章线）：初始导入无法判定时留空，人工填写或采纳 AI 建议
+const CONTENT_TYPE_LABELS: Record<string, string> = { kp: '知识点', doc: '资料讲解' }
 
 const loading = ref(false)
 // 服务端分页 + 服务端筛选：素材量级增长后不再全量拉取；状态分段计数与领域候选来自全库 facets
@@ -133,11 +135,12 @@ onMounted(() => void load())
 
 const createVisible = ref(false)
 const creating = ref(false)
-const createForm = reactive({ title: '', contentMd: '' })
+const createForm = reactive({ title: '', contentMd: '', contentType: '' })
 
 function openCreate() {
   createForm.title = ''
   createForm.contentMd = ''
+  createForm.contentType = ''
   createVisible.value = true
 }
 
@@ -148,7 +151,11 @@ async function submitCreate() {
   }
   creating.value = true
   try {
-    const created = await createSource({ title: createForm.title, contentMd: createForm.contentMd })
+    const created = await createSource({
+      title: createForm.title,
+      contentMd: createForm.contentMd,
+      contentType: createForm.contentType || undefined
+    })
     createVisible.value = false
     ElMessage.success('已入库素材库（待加工）')
     await load()
@@ -219,7 +226,7 @@ const editorVisible = ref(false)
 const editorLoading = ref(false)
 const saving = ref(false)
 const current = ref<SourceItemView | null>(null)
-const form = reactive({ title: '', contentMd: '' })
+const form = reactive({ title: '', contentMd: '', contentType: '' })
 const editorTab = ref<'edit' | 'preview'>('edit')
 const rewriting = ref(false)
 const preRewrite = ref('')
@@ -240,6 +247,7 @@ async function openEditor(id: number) {
     current.value = item
     form.title = item.title
     form.contentMd = item.contentMd
+    form.contentType = item.contentType ?? ''
   } catch (error) {
     ElMessage.error(messageOf(error, '加载素材失败'))
     editorVisible.value = false
@@ -252,7 +260,11 @@ async function save() {
   if (!current.value) return
   saving.value = true
   try {
-    await updateSource(current.value.id, { title: form.title, contentMd: form.contentMd })
+    await updateSource(current.value.id, {
+      title: form.title,
+      contentMd: form.contentMd,
+      contentType: form.contentType
+    })
     ElMessage.success('已保存')
     editorVisible.value = false
     await load()
@@ -295,11 +307,15 @@ function stopRewrite() {
   rewriteAbort?.()
 }
 
-// —— 进标准库：素材库唯一的入库动作，点击引导进入新增向导（5.1 → 5.2 衔接） ——
+// —— 进标准库：素材库唯一的入库动作，点击弹出新增向导（5.1 → 5.2 衔接） ——
+
+const wizardVisible = ref(false)
+const wizardSourceId = ref<number | null>(null)
 
 function goWizard(item: SourceItemView) {
-  // 新增向导（/admin/wizard）已就绪：带 sourceId 进入，已就绪的步骤（如概述与分类）自动跳过
-  void router.push({ path: '/admin/wizard', query: { sourceId: String(item.id) } })
+  // 新增向导弹窗：带 sourceId 进入素材接续模式，已就绪的步骤（如概述与分类）自动跳过
+  wizardSourceId.value = item.id
+  wizardVisible.value = true
 }
 
 // —— 放弃 / 删除 ——
@@ -365,7 +381,7 @@ async function remove(item: SourceItemView) {
       </div>
     </header>
 
-    <el-card shadow="never">
+    <el-card shadow="never" class="list-card">
       <!-- 卡头：状态分段筛选 + 领域筛选 + 搜索刷新，全部走 element-plus 标准控件 -->
       <template #header>
         <div class="table-tools">
@@ -409,7 +425,7 @@ async function remove(item: SourceItemView) {
         @change="onImportFile"
       />
 
-      <el-table :data="items">
+      <el-table :data="items" height="100%">
         <el-table-column label="标题" min-width="280">
           <template #default="{ row }">
             <div class="title-cell">
@@ -429,6 +445,12 @@ async function remove(item: SourceItemView) {
         <el-table-column label="来源" width="96">
           <template #default="{ row }">
             <span class="type-chip">{{ TYPE_LABELS[row.sourceType as SourceType] }}</span>
+          </template>
+        </el-table-column>
+        <el-table-column label="类型" width="92">
+          <template #default="{ row }">
+            <span v-if="row.contentType" class="type-chip">{{ CONTENT_TYPE_LABELS[row.contentType] }}</span>
+            <span v-else class="dim">未定</span>
           </template>
         </el-table-column>
         <el-table-column label="领域" width="120">
@@ -500,6 +522,13 @@ async function remove(item: SourceItemView) {
         <el-form-item label="标题" required>
           <el-input v-model="createForm.title" maxlength="120" placeholder="如：G1 回收流程整理" />
         </el-form-item>
+        <el-form-item label="类型（可选）">
+          <el-radio-group v-model="createForm.contentType">
+            <el-radio-button value="">先不定</el-radio-button>
+            <el-radio-button value="kp">知识点（面试题线）</el-radio-button>
+            <el-radio-button value="doc">资料讲解（文章线）</el-radio-button>
+          </el-radio-group>
+        </el-form-item>
         <el-form-item label="正文（Markdown）">
           <el-input v-model="createForm.contentMd" type="textarea" :rows="12" placeholder="先记个大概也行，回头再整理" />
         </el-form-item>
@@ -525,7 +554,7 @@ async function remove(item: SourceItemView) {
     </el-dialog>
 
     <!-- 轻量整理：编辑 + AI 改写；弹窗够大即可，宽度封顶 880 —— Markdown 行太宽反而难读
-      * （概述 / 难度 / 分类 / 拆分 / 入库走新增向导 5.2） -->
+      * （概述 / 难度 / 分类 / 入库走新增向导 5.2；多主题长文可在此复制删减成多条素材分别入库） -->
     <el-dialog v-model="editorVisible" width="min(880px, 92vw)" top="5vh" destroy-on-close>
       <template #header>
         <div class="editor-head">
@@ -544,6 +573,16 @@ async function remove(item: SourceItemView) {
           <el-form-item label="标题" required>
             <el-input v-model="form.title" maxlength="120" />
           </el-form-item>
+          <el-form-item label="类型（初始导入无法判定可留空，AI 改写后可采纳建议）">
+            <div class="type-row">
+              <el-radio-group v-model="form.contentType">
+                <el-radio-button value="">未定</el-radio-button>
+                <el-radio-button value="kp">知识点（面试题线）</el-radio-button>
+                <el-radio-button value="doc">资料讲解（文章线）</el-radio-button>
+              </el-radio-group>
+              <span class="type-hint">类型也决定 AI 改写的成稿模式：知识点按参考答案式组织，资料讲解按讲解文章式组织</span>
+            </div>
+          </el-form-item>
           <el-form-item>
             <template #label>
               <div class="label-row">
@@ -561,6 +600,7 @@ async function remove(item: SourceItemView) {
                   <el-button
                     size="small"
                     :type="rewriting ? 'danger' : 'primary'"
+                    :class="{ 'btn-ai': !rewriting }"
                     plain
                     :icon="rewriting ? VideoPause : MagicStick"
                     @click="rewriting ? stopRewrite() : runRewrite()"
@@ -587,11 +627,16 @@ async function remove(item: SourceItemView) {
         <el-button type="primary" :loading="saving" @click="save">保存</el-button>
       </template>
     </el-dialog>
+
+    <!-- 新增向导弹窗：素材接续模式入口；提交入库后刷新列表（素材行状态变已进标准库） -->
+    <WizardDialog v-model="wizardVisible" :source-id="wizardSourceId" @submitted="load" />
   </div>
 </template>
 
 <style scoped>
+/* 整页锁高：页头/筛选/分页常驻视口，纵向滚动只发生在表体内部（配合 el-table 的 height="100%"） */
 .sources {
+  height: 100%;
   display: flex;
   flex-direction: column;
   gap: var(--zj-space-5);
@@ -600,6 +645,7 @@ async function remove(item: SourceItemView) {
 /* —— 页头：标题说明居左，收料动作居右（zj-page-head 的纵向布局在此放宽为两栏） —— */
 .doc-head {
   margin-bottom: 0; /* 间距交给 .sources 的 gap，避免页头自带 margin 叠加出双倍空隙 */
+  flex: none;
   flex-direction: row;
   align-items: flex-end;
   justify-content: space-between;
@@ -619,6 +665,30 @@ async function remove(item: SourceItemView) {
   align-items: center;
   gap: var(--zj-space-2);
   flex: none;
+}
+
+/* —— 列表卡：卡头筛选与底部分页固定，表格区吃满剩余高度、表体内部滚动 —— */
+.list-card {
+  flex: 1 1 0;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+}
+
+.list-card :deep(.el-card__header) {
+  flex: none;
+}
+
+.list-card :deep(.el-card__body) {
+  flex: 1 1 0;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+}
+
+.list-card .el-table {
+  flex: 1 1 0;
+  min-height: 0;
 }
 
 /* —— 卡头工具行：状态分段筛选 / 领域下拉靠左，搜索刷新靠右 —— */
@@ -719,6 +789,7 @@ async function remove(item: SourceItemView) {
 
 /* 分页器：靠右、与表格留一拍呼吸感 */
 .pager {
+  flex: none;
   margin-top: 14px;
   justify-content: flex-end;
 }
@@ -757,6 +828,18 @@ async function remove(item: SourceItemView) {
   display: flex;
   flex-direction: column;
   gap: 8px;
+}
+
+.type-row {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  flex-wrap: wrap;
+}
+
+.type-hint {
+  font-size: 12px;
+  color: var(--zj-ink-500);
 }
 
 .editor-head {

@@ -23,7 +23,7 @@
   "scoringPoints": [{"level": "pass|good|excellent", "content": "可判定的得分要点"}],
   "answerSamples": [{"level": "pass|good|excellent", "content": "三档回答样例"}],
   "difficulty": "junior|mid|senior|expert",
-  "levelRules": [{"level": "junior|mid|senior|expert|master", "required": true, "stopLayer": 2}],
+  "levelRules": [{"level": "junior|mid|senior|expert", "required": true, "stopLayer": 2}],
   "conflicts": ["多源矛盾点，单列不阻断"]
 }
 

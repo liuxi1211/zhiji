@@ -51,6 +51,16 @@
   --zj-diff-4: #d96f28;
   --zj-diff-5: #d64545;
 
+  /* —— T11 学习路径与练习（4.2）专属令牌 —— */
+  /* 铜：只承担「刻度 / 深度 / 待校准」语义（目标刻度、停止点、速览的低保障标识），不参与状态表达 */
+  --zj-brass: #b4741f;
+  --zj-brass-soft: #f7efe1;
+  /* 验收刻度尺五态：pass 实心墨青 / quick 空心铜描边（待复验）/ weak 斜纹（弱点）/ none 空白 / lock 灰虚（锁定） */
+  --zj-acc-pass: #17323b;
+  --zj-acc-quick: #b4741f;
+  --zj-acc-weak: #c77b3b;
+  --zj-acc-none: #d8d3c8;
+
   /* —— 排版 —— */
   --zj-font-sans: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'PingFang SC',
     'Hiragino Sans GB', 'Microsoft YaHei', system-ui, sans-serif;
@@ -186,6 +196,14 @@ html.dark {
   --zj-diff-4: #ef8340;
   --zj-diff-5: #e8695f;
 
+  /* T11 学习路径与练习：铜与验收五态（深色下同族提亮，保持语义一致） */
+  --zj-brass: #d99a45;
+  --zj-brass-soft: #2a2317;
+  --zj-acc-pass: #e6eceb;
+  --zj-acc-quick: #d99a45;
+  --zj-acc-weak: #ef8340;
+  --zj-acc-none: #333e3e;
+
   /* 深色下 primary 变亮以保证"作为文字/图标"可读（≥4.5）；
    * 因此实心按钮上的文字改用深墨色（见 main.css 的 .el-button--primary 覆盖）。
    */
@@ -228,4 +246,63 @@ html.dark {
   --el-table-tr-bg-color: #171e20;
 
   color-scheme: dark;
+}
+
+/*
+ * AI 按钮统一识别样式（方案 C：墨青渐变实底）。
+ * 约定：所有触发 AI 调用的按钮加 .btn-ai（B 端向导/素材库/合并页 + C 端档案起草），
+ * 让"模型调用"与普通动作一眼区分；渐变留在墨青族内，不引入蓝紫（保持主题温度）。
+ * 渐变进行中切红色「停止」态的按钮，busy 时应移除 .btn-ai（:class 绑定），避免覆盖 danger。
+ */
+.el-button.btn-ai,
+.el-button--primary.btn-ai {
+  border: none;
+  color: #ffffff;
+  font-weight: 600;
+  background: linear-gradient(120deg, #0f6d68, #23a294);
+}
+
+.el-button.btn-ai:hover,
+.el-button.btn-ai:focus-visible,
+.el-button--primary.btn-ai:hover,
+.el-button--primary.btn-ai:focus-visible {
+  color: #ffffff;
+  background: linear-gradient(120deg, #0d5c57, #1d9e8f);
+}
+
+.el-button.btn-ai:active,
+.el-button--primary.btn-ai:active {
+  color: #ffffff;
+  background: linear-gradient(120deg, #0b4e4b, #17897c);
+}
+
+/* 禁用态灰化：保留渐变轮廓但明显降饱和（AI 命名等有前置条件时） */
+.el-button.btn-ai.is-disabled,
+.el-button.btn-ai.is-disabled:hover {
+  color: rgba(255, 255, 255, 0.7);
+  background: linear-gradient(120deg, #6f9a96, #8db3af);
+  cursor: not-allowed;
+}
+
+html.dark .el-button.btn-ai,
+html.dark .el-button--primary.btn-ai {
+  background: linear-gradient(120deg, #147a72, #2fb3a2);
+}
+
+html.dark .el-button.btn-ai:hover,
+html.dark .el-button.btn-ai:focus-visible,
+html.dark .el-button--primary.btn-ai:hover,
+html.dark .el-button--primary.btn-ai:focus-visible {
+  background: linear-gradient(120deg, #18887f, #3cc2b1);
+}
+
+html.dark .el-button.btn-ai:active,
+html.dark .el-button--primary.btn-ai:active {
+  background: linear-gradient(120deg, #11655f, #27a293);
+}
+
+html.dark .el-button.btn-ai.is-disabled,
+html.dark .el-button.btn-ai.is-disabled:hover {
+  color: rgba(255, 255, 255, 0.55);
+  background: linear-gradient(120deg, #2e4a47, #385854);
 }

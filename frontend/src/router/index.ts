@@ -44,6 +44,20 @@ const learnRoutes: RouteRecordRaw[] = [
         name: 'profile',
         component: () => import('@/views/learn/ProfileView.vue'),
         meta: { title: '我的' }
+      },
+      {
+        // 学习单元：单元内知识点推进（核心模块定义 4.2）
+        path: 'unit/:topicId',
+        name: 'learn-unit',
+        component: () => import('@/views/learn/UnitView.vue'),
+        meta: { title: '学习单元' }
+      },
+      {
+        // 练习：题面 / 速览 / 练习判定（核心模块定义 4.2）
+        path: 'practice/:kpId',
+        name: 'learn-practice',
+        component: () => import('@/views/learn/PracticeView.vue'),
+        meta: { title: '练习' }
       }
     ]
   }
@@ -61,12 +75,6 @@ const adminRoutes: RouteRecordRaw[] = [
         name: 'admin-catalog',
         component: () => import('@/views/admin/CatalogView.vue'),
         meta: { title: '知识库管理' }
-      },
-      {
-        path: 'wizard',
-        name: 'admin-wizard',
-        component: () => import('@/views/admin/WizardView.vue'),
-        meta: { title: '新增向导' }
       },
       {
         path: 'docs',

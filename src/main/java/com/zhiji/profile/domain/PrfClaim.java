@@ -5,8 +5,9 @@ import com.baomidou.mybatisplus.annotation.TableId;
 import com.baomidou.mybatisplus.annotation.TableName;
 
 /**
- * 技能条（Skill Claim，核心模块定义 4.1/6.5）：一段简历措辞 + 其锚定的知识点集合，
- * 简历主张的载体，建档时逐条确认。锚点必须真实存在于题库且上线（代码校验，AI 不编造考点）。
+ * 技能条（Skill Claim，核心模块定义 4.1/6.5）：小标题 + 一段简历措辞 + 其锚定的知识点集合，
+ * 简历主张的载体。锚点必须真实存在于题库且上线（代码校验，AI 不编造考点）。
+ * 对话流（PRD v2）：技能条由建档对话起草采纳，锚点在定稿后由映射补齐（anchor_status）。
  */
 @TableName("prf_claim")
 public class PrfClaim {
@@ -16,13 +17,19 @@ public class PrfClaim {
 
     private Long profileId;
 
-    /** 简历措辞 */
+    /** 小标题（如"存储与分库分表"） */
+    private String title;
+
+    /** 简历措辞（可含未处理占位【…】，定稿前必须清零） */
     private String wording;
 
     /** 锚定知识点 id JSON 数组 [kpId]（String 列，service 层序列化，先例 KbKp） */
     private String anchorIds;
 
-    /** ai（AI 起草采纳）/ manual（手动添加） */
+    /** unmapped 未映射 / mapped 已锚定 / pending 低置信待确认 / zero 零命中 */
+    private String anchorStatus;
+
+    /** ai（对话起草采纳）/ manual（手动添加） */
     private String source;
 
     /** unconfirmed / confirmed（claim_status 常量组） */
@@ -50,6 +57,14 @@ public class PrfClaim {
         this.profileId = profileId;
     }
 
+    public String getTitle() {
+        return title;
+    }
+
+    public void setTitle(String title) {
+        this.title = title;
+    }
+
     public String getWording() {
         return wording;
     }
@@ -64,6 +79,14 @@ public class PrfClaim {
 
     public void setAnchorIds(String anchorIds) {
         this.anchorIds = anchorIds;
+    }
+
+    public String getAnchorStatus() {
+        return anchorStatus;
+    }
+
+    public void setAnchorStatus(String anchorStatus) {
+        this.anchorStatus = anchorStatus;
     }
 
     public String getSource() {

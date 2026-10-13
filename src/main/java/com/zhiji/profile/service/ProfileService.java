@@ -4,11 +4,15 @@ import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
 import com.baomidou.mybatisplus.core.conditions.update.LambdaUpdateWrapper;
 import com.zhiji.common.exception.BizException;
 import com.zhiji.profile.domain.PrfClaim;
+import com.zhiji.profile.domain.PrfIntakeMsg;
+import com.zhiji.profile.domain.PrfCase;
 import com.zhiji.profile.domain.PrfProfile;
 import com.zhiji.profile.domain.ProfileStatus;
 import com.zhiji.profile.domain.ClaimStatus;
 import com.zhiji.profile.domain.TargetLevel;
 import com.zhiji.profile.repo.PrfClaimMapper;
+import com.zhiji.profile.repo.PrfIntakeMsgMapper;
+import com.zhiji.profile.repo.PrfCaseMapper;
 import com.zhiji.profile.repo.PrfProfileMapper;
 import java.time.LocalDateTime;
 import java.time.format.DateTimeFormatter;
@@ -16,6 +20,7 @@ import java.util.Comparator;
 import java.util.List;
 import java.util.Map;
 import java.util.stream.Collectors;
+import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -40,10 +45,17 @@ public class ProfileService {
 
     private final PrfProfileMapper profileMapper;
     private final PrfClaimMapper claimMapper;
+    private final PrfCaseMapper caseMapper;
+    private final PrfIntakeMsgMapper intakeMsgMapper;
+    private final JdbcTemplate jdbc;
 
-    public ProfileService(PrfProfileMapper profileMapper, PrfClaimMapper claimMapper) {
+    public ProfileService(PrfProfileMapper profileMapper, PrfClaimMapper claimMapper,
+            PrfCaseMapper caseMapper, PrfIntakeMsgMapper intakeMsgMapper, JdbcTemplate jdbc) {
         this.profileMapper = profileMapper;
         this.claimMapper = claimMapper;
+        this.caseMapper = caseMapper;
+        this.intakeMsgMapper = intakeMsgMapper;
+        this.jdbc = jdbc;
     }
 
     // —— 视图契约（与前端 types.ts 一一对应） ——
@@ -51,9 +63,9 @@ public class ProfileService {
     public record AnchorView(long id, String title) {
     }
 
-    /** 技能条视图：anchors 为锚点标题实时反查，供拍板界面直接呈现。 */
-    public record ClaimView(long id, String wording, List<Long> anchorIds, List<AnchorView> anchors,
-            String source, String status, int sortOrder) {
+    /** 技能条视图：anchors 为锚点标题实时反查，anchorStatus 承载映射状态（对话流：定稿后映射）。 */
+    public record ClaimView(long id, String title, String wording, List<Long> anchorIds, List<AnchorView> anchors,
+            String anchorStatus, String source, String status, int sortOrder) {
     }
 
     public record CaseView(long id, String projectName, String background, String metrics,
@@ -65,9 +77,9 @@ public class ProfileService {
     }
 
     public record ProfileView(long id, String name, String resumeText, Integer years, String position,
-            String jdText, String techStack, String targetLevel, Integer planWeeks, Integer dailyMinutes,
-            String status, boolean active, String finalizedAt, String createdAt, String updatedAt,
-            List<ClaimView> claims, List<CaseView> cases) {
+            String jdText, String techStack, String goodAt, String targetLevel, Integer planWeeks,
+            Integer dailyMinutes, String status, boolean active, String finalizedAt, String createdAt,
+            String updatedAt, List<ClaimView> claims, List<CaseView> cases) {
     }
 
     // —— 查询 ——
@@ -92,11 +104,20 @@ public class ProfileService {
         return profile;
     }
 
+    /** 当前档案（is_active=1）；无当前档案返回 null（消费方 T11 学习路径入口用，须自行处理空态）。 */
+    public PrfProfile getActiveByCustomer(long customerId) {
+        return profileMapper.selectList(new LambdaQueryWrapper<PrfProfile>()
+                .eq(PrfProfile::getCustomerId, customerId)
+                .eq(PrfProfile::getIsActive, 1)
+                .last("LIMIT 1"))
+                .stream().findFirst().orElse(null);
+    }
+
     /** 详情 = 档案 + 技能条 + 项目素材；技能条/素材视图由各自 service 提供（避免 service 互相依赖成环）。 */
     public ProfileView toDetailView(PrfProfile profile, List<ClaimView> claims, List<CaseView> cases) {
         return new ProfileView(profile.getId(), profile.getName(), profile.getResumeText(), profile.getYears(),
-                profile.getPosition(), profile.getJdText(), profile.getTechStack(), profile.getTargetLevel(),
-                profile.getPlanWeeks(), profile.getDailyMinutes(), profile.getStatus(),
+                profile.getPosition(), profile.getJdText(), profile.getTechStack(), profile.getGoodAt(),
+                profile.getTargetLevel(), profile.getPlanWeeks(), profile.getDailyMinutes(), profile.getStatus(),
                 profile.getIsActive() != null && profile.getIsActive() == 1,
                 profile.getFinalizedAt(), profile.getCreatedAt(), profile.getUpdatedAt(), claims, cases);
     }
@@ -104,9 +125,12 @@ public class ProfileService {
     // —— 创建（含注册默认档案） ——
 
     @Transactional
-    public ProfileListItemView create(long customerId, String name, Integer years, String position) {
+    public ProfileListItemView create(long customerId, String name, Integer years, String position, String resumeText) {
         if (name == null || name.isBlank()) {
             throw BizException.validation("档案名不能为空");
+        }
+        if (resumeText != null && resumeText.length() > MAX_RESUME_CHARS) {
+            throw BizException.validation("简历全文长度 " + MAX_RESUME_CHARS + " 字以内");
         }
         long count = profileMapper.selectCount(new LambdaQueryWrapper<PrfProfile>()
                 .eq(PrfProfile::getCustomerId, customerId));
@@ -116,10 +140,11 @@ public class ProfileService {
         PrfProfile profile = new PrfProfile();
         profile.setCustomerId(customerId);
         profile.setName(name.strip());
-        profile.setResumeText("");
+        profile.setResumeText(resumeText == null ? "" : resumeText);
         profile.setPosition(position == null ? "" : position.strip());
         profile.setJdText("");
         profile.setTechStack("");
+        profile.setGoodAt("");
         profile.setStatus(ProfileStatus.DRAFT.getCode());
         // 首份档案自动成为当前档案（注册即建默认档案直接进建档，6.3）
         profile.setIsActive(count == 0 ? 1 : 0);
@@ -138,13 +163,13 @@ public class ProfileService {
         if (count > 0) {
             return;
         }
-        create(customerId, "我的档案", null, "");
+        create(customerId, "我的档案", null, "", null);
     }
 
     // —— 更新（备考计划整表替换语义：请求里带的字段全量生效，null 即清空） ——
 
     public record UpdateReq(String name, String resumeText, Integer years, String position, String jdText,
-            String techStack, String targetLevel, Integer planWeeks, Integer dailyMinutes) {
+            String techStack, String goodAt, String targetLevel, Integer planWeeks, Integer dailyMinutes) {
     }
 
     @Transactional
@@ -165,6 +190,7 @@ public class ProfileService {
         profile.setPosition(req.position() == null ? "" : req.position().strip());
         profile.setJdText(req.jdText() == null ? "" : req.jdText());
         profile.setTechStack(req.techStack() == null ? "" : req.techStack().strip());
+        profile.setGoodAt(req.goodAt() == null ? "" : req.goodAt().strip());
         if (req.targetLevel() != null && !req.targetLevel().isBlank()) {
             TargetLevel level = TargetLevel.fromCode(req.targetLevel());
             if (level == null) {
@@ -232,6 +258,52 @@ public class ProfileService {
         profile.setUpdatedAt(LocalDateTime.now().format(TS));
         profileMapper.updateById(profile);
         return toListItem(profile, claimsByProfile(List.of(profile)).getOrDefault(profile.getId(), List.of()));
+    }
+
+    // —— 删除（PRD 4.1：二次确认在前端，服务端连带清理档案名下全部数据） ——
+
+    /**
+     * 删除档案及其名下全部数据：技能条、项目素材、建档对话、学习状态与练习会话（T11）。
+     * 学习路径 / 判定 / 复习等消费方（T11+）落库后须在此同步追加级联清理。
+     * 被删的是当前档案时，自动把最早创建的剩余档案设为当前，保持上下文连续。
+     */
+    @Transactional
+    public void delete(long profileId, long customerId) {
+        PrfProfile profile = getOwned(profileId, customerId);
+        boolean wasActive = profile.getIsActive() != null && profile.getIsActive() == 1;
+        claimMapper.delete(new LambdaQueryWrapper<PrfClaim>()
+                .eq(PrfClaim::getProfileId, profileId));
+        caseMapper.delete(new LambdaQueryWrapper<PrfCase>()
+                .eq(PrfCase::getProfileId, profileId));
+        intakeMsgMapper.delete(new LambdaQueryWrapper<PrfIntakeMsg>()
+                .eq(PrfIntakeMsg::getProfileId, profileId));
+        // T11 级联（R14）：该档案的练习会话（customer 归属，created_by=档案 id）与作答、学习状态。
+        // 经 JdbcTemplate 直连清理，避免 profile 与 learn/judge service 互相依赖成环（R14 说明）。
+        // 外键顺序：judge_answer → learn_state → judge_session，最后再删档案行。
+        List<Long> sessionIds = jdbc.queryForList(
+                "SELECT id FROM judge_session WHERE owner_type = 'customer' AND created_by = ?",
+                Long.class, profileId);
+        if (!sessionIds.isEmpty()) {
+            String in = sessionIds.stream().map(String::valueOf).collect(Collectors.joining(","));
+            jdbc.update("DELETE FROM judge_answer WHERE session_id IN (" + in + ")");
+            jdbc.update("DELETE FROM learn_state WHERE profile_id = ?", profileId);
+            jdbc.update("DELETE FROM judge_session WHERE id IN (" + in + ")");
+        } else {
+            jdbc.update("DELETE FROM learn_state WHERE profile_id = ?", profileId);
+        }
+        profileMapper.deleteById(profileId);
+        if (wasActive) {
+            PrfProfile next = profileMapper.selectList(new LambdaQueryWrapper<PrfProfile>()
+                    .eq(PrfProfile::getCustomerId, customerId)
+                    .orderByAsc(PrfProfile::getCreatedAt)
+                    .last("LIMIT 1"))
+                    .stream().findFirst().orElse(null);
+            if (next != null) {
+                next.setIsActive(1);
+                next.setUpdatedAt(LocalDateTime.now().format(TS));
+                profileMapper.updateById(next);
+            }
+        }
     }
 
     // —— 状态机单点（D7）：技能条任何变更后调用 ——

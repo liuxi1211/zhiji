@@ -32,10 +32,6 @@ export async function renameTopic(id: number, name: string): Promise<KbTopicView
   return (await request.put<KbTopicView>(`/admin/kb/topics/${id}`, { name })).data
 }
 
-export async function mergeTopic(id: number, targetId: number): Promise<KbTopicView> {
-  return (await request.post<KbTopicView>(`/admin/kb/topics/${id}/merge`, { targetId })).data
-}
-
 export async function moveTopic(id: number, domainCode: string): Promise<KbTopicView> {
   return (await request.post<KbTopicView>(`/admin/kb/topics/${id}/move`, { domainCode })).data
 }
@@ -126,7 +122,26 @@ export async function submitDocMerge(ids: number[], product: KbMergeProduct): Pr
 }
 
 // —— 通用 AI 辅助（直达模式：内容不绑定素材行，与素材库共用同一套能力） ——
-// 改写已切到 SSE 流式（stream.ts 的 streamAiRewrite 走 /admin/kb/ai/rewrite-stream）
+// 改写走 SSE 流式（stream.ts 的 streamAiRewrite 调 /admin/kb/ai/rewrite-stream，可带人工改写要求）
+
+export async function aiTitleContent(contentMd: string, mode: KbContentType): Promise<string> {
+  const resp = (
+    await request.post<{ title: string }>('/admin/kb/ai/title', { contentMd, mode }, { timeout: 120000 })
+  ).data
+  return resp.title
+}
+
+/** 追问链识别：问答题正文自带多问/下钻内容时整理成追问层草稿，采纳或无视由人 */
+export async function aiFollowupsContent(contentMd: string): Promise<{ layer: number; direction: string; content: string }[]> {
+  const resp = (
+    await request.post<{ followups: { layer: number; direction: string; content: string }[] }>(
+      '/admin/kb/ai/followups',
+      { contentMd },
+      { timeout: 120000 }
+    )
+  ).data
+  return resp.followups
+}
 
 export async function aiSummaryContent(contentMd: string): Promise<string> {
   const resp = (await request.post<{ summary: string }>('/admin/kb/ai/summary', { contentMd }, { timeout: 120000 }))

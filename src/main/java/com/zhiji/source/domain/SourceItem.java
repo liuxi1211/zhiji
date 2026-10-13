@@ -25,6 +25,9 @@ public class SourceItem {
     /** 素材概述（百字内）：齐备是提交进入标准库的前置条件（5.1 边界「概述是入库门槛」） */
     private String summary;
 
+    /** 目标类型标记：kp 面试题线 / doc 文章线；初始导入无法判定时留空，人工填写或采纳 AI 建议，入库时回写最终定类 */
+    private String contentType;
+
     /** 内容难度四档（junior/mid/senior/expert，常量组 difficulty）；向导内 AI 建议、人工拍板 */
     private String difficulty;
 
@@ -90,6 +93,14 @@ public class SourceItem {
 
     public void setSummary(String summary) {
         this.summary = summary;
+    }
+
+    public String getContentType() {
+        return contentType;
+    }
+
+    public void setContentType(String contentType) {
+        this.contentType = contentType;
     }
 
     public String getDifficulty() {

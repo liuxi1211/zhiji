@@ -27,11 +27,10 @@ import org.springframework.web.multipart.MultipartFile;
  * 素材接口（B 端员工会话，/api/admin/sources）。
  *
  * 消费方分两层（核心模块定义 5.1）：
- * - 素材库页面（辅通道）：承接素材——list / get / create / import / fetch / update（轻量整理）/ discard / delete / ai-rewrite；
- * - 新增向导（主通道，属 5.2 标准知识库模块的前端流程页）：split / split-preview / ai-split / ai-summary /
- *   ai-classify / domain-topics / ai-infer(±save) / submit——概述、难度、分类、拆分、反推与提交入库的
- *   素材侧写入口在此，向导页就绪后直接对接，素材库页面不消费这些端点。
- * AI 五动作是「向导与素材库共用同一套 AI 辅助能力」的后端形态（6.4），产物不落库、永远回到人手里。
+ * - 素材库页面（辅通道）：承接素材——list / get / create / import / fetch / update（轻量整理）/ discard / delete / ai-rewrite-stream；
+ * - 新增向导（主通道，属 5.2 标准知识库模块的前端流程页）：ai-summary / ai-classify / domain-topics /
+ *   ai-infer(±save) / submit——概述、难度、分类、反推与提交入库的素材侧写入口在此。
+ * AI 动作是「向导与素材库共用同一套 AI 辅助能力」的后端形态（6.4），产物不落库、永远回到人手里。
  */
 @RestController
 @RequestMapping("/api/admin/sources")
@@ -49,7 +48,8 @@ public class SourceController {
     public record CreateReq(
             @NotBlank(message = "标题不能为空") @Size(max = 120, message = "标题长度 120 以内") String title,
             String contentMd,
-            String sourceUrl) {
+            String sourceUrl,
+            String contentType) {
     }
 
     public record FetchReq(@NotBlank(message = "URL 不能为空") String url) {
@@ -59,6 +59,7 @@ public class SourceController {
             @Size(max = 120, message = "标题长度 120 以内") String title,
             String contentMd,
             @Size(max = 200, message = "概述长度 100 字以内") String summary,
+            String contentType,
             String difficulty,
             String domainCode,
             @Size(max = 60, message = "主题名长度 60 以内") String topicName,
@@ -66,10 +67,7 @@ public class SourceController {
     }
 
     public record SubmitReq(@NotBlank(message = "领域必须人工点选") String domainCode,
-            Long topicId, String contentType) {
-    }
-
-    public record SplitReq(List<SourceService.SplitSliceInput> slices) {
+            Long topicId, String contentType, List<com.zhiji.kb.service.KbContentService.Followup> followups) {
     }
 
     public record InferSaveReq(List<SourceAiService.InferResp> inferences) {
@@ -89,19 +87,9 @@ public class SourceController {
         return sourceService.get(id);
     }
 
-    @GetMapping("/{id}/children")
-    public List<SourceService.SourceItemView> children(@PathVariable long id) {
-        return sourceService.children(id);
-    }
-
-    @GetMapping("/{id}/split-preview")
-    public List<String> splitPreview(@PathVariable long id) {
-        return sourceService.splitPreview(id);
-    }
-
     @PostMapping
     public SourceService.SourceItemView create(@Validated @RequestBody CreateReq req) {
-        return sourceService.create(req.title(), req.contentMd(), req.sourceUrl(), "manual");
+        return sourceService.create(req.title(), req.contentMd(), req.sourceUrl(), "manual", req.contentType());
     }
 
     @PostMapping("/import")
@@ -116,19 +104,14 @@ public class SourceController {
 
     @PutMapping("/{id}")
     public SourceService.SourceItemView update(@PathVariable long id, @Validated @RequestBody UpdateReq req) {
-        return sourceService.update(id, req.title(), req.contentMd(), req.summary(), req.difficulty(),
-                req.domainCode(), req.topicName(), req.sourceUrl());
-    }
-
-    @PostMapping("/{id}/split")
-    public SourceService.SplitResp split(@PathVariable long id, @RequestBody SplitReq req) {
-        return sourceService.split(id, req.slices());
+        return sourceService.update(id, req.title(), req.contentMd(), req.summary(), req.contentType(),
+                req.difficulty(), req.domainCode(), req.topicName(), req.sourceUrl());
     }
 
     @PostMapping("/{id}/submit")
     public List<SourceService.SourceItemView> submit(@PathVariable long id,
             @Validated @RequestBody SubmitReq req) {
-        return sourceService.submit(id, req.domainCode(), req.topicId(), req.contentType());
+        return sourceService.submit(id, req.domainCode(), req.topicId(), req.contentType(), req.followups());
     }
 
     @PostMapping("/{id}/discard")
@@ -158,20 +141,18 @@ public class SourceController {
 
     // —— AI 辅助（产物回人手里，不直接落库） ——
 
-    @PostMapping("/{id}/ai/rewrite")
-    public SourceAiService.RewriteResp rewrite(@PathVariable long id) {
-        return sourceAiService.rewrite(sourceService.get(id).contentMd());
+    public record RewriteStreamReq(String instruction) {
     }
 
-    /** 流式改写（SSE）：逐片段推送打字机式呈现，长文不再干等；协议见 RewriteStreamSupport。 */
+    /** 流式改写（SSE）：逐片段推送打字机式呈现，长文不再干等；协议见 RewriteStreamSupport。
+     *  改写模式取素材行的类型标记（kp 面试题答案式 / doc 资料讲解式 / 未标记走通用整理），
+     *  instruction 为人工录入的改写要求（可空，素材库编辑抽屉使用）。 */
     @PostMapping(value = "/{id}/ai/rewrite/stream", produces = org.springframework.http.MediaType.TEXT_EVENT_STREAM_VALUE)
-    public org.springframework.web.servlet.mvc.method.annotation.SseEmitter rewriteStream(@PathVariable long id) {
-        return RewriteStreamSupport.stream(sourceAiService, sourceService.get(id).contentMd());
-    }
-
-    @PostMapping("/{id}/ai/split")
-    public SourceAiService.SplitResp aiSplit(@PathVariable long id) {
-        return sourceAiService.split(sourceService.get(id).contentMd());
+    public org.springframework.web.servlet.mvc.method.annotation.SseEmitter rewriteStream(@PathVariable long id,
+            @RequestBody(required = false) RewriteStreamReq req) {
+        SourceService.SourceItemView item = sourceService.get(id);
+        return RewriteStreamSupport.stream(sourceAiService, item.contentMd(), item.contentType(),
+                req == null ? null : req.instruction());
     }
 
     @PostMapping("/{id}/ai/summary")

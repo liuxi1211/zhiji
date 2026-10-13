@@ -40,7 +40,8 @@ import org.springframework.web.multipart.MultipartFile;
 
 /**
  * 素材库核心服务（核心模块定义 5.1）：手写新增、txt/md 导入、URL 抓取、
- * 轻量整理（编辑/AI 改写由 SourceAiService 产出后回写）、拆分、状态推进。
+ * 轻量整理（编辑/AI 改写由 SourceAiService 产出后回写）、状态推进与提交入库。
+ * 多主题长文由人工在素材层拆分（复制删减成多条素材），不再提供系统拆分。
  *
  * 图片资产「落盘即真相」（暂缓清单 1.6 已销账口径）：导入压缩包内的图片按引用路径落盘
  * data/assets/source/{itemId}/{file}，未被正文引用的不落盘；删除素材连带清理图片目录。
@@ -76,15 +77,9 @@ public class SourceService {
     }
 
     public record SourceItemView(long id, Long parentId, String title, String contentMd, String summary,
-            String difficulty, String domainCode, String domainName, String topicName,
+            String contentType, String difficulty, String domainCode, String domainName, String topicName,
             String sourceType, String sourceUrl, String status, String submittedAt,
             int childCount, String createdAt, String updatedAt) {
-    }
-
-    public record SplitSliceResp(long id, String title) {
-    }
-
-    public record SplitResp(List<SplitSliceResp> slices) {
     }
 
     /** 素材库分页响应：items/total 之外带全库 facets——状态分段计数与领域候选不随筛选变化（与原全量口径一致）。 */
@@ -161,23 +156,12 @@ public class SourceService {
     public record SourceFacets(Map<String, Long> statusCounts, List<String> domains) {
     }
 
-    public List<SourceItemView> children(long parentId) {
-        SourceItem parent = requireItem(parentId);
-        Map<Long, Long> childCounts = childCounts();
-        Map<String, String> domainNames = domainNames();
-        return mapper.selectList(new LambdaQueryWrapper<SourceItem>()
-                        .eq(SourceItem::getParentId, parent.getId())
-                        .orderByAsc(SourceItem::getId))
-                .stream()
-                .map(item -> toView(item, childCounts, domainNames))
-                .toList();
-    }
-
     public SourceItemView get(long id) {
         return toView(requireItem(id), childCounts(), domainNames());
     }
 
-    public SourceItemView create(String title, String contentMd, String sourceUrl, String sourceType) {
+    public SourceItemView create(String title, String contentMd, String sourceUrl, String sourceType,
+            String contentType) {
         if (title == null || title.isBlank()) {
             throw BizException.validation("标题不能为空");
         }
@@ -188,12 +172,25 @@ public class SourceService {
         SourceItem item = new SourceItem();
         item.setTitle(title.strip());
         item.setContentMd(contentMd == null ? "" : contentMd);
+        item.setContentType(normalizeContentType(contentType));
         item.setSourceType(type);
         item.setSourceUrl((sourceUrl == null || sourceUrl.isBlank()) ? null : sourceUrl.strip());
         item.setStatus("pending");
         item.setCreatedBy(requireStaffId());
         mapper.insert(item);
         return toView(item, Map.of(), domainNames());
+    }
+
+    /** 目标类型标记规整：空为未定（null），只接受 kp/doc。 */
+    public static String normalizeContentType(String contentType) {
+        if (contentType == null || contentType.isBlank()) {
+            return null;
+        }
+        String value = contentType.strip();
+        if (!"kp".equals(value) && !"doc".equals(value)) {
+            throw BizException.validation("类型取值不合法：知识点(kp)或资料讲解(doc)");
+        }
+        return value;
     }
 
     /**
@@ -218,7 +215,7 @@ public class SourceService {
                 }
                 String text = new String(bytes, StandardCharsets.UTF_8);
                 String title = name.substring(0, name.lastIndexOf('.'));
-                return create(title, text, null, "import");
+                return create(title, text, null, "import", null);
             }
             throw BizException.validation("仅支持 txt / md 文本与 zip 压缩包（含打包图片资源）");
         } catch (BizException e) {
@@ -337,7 +334,7 @@ public class SourceService {
         } catch (IOException e) {
             log.warn("URL 抓取失败，回退空稿：{} - {}", trimmed, e.getMessage());
         }
-        SourceItemView created = create(title, markdown, trimmed, "url");
+        SourceItemView created = create(title, markdown, trimmed, "url", null);
         return get(created.id());
     }
 
@@ -386,8 +383,8 @@ public class SourceService {
         return md.toString().replace("\n{3,}", "\n\n").strip();
     }
 
-    public SourceItemView update(long id, String title, String contentMd, String summary, String difficulty,
-            String domainCode, String topicName, String sourceUrl) {
+    public SourceItemView update(long id, String title, String contentMd, String summary, String contentType,
+            String difficulty, String domainCode, String topicName, String sourceUrl) {
         SourceItem item = requireEditable(id);
         if (title != null) {
             if (title.isBlank()) {
@@ -403,6 +400,9 @@ public class SourceService {
                 throw BizException.validation("概述控制在 100 字内");
             }
             item.setSummary(summary.isBlank() ? null : summary.strip());
+        }
+        if (contentType != null) {
+            item.setContentType(normalizeContentType(contentType));
         }
         if (difficulty != null) {
             if (!difficulty.isBlank() && !List.of("junior", "mid", "senior", "expert").contains(difficulty)) {
@@ -428,55 +428,14 @@ public class SourceService {
         return toView(item, childCounts(), domainNames());
     }
 
-    /** 拆分请求项：title 必填；contentMd 为空时按母素材标题锚点切段回填。 */
-    public record SplitSliceInput(String title, String contentMd) {
-    }
-
-    /** 拆分：1 拆多，产出子素材并挂到母素材下；母素材转 discarded 保留原文。 */
-    public SplitResp split(long id, List<SplitSliceInput> slices) {
-        SourceItem parent = requireEditable(id);
-        if (slices == null || slices.size() < 2) {
-            throw BizException.validation("拆分至少要产出两条子素材");
-        }
-        List<SplitSliceResp> created = new ArrayList<>();
-        List<String> segments = segmentsOf(parent.getContentMd());
-        for (int i = 0; i < slices.size(); i++) {
-            SplitSliceInput slice = slices.get(i);
-            if (slice.title() == null || slice.title().isBlank()) {
-                throw BizException.validation("第 " + (i + 1) + " 条子素材标题不能为空");
-            }
-            String content = slice.contentMd();
-            if (content == null || content.isBlank()) {
-                content = i < segments.size() ? segments.get(i) : "";
-            }
-            SourceItem child = new SourceItem();
-            child.setParentId(parent.getId());
-            child.setTitle(slice.title().strip());
-            child.setContentMd(content);
-            child.setSourceType("manual");
-            child.setSourceUrl(parent.getSourceUrl());
-            child.setStatus("pending");
-            child.setCreatedBy(requireStaffId());
-            mapper.insert(child);
-            created.add(new SplitSliceResp(child.getId(), child.getTitle()));
-        }
-        parent.setStatus("discarded");
-        parent.setUpdatedAt(now());
-        mapper.updateById(parent);
-        return new SplitResp(created);
-    }
-
-    /** AI 一键拆分预填的标题锚点：按 Markdown 标题切正文，供逐条预览调整。 */
-    public List<String> splitPreview(long id) {
-        return segmentsOf(requireItem(id).getContentMd());
-    }
-
     /**
      * 提交入库（核心模块定义 5.1 → 5.2 的衔接）：概述与难度齐备才可提交（两者都是入库门槛）；
-     * 每条素材在标准库创建 pending 内容并进审核队列（不校不上线），素材标 submitted 长期保留；
-     * 子素材成组提交到同一主题、同一定类。标准库内容与素材进门即断联（红线 7）。
+     * 素材在标准库创建 pending 内容并进审核队列（不校不上线），素材标 submitted 长期保留；
+     * followups 为向导内确认的追问链草稿（仅面试题线消费，id 已在前端分配）。
+     * 标准库内容与素材进门即断联（红线 7）。
      */
-    public List<SourceItemView> submit(long id, String domainCode, Long topicId, String contentType) {
+    public List<SourceItemView> submit(long id, String domainCode, Long topicId, String contentType,
+            List<com.zhiji.kb.service.KbContentService.Followup> followups) {
         SourceItem item = requireItem(id);
         if (item.getSummary() == null || item.getSummary().isBlank()) {
             throw BizException.validation("概述齐备才能进入标准库：请先补齐概述");
@@ -502,27 +461,19 @@ public class SourceService {
         if (!topic.getDomainCode().equals(domainCode)) {
             throw BizException.validation("主题不属于所选领域");
         }
-        List<SourceItem> targets = new ArrayList<>();
-        targets.add(item);
-        if (item.getParentId() == null) {
-            targets.addAll(mapper.selectList(new LambdaQueryWrapper<SourceItem>()
-                    .eq(SourceItem::getParentId, item.getId())
-                    .eq(SourceItem::getStatus, "pending")));
-        }
         String stamp = now();
-        for (SourceItem target : targets) {
-            // 每条素材在标准库成稿：pending + 审核留痕（kb 侧自行校验主题与领域匹配）
-            kbContentService.createPending(contentType, domainCode, topicId, target.getTitle(),
-                    target.getSummary(), target.getContentMd(), target.getDifficulty(),
-                    "doc".equals(contentType) ? target.getSourceUrl() : null, "wizard", null);
-            target.setStatus("submitted");
-            target.setDomainCode(domainCode);
-            target.setTopicName(topic.getName());
-            target.setSubmittedAt(stamp);
-            target.setUpdatedAt(stamp);
-            mapper.updateById(target);
-        }
-        return targets.stream().map(t -> toView(t, childCounts(), domainNames())).toList();
+        // 每条素材在标准库成稿：pending + 审核留痕（kb 侧自行校验主题与领域匹配）
+        kbContentService.createPending(contentType, domainCode, topicId, item.getTitle(),
+                item.getSummary(), item.getContentMd(), item.getDifficulty(),
+                "doc".equals(contentType) ? item.getSourceUrl() : null, "wizard", null, followups);
+        item.setStatus("submitted");
+        item.setContentType(contentType);
+        item.setDomainCode(domainCode);
+        item.setTopicName(topic.getName());
+        item.setSubmittedAt(stamp);
+        item.setUpdatedAt(stamp);
+        mapper.updateById(item);
+        return List.of(toView(item, childCounts(), domainNames()));
     }
 
     public SourceItemView discard(long id) {
@@ -598,32 +549,6 @@ public class SourceService {
         return staffId;
     }
 
-    /** 按标题锚点切正文：一级/二级标题作为切分线，返回与锚点对应的正文段。 */
-    private List<String> segmentsOf(String contentMd) {
-        List<String> segments = new ArrayList<>();
-        if (contentMd == null || contentMd.isBlank()) {
-            return segments;
-        }
-        Pattern heading = Pattern.compile("(?m)^#{1,2}\\s+(.+)$");
-        Matcher matcher = heading.matcher(contentMd);
-        List<String> anchors = new ArrayList<>();
-        List<Integer> positions = new ArrayList<>();
-        while (matcher.find()) {
-            anchors.add(matcher.group(1).strip());
-            positions.add(matcher.start());
-        }
-        if (anchors.isEmpty()) {
-            segments.add(contentMd.strip());
-            return segments;
-        }
-        for (int i = 0; i < anchors.size(); i++) {
-            int start = positions.get(i);
-            int end = i + 1 < positions.size() ? positions.get(i + 1) : contentMd.length();
-            segments.add(contentMd.substring(start, end).strip());
-        }
-        return segments;
-    }
-
     private Map<Long, Long> childCounts() {
         Map<Long, Long> counts = new HashMap<>();
         for (Map<String, Object> row : mapper.selectMaps(new QueryWrapper<SourceItem>()
@@ -649,7 +574,7 @@ public class SourceService {
 
     private SourceItemView toView(SourceItem item, Map<Long, Long> childCounts, Map<String, String> domainNames) {
         return new SourceItemView(item.getId(), item.getParentId(), item.getTitle(), item.getContentMd(),
-                item.getSummary(), item.getDifficulty(), item.getDomainCode(),
+                item.getSummary(), item.getContentType(), item.getDifficulty(), item.getDomainCode(),
                 domainNames.getOrDefault(item.getDomainCode(), item.getDomainCode()),
                 item.getTopicName(), item.getSourceType(), item.getSourceUrl(), item.getStatus(),
                 item.getSubmittedAt(),

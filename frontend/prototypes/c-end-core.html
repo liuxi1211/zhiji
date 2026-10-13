@@ -1,0 +1,1239 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>知己 · C 端核心页面原型评审台</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Noto+Serif+SC:wght@600;900&display=swap" rel="stylesheet">
+<style>
+:root{
+  --paper:#FAFAF7;      /* 宣纸：屏内底色 */
+  --paper-2:#F2F0EA;    /* 宣纸·卡面 */
+  --ink:#17323B;        /* 墨青：主文字与主色 */
+  --ink-70:rgba(23,50,59,.72);
+  --ink-45:rgba(23,50,59,.45);
+  --grid:#E8E4DA;       /* 格线 */
+  --cinnabar:#C94F3D;   /* 批注朱：唯一强调色 */
+  --pass:#8A9B8E;       /* 及格 */
+  --good:#3E7CB1;       /* 良好 */
+  --excel:#B98A2F;      /* 优秀 */
+  --miss:#C77B3B;       /* 答缺 */
+  --none:#9A958A;       /* 未答 */
+  --serif:"Noto Serif SC","Source Han Serif SC","Songti SC","STSong","SimSun",serif;
+  --sans:-apple-system,"PingFang SC","HarmonyOS Sans SC","Microsoft YaHei",sans-serif;
+  --mono:ui-monospace,"Cascadia Mono",Consolas,"JetBrains Mono",monospace;
+}
+*{margin:0;padding:0;box-sizing:border-box}
+html{scroll-behavior:smooth}
+body{background:#232830;font-family:var(--sans);color:var(--ink)}
+::selection{background:rgba(201,79,61,.25)}
+
+/* ============ 画板头（宣纸 hero） ============ */
+.bp-hero{background:var(--paper);padding:64px 48px 48px;border-bottom:1px solid var(--grid)}
+.bp-hero .kicker{font-family:var(--mono);font-size:12px;letter-spacing:.28em;color:var(--cinnabar);text-transform:uppercase}
+.bp-hero h1{font-family:var(--serif);font-weight:900;font-size:44px;line-height:1.28;margin:18px 0 14px;max-width:760px}
+.bp-hero h1 em{font-style:normal;color:var(--cinnabar);border-bottom:6px solid rgba(201,79,61,.18)}
+.bp-hero .lede{color:var(--ink-70);font-size:15px;line-height:1.9;max-width:720px}
+.bp-journey{display:flex;align-items:center;flex-wrap:wrap;gap:10px;margin:34px 0 0;padding:18px 20px;border:1px solid var(--grid);background:#fff;border-radius:14px;max-width:860px}
+.bp-journey .jstop{display:flex;align-items:center;gap:8px;font-size:13px;font-weight:600}
+.bp-journey .dot{width:22px;height:22px;border-radius:50%;background:var(--ink);color:var(--paper);font-family:var(--mono);font-size:11px;display:flex;align-items:center;justify-content:center;flex:none}
+.bp-journey .arr{color:var(--ink-45);font-family:var(--mono)}
+.bp-journey .jstag{font-size:11px;color:var(--ink-45);margin-left:2px}
+.bp-tokens{display:flex;gap:36px;flex-wrap:wrap;margin-top:34px;align-items:flex-end}
+.bp-tokens .tk-title{font-size:12px;color:var(--ink-45);letter-spacing:.12em;margin-bottom:10px}
+.swatches{display:flex;gap:8px}
+.sw{width:74px}
+.sw i{display:block;height:44px;border-radius:8px;border:1px solid var(--grid)}
+.sw b{display:block;font-family:var(--mono);font-size:10.5px;font-weight:400;color:var(--ink-70);margin-top:6px}
+.typecards{display:flex;flex-direction:column;gap:8px}
+.typecards .tcard{background:#fff;border:1px solid var(--grid);border-radius:10px;padding:10px 16px;min-width:280px}
+.typecards .t-serif{font-family:var(--serif);font-weight:900;font-size:19px}
+.typecards .t-sans{font-size:14px}
+.typecards .t-mono{font-family:var(--mono);font-size:13px;color:var(--ink-70)}
+.typecards .tcard small{display:block;font-family:var(--mono);font-size:10px;color:var(--ink-45);margin-top:3px}
+
+/* ============ 画板主体（横向评审台） ============ */
+.bp-board{display:flex;gap:64px;padding:64px 48px 40px;overflow-x:auto;scrollbar-width:thin;scrollbar-color:#4a525e transparent}
+.bp-board::-webkit-scrollbar{height:10px}
+.bp-board::-webkit-scrollbar-thumb{background:#4a525e;border-radius:6px}
+.bp-frame{flex:none;display:flex;flex-direction:column;align-items:center}
+
+/* ============ 手机壳 ============ */
+.scr{width:390px;height:844px;background:var(--paper);border-radius:46px;border:9px solid #12161c;box-shadow:0 30px 70px rgba(0,0,0,.45);overflow:hidden;display:flex;flex-direction:column;position:relative}
+.scr::before{content:"";position:absolute;top:10px;left:50%;transform:translateX(-50%);width:110px;height:26px;background:#12161c;border-radius:14px;z-index:30}
+.scr-status{height:52px;flex:none;display:flex;justify-content:space-between;align-items:flex-end;padding:0 30px 4px;font-family:var(--mono);font-size:13px;font-weight:600;color:var(--ink);z-index:31}
+.scr-status .rs{display:flex;align-items:center;gap:5px}
+.scr-body{flex:1;overflow-y:auto;overflow-x:hidden;scrollbar-width:none;padding-bottom:12px}
+.scr-body::-webkit-scrollbar{display:none}
+.scr-tabbar{flex:none;display:flex;justify-content:space-around;align-items:stretch;background:#fff;border-top:1px solid var(--grid);padding:8px 6px calc(8px + 14px)}
+.scr-tabbar .tab{flex:1;display:flex;flex-direction:column;align-items:center;gap:3px;font-size:10.5px;color:var(--ink-45);position:relative;cursor:pointer;padding:4px 0;user-select:none}
+.scr-tabbar .tab svg{width:21px;height:21px;stroke:currentColor;fill:none;stroke-width:1.7;stroke-linecap:round;stroke-linejoin:round}
+.scr-tabbar .tab.on{color:var(--ink);font-weight:600}
+.scr-tabbar .tab.on::after{content:"";position:absolute;top:-9px;left:50%;transform:translateX(-50%);width:26px;height:3px;border-radius:0 0 4px 4px;background:var(--cinnabar)}
+
+/* ============ 屏内通用组件 ============ */
+.in-pad{padding:0 18px}
+.h-serif{font-family:var(--serif);font-weight:900}
+.card{background:#fff;border:1px solid var(--grid);border-radius:14px}
+.chip{display:inline-flex;align-items:center;gap:5px;border:1px solid var(--grid);background:#fff;border-radius:999px;padding:3px 10px;font-size:11px;color:var(--ink-70);white-space:nowrap}
+.chip.zhu{border-color:rgba(201,79,61,.4);color:var(--cinnabar);background:rgba(201,79,61,.06)}
+.meta-row{display:flex;gap:6px;flex-wrap:wrap;align-items:center}
+.dots3{display:inline-flex;gap:3px}
+.dots3 i{width:6px;height:6px;border-radius:50%;display:inline-block}
+.btn-zhu{display:block;width:100%;background:var(--cinnabar);color:#fff;border:none;border-radius:13px;padding:14px;font-size:15px;font-weight:700;text-align:center;cursor:pointer;font-family:var(--sans)}
+.btn-ghost{display:inline-flex;align-items:center;justify-content:center;gap:6px;background:#fff;border:1px solid var(--grid);border-radius:13px;padding:12px 14px;font-size:13px;color:var(--ink-70);cursor:pointer}
+.divider{height:1px;background:var(--grid);margin:14px 18px}
+.sect-label{font-family:var(--mono);font-size:10.5px;letter-spacing:.22em;color:var(--ink-45);display:flex;align-items:center;gap:8px;margin:0 18px 10px}
+.sect-label::after{content:"";flex:1;height:1px;background:var(--grid)}
+
+/* —— 屏1 地图 —— */
+.greet{padding:14px 18px 4px;display:flex;justify-content:space-between;align-items:center}
+.greet h2{font-family:var(--serif);font-weight:900;font-size:22px}
+.greet p{font-size:11.5px;color:var(--ink-45);margin-top:2px}
+.avatar{width:38px;height:38px;border-radius:50%;background:var(--ink);color:var(--paper);display:flex;align-items:center;justify-content:center;font-family:var(--serif);font-size:15px;font-weight:600}
+.profile-strip{margin:12px 18px 0;padding:12px 14px;display:flex;align-items:center;gap:10px}
+.profile-strip .flag{flex:none;width:34px;height:34px;border-radius:9px;background:rgba(23,50,59,.08);display:flex;align-items:center;justify-content:center}
+.profile-strip .flag svg{width:17px;height:17px;stroke:var(--ink);fill:none;stroke-width:1.7;stroke-linecap:round;stroke-linejoin:round}
+.profile-strip b{font-size:13.5px}
+.profile-strip small{display:block;font-size:11px;color:var(--ink-45);margin-top:1px}
+.today-list{margin:0 18px;display:flex;flex-direction:column;gap:8px}
+.today-item{display:flex;gap:12px;align-items:center;padding:13px 14px;cursor:pointer}
+.today-item .tno{flex:none;font-family:var(--serif);font-weight:900;font-size:17px;color:var(--cinnabar);width:20px}
+.today-item b{font-size:13.5px;display:block}
+.today-item small{display:block;font-size:11px;color:var(--ink-45);margin-top:2px}
+.today-item .go{flex:none;color:var(--ink-45);font-size:16px}
+.dom-grid{display:grid;grid-template-columns:1fr 1fr;gap:9px;margin:0 18px}
+.dom-cell{padding:12px 13px;cursor:pointer}
+.dom-cell b{font-size:13px;display:block}
+.dom-cell small{font-family:var(--mono);font-size:10px;color:var(--ink-45);display:block;margin:3px 0 8px}
+.gauge3{display:flex;height:5px;border-radius:3px;overflow:hidden;background:var(--grid)}
+.gauge3 i{display:block;height:100%}
+.dom-cell .gl{display:flex;justify-content:space-between;font-family:var(--mono);font-size:9.5px;color:var(--ink-45);margin-top:5px}
+
+/* —— 屏2 题目列表 —— */
+.crumbs{padding:14px 18px 0;font-size:12px;color:var(--ink-45)}
+.crumbs b{color:var(--ink);font-weight:600}
+.domain-head{padding:10px 18px 4px}
+.domain-head h2{font-family:var(--serif);font-weight:900;font-size:24px}
+.domain-head .dh-sub{display:flex;justify-content:space-between;align-items:center;margin-top:6px;font-size:11.5px;color:var(--ink-45)}
+.domain-head .dh-sub b{color:var(--ink);font-family:var(--mono)}
+.dh-bar{margin:10px 18px 0;display:flex;align-items:center;gap:10px}
+.dh-bar .gauge3{flex:1}
+.filter-chips{display:flex;gap:6px;padding:12px 18px;overflow-x:auto;scrollbar-width:none}
+.filter-chips::-webkit-scrollbar{display:none}
+.filter-chips .chip.sel{background:var(--ink);color:var(--paper);border-color:var(--ink)}
+.topic-group{margin:6px 0 2px}
+.topic-head{display:flex;justify-content:space-between;align-items:baseline;padding:12px 18px 6px}
+.topic-head b{font-size:13.5px}
+.topic-head span{font-family:var(--mono);font-size:10.5px;color:var(--ink-45)}
+.kp-row{display:flex;gap:11px;align-items:flex-start;padding:13px 18px;border-bottom:1px solid var(--grid);cursor:pointer}
+.kp-row:last-child{border-bottom:none}
+.kp-row .st{flex:none;width:9px;height:9px;border-radius:50%;margin-top:6px;box-shadow:0 0 0 3px rgba(23,50,59,.05)}
+.kp-row .kt{flex:1;min-width:0}
+.kp-row .kt b{font-family:var(--serif);font-weight:600;font-size:14.5px;line-height:1.5;display:block}
+.kp-row .kt small{display:flex;gap:8px;margin-top:4px;font-size:10.5px;color:var(--ink-45)}
+.kp-row .kt small .mono{font-family:var(--mono)}
+.freq-hi{color:var(--cinnabar);font-weight:600}
+.lvl-tag{flex:none;font-size:10px;border-radius:6px;padding:2px 7px;margin-top:2px;border:1px solid var(--grid);color:var(--ink-70)}
+
+/* —— 屏3 学习页 —— */
+.learn-top{padding:10px 18px 0;display:flex;justify-content:space-between;align-items:center;color:var(--ink-70)}
+.learn-top .lt-l{display:flex;align-items:center;gap:8px;font-size:12px}
+.learn-top .lt-r{display:flex;gap:14px}
+.learn-top svg{width:18px;height:18px;stroke:var(--ink);fill:none;stroke-width:1.7;stroke-linecap:round;stroke-linejoin:round}
+.q-title{padding:10px 18px 0}
+.q-title h2{font-family:var(--serif);font-weight:900;font-size:23px;line-height:1.5}
+.variants{padding:12px 18px 0}
+.variants p{font-size:10.5px;color:var(--ink-45);margin-bottom:7px}
+.variants .vchips{display:flex;gap:6px;overflow-x:auto;scrollbar-width:none}
+.variants .vchips::-webkit-scrollbar{display:none}
+.framework{margin:0 18px;display:flex;flex-direction:column;gap:8px}
+.fw-step{display:flex;gap:11px;padding:11px 13px;background:#fff;border:1px solid var(--grid);border-radius:12px}
+.fw-step .no{flex:none;width:22px;height:22px;border-radius:50%;border:1.5px solid var(--ink);color:var(--ink);font-family:var(--mono);font-size:11px;display:flex;align-items:center;justify-content:center;margin-top:1px}
+.fw-step b{font-size:13px;display:block}
+.fw-step small{font-size:11.5px;color:var(--ink-70);line-height:1.65;display:block;margin-top:2px}
+.followups{margin:0 18px}
+.fu{background:#fff;border:1px solid var(--grid);border-radius:12px;margin-bottom:8px;overflow:hidden}
+.fu summary{list-style:none;display:flex;align-items:center;gap:10px;padding:12px 13px;cursor:pointer;font-size:13px}
+.fu summary::-webkit-details-marker{display:none}
+.fu .fl{flex:none;font-family:var(--mono);font-size:10px;color:var(--paper);background:var(--ink);border-radius:6px;padding:2.5px 7px}
+.fu .fd{flex:none;font-size:10px;color:var(--ink-45);border:1px solid var(--grid);border-radius:6px;padding:2px 7px}
+.fu .fq{flex:1;line-height:1.55}
+.fu .chev{flex:none;color:var(--ink-45);transition:transform .25s;font-size:11px}
+.fu[open] .chev{transform:rotate(90deg)}
+.fu .fa{padding:0 13px 12px 13px;font-size:11.5px;color:var(--ink-70);line-height:1.7;border-top:1px dashed var(--grid);padding-top:9px;margin:0 0}
+.fu .fa b{color:var(--cinnabar);font-weight:600}
+.fu.l2 .fl{background:var(--good)}
+.fu.l3 .fl{background:var(--excel)}
+.fu-track{margin:0 18px 8px;display:flex;gap:0;height:3px;border-radius:2px;overflow:hidden}
+.fu-track i{flex:1;background:var(--grid)}
+.fu-track i.done{background:var(--ink)}
+.samples{margin:0 18px}
+.sm-tabs{display:flex;background:var(--paper-2);border-radius:11px;padding:3px;gap:3px}
+.sm-tabs button{flex:1;border:none;background:transparent;border-radius:9px;padding:8px 0;font-size:12px;color:var(--ink-45);cursor:pointer;font-family:var(--sans)}
+.sm-tabs button.on{background:#fff;font-weight:700;box-shadow:0 1px 4px rgba(23,50,59,.12)}
+.sm-tabs button.on.lv1{color:#5f7263}
+.sm-tabs button.on.lv2{color:var(--good)}
+.sm-tabs button.on.lv3{color:var(--excel)}
+.sm-pane{margin-top:10px;padding:13px 14px;font-size:12.5px;line-height:1.8;color:var(--ink-70);min-height:118px}
+.sm-pane b{font-size:11px;display:block;margin-bottom:6px;letter-spacing:.06em}
+.sm-pane.lv1{border-top:3px solid var(--pass)}
+.sm-pane.lv1 b{color:#5f7263}
+.sm-pane.lv2{border-top:3px solid var(--good)}
+.sm-pane.lv2 b{color:var(--good)}
+.sm-pane.lv3{border-top:3px solid var(--excel)}
+.sm-pane.lv3 b{color:var(--excel)}
+.doc-link{margin:0 18px;display:flex;align-items:center;gap:11px;padding:12px 14px;cursor:pointer}
+.doc-link .dico{flex:none;width:36px;height:36px;border-radius:10px;background:rgba(62,124,177,.1);display:flex;align-items:center;justify-content:center}
+.doc-link .dico svg{width:18px;height:18px;stroke:var(--good);fill:none;stroke-width:1.7;stroke-linecap:round;stroke-linejoin:round}
+.doc-link b{font-size:13px;display:block}
+.doc-link small{font-size:10.5px;color:var(--ink-45)}
+.learn-actions{position:sticky;bottom:0;background:linear-gradient(transparent,var(--paper) 30%);padding:14px 18px 16px;display:flex;gap:8px}
+.learn-actions .btn-zhu{flex:1;padding:13px}
+.learn-actions .act{flex:none;width:46px;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:2px;background:#fff;border:1px solid var(--grid);border-radius:13px;font-size:9.5px;color:var(--ink-70);cursor:pointer}
+.learn-actions .act svg{width:17px;height:17px;stroke:var(--ink);fill:none;stroke-width:1.7;stroke-linecap:round;stroke-linejoin:round}
+
+/* —— 屏4 练习判定（标志性交互） —— */
+.drill-top{padding:12px 18px 0;display:flex;justify-content:space-between;align-items:center;font-size:12px;color:var(--ink-70)}
+.drill-top .prog{font-family:var(--mono)}
+.drill-top .lvlsel{display:flex;gap:5px}
+.drill-top .lvlsel span{border:1px solid var(--grid);border-radius:7px;padding:2.5px 9px;font-size:11px;cursor:pointer;background:#fff}
+.drill-top .lvlsel span.sel{background:var(--ink);color:var(--paper);border-color:var(--ink)}
+.drill-q{padding:12px 18px 0}
+.drill-q h2{font-family:var(--serif);font-weight:900;font-size:20px;line-height:1.55}
+.drill-hint{margin:10px 18px 0;padding:10px 13px;background:rgba(201,79,61,.05);border:1px dashed rgba(201,79,61,.35);border-radius:11px;font-size:11.5px;color:var(--cinnabar);line-height:1.6}
+.drill-wrap{display:flex;gap:12px;margin:14px 18px 0;align-items:stretch}
+.pt-list{flex:1;display:flex;flex-direction:column;gap:7px;min-width:0}
+.pt{display:flex;gap:9px;align-items:flex-start;padding:10px 11px;background:#fff;border:1px solid var(--grid);border-radius:11px;cursor:pointer;transition:transform .15s, border-color .2s;user-select:none}
+.pt:active{transform:scale(.98)}
+.pt .lamp{flex:none;width:15px;height:15px;border-radius:50%;border:1.6px solid var(--ink-45);margin-top:2px;position:relative;transition:all .2s}
+.pt .lamp::after{content:"";position:absolute;inset:3px;border-radius:50%;background:transparent;transition:background .2s}
+.pt .pt-body{flex:1;min-width:0}
+.pt .pt-body b{font-size:11px;font-family:var(--mono);letter-spacing:.08em;color:var(--ink-45);display:block;margin-bottom:2px}
+.pt .pt-body span{font-size:12px;line-height:1.55;display:block}
+.pt.on{border-color:currentColor}
+.pt.on .lamp{border-color:currentColor}
+.pt.on .lamp::after{background:currentColor}
+.pt.l1{--c:var(--pass)} .pt.l1.on{color:var(--pass)}
+.pt.l2{--c:var(--good)} .pt.l2.on{color:var(--good)}
+.pt.l3{--c:var(--excel)} .pt.l3.on{color:var(--excel)}
+.pt.on .pt-body span{color:var(--ink)}
+.gauge-rail{flex:none;width:56px;display:flex;flex-direction:column-reverse;gap:4px}
+.gauge-step{flex:1;border-radius:9px;background:var(--paper-2);border:1px solid var(--grid);display:flex;align-items:center;justify-content:center;font-size:9.5px;color:var(--ink-45);writing-mode:vertical-rl;letter-spacing:.2em;transition:all .35s}
+.gauge-step.hit{background:var(--ink);border-color:var(--ink);color:var(--paper);font-weight:700}
+.gauge-step.hit.g1{background:var(--pass);border-color:var(--pass)}
+.gauge-step.hit.g2{background:var(--good);border-color:var(--good)}
+.gauge-step.hit.g3{background:var(--excel);border-color:var(--excel)}
+.drill-where{margin:12px 18px 0;font-size:11.5px;color:var(--ink-70);line-height:1.7;background:#fff;border:1px solid var(--grid);border-radius:11px;padding:10px 13px}
+.drill-where b{color:var(--cinnabar)}
+.drill-target{margin:10px 18px 0;display:flex;align-items:center;gap:7px;font-size:11.5px;color:var(--ink-70);background:#fff;border:1px solid var(--grid);border-radius:11px;padding:8px 12px}
+.drill-target .tflag{color:var(--cinnabar);font-weight:700;flex:none}
+.pt.cha{border-style:dashed;color:var(--ink-45);background:transparent}
+.pt.cha .lamp{border-style:dashed}
+.pt.cha .pt-body b{color:var(--none);letter-spacing:.04em}
+/* —— 屏3 豁免卡（level_rules.required 分范围） —— */
+.kp-row.exempt{background:rgba(23,50,59,.02)}
+.kp-row.exempt .kt b{color:var(--ink-45)}
+.kp-row.exempt .st{background:none;border:1.4px dashed var(--none);width:8px;height:8px;box-shadow:none}
+.exempt-badge{display:inline-block;font-size:10px;color:var(--ink-45);border:1px dashed var(--none);border-radius:7px;padding:2px 8px;margin-top:5px}
+.exempt-badge b{color:var(--ink-70);font-weight:600}
+.challenge-btn{flex:none;font-size:10.5px;color:var(--cinnabar);border:1px solid rgba(201,79,61,.4);border-radius:8px;padding:4px 10px;margin-top:2px;background:rgba(201,79,61,.05);cursor:pointer;white-space:nowrap}
+
+/* —— 屏5 资料阅读 —— */
+.read-prog{height:3px;background:var(--grid);position:sticky;top:0;z-index:5}
+.read-prog i{display:block;height:100%;width:34%;background:var(--cinnabar)}
+.doc-head{padding:14px 18px 0}
+.doc-head h2{font-family:var(--serif);font-weight:900;font-size:21px;line-height:1.5;margin-top:8px}
+.doc-head .dh-m{display:flex;gap:8px;align-items:center;margin-top:10px;font-size:10.5px;color:var(--ink-45);flex-wrap:wrap}
+.doc-body{padding:6px 18px 0;font-size:13px;line-height:1.95;color:var(--ink-70)}
+.doc-body h3{font-family:var(--serif);font-size:16px;color:var(--ink);margin:18px 0 8px;font-weight:900}
+.doc-body p{margin-bottom:10px}
+.doc-body pre{font-family:var(--mono);font-size:11px;background:var(--ink);color:#D8E3E4;border-radius:10px;padding:12px 13px;line-height:1.75;overflow-x:auto;margin-bottom:12px}
+.doc-body blockquote{border-left:3px solid var(--cinnabar);background:rgba(201,79,61,.05);padding:9px 12px;border-radius:0 10px 10px 0;font-size:12px;color:var(--ink-70);margin-bottom:12px}
+.doc-body blockquote b{color:var(--cinnabar)}
+.kp-back{margin:14px 18px 0}
+.kp-back .kb-t{font-size:11px;color:var(--ink-45);margin-bottom:8px;display:flex;align-items:center;gap:6px}
+.kp-back .kb-t svg{width:13px;height:13px;stroke:var(--cinnabar);fill:none;stroke-width:2;stroke-linecap:round;stroke-linejoin:round}
+.kp-back a{display:flex;justify-content:space-between;align-items:center;gap:10px;background:#fff;border:1px solid var(--grid);border-radius:11px;padding:11px 13px;margin-bottom:7px;text-decoration:none;color:var(--ink);cursor:pointer}
+.kp-back a b{font-family:var(--serif);font-size:13px;font-weight:600}
+.kp-back a small{font-size:10px;color:var(--ink-45);flex:none}
+.src-note{margin:14px 18px 0;font-size:10px;color:var(--ink-45);line-height:1.7;padding-top:10px;border-top:1px dashed var(--grid)}
+
+/* —— 屏6 模拟考结果 —— */
+.exam-head{padding:16px 18px 0}
+.exam-head .eh-tag{font-family:var(--mono);font-size:10.5px;letter-spacing:.2em;color:var(--cinnabar)}
+.exam-head h2{font-family:var(--serif);font-weight:900;font-size:24px;margin-top:6px}
+.exam-head small{display:flex;gap:10px;color:var(--ink-45);font-size:11px;margin-top:6px}
+.verdict-band{margin:14px 18px 0;padding:14px 14px 12px}
+.vb-bar{display:flex;height:14px;border-radius:7px;overflow:hidden;gap:2px}
+.vb-bar i{display:block}
+.vb-legend{display:flex;gap:12px;margin-top:10px;flex-wrap:wrap}
+.vb-legend span{display:flex;align-items:center;gap:5px;font-size:11px;color:var(--ink-70)}
+.vb-legend i{width:8px;height:8px;border-radius:2px}
+.vb-legend b{font-family:var(--mono);font-weight:600}
+.fall-card{margin:10px 18px 0;padding:13px 14px;border-left:3px solid var(--cinnabar)}
+.fall-card h4{font-size:13px;display:flex;align-items:center;gap:7px}
+.fall-card h4 .zhu-dot{width:8px;height:8px;border-radius:50%;background:var(--cinnabar)}
+.fall-line{display:flex;gap:9px;margin-top:10px;align-items:flex-start}
+.fall-line .lay{flex:none;font-family:var(--mono);font-size:9.5px;color:var(--cinnabar);border:1px solid rgba(201,79,61,.4);border-radius:6px;padding:1.5px 6px;margin-top:1px;white-space:nowrap}
+.fall-line .fb{min-width:0}
+.fall-line .fb b{font-size:12px;display:block}
+.fall-line .fb small{font-size:11px;color:var(--ink-70);display:block;margin-top:1px;line-height:1.55}
+.exam-rows{margin:0 18px}
+.exam-row{display:flex;gap:10px;align-items:center;padding:12px 0;border-bottom:1px solid var(--grid)}
+.exam-row:last-child{border-bottom:none}
+.exam-row .vd{flex:none;font-size:10px;color:#fff;border-radius:6px;padding:2.5px 7px}
+.exam-row .et{flex:1;min-width:0;font-family:var(--serif);font-size:13px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.exam-row .el{flex:none;font-family:var(--mono);font-size:10px;color:var(--ink-45)}
+.exam-cta{margin:14px 18px 0;display:flex;gap:8px}
+.exam-cta .btn-zhu{flex:1.4;padding:12px;font-size:13.5px}
+.exam-cta .btn-ghost{flex:1;padding:12px;font-size:13px}
+.record-invite{margin:12px 18px 0;display:flex;gap:10px;align-items:center;padding:11px 13px;border:1px dashed var(--grid);border-radius:12px;cursor:pointer}
+.record-invite svg{flex:none;width:17px;height:17px;stroke:var(--ink-70);fill:none;stroke-width:1.7;stroke-linecap:round;stroke-linejoin:round}
+.record-invite b{font-size:12px;display:block}
+.record-invite small{font-size:10.5px;color:var(--ink-45)}
+
+/* —— 屏7 复盘 · 弱点本 —— */
+.rv-head{padding:16px 18px 0;display:flex;justify-content:space-between;align-items:flex-start}
+.rv-head h2{font-family:var(--serif);font-weight:900;font-size:23px}
+.rv-head small{display:block;color:var(--ink-45);font-size:11px;margin-top:3px}
+.heat{display:flex;gap:4px;margin-top:12px}
+.heat i{flex:1;height:26px;border-radius:6px;background:var(--paper-2);border:1px solid var(--grid)}
+.heat i.d1{background:rgba(201,79,61,.15);border-color:rgba(201,79,61,.3)}
+.heat i.d2{background:rgba(201,79,61,.4);border-color:rgba(201,79,61,.5)}
+.heat i.d3{background:var(--cinnabar);border-color:var(--cinnabar)}
+.heat-l{display:flex;justify-content:space-between;font-family:var(--mono);font-size:9px;color:var(--ink-45);margin-top:5px}
+.wk-group{margin:0 18px}
+.wk-title{display:flex;justify-content:space-between;align-items:center;padding:16px 0 8px}
+.wk-title b{font-size:13px;display:flex;align-items:center;gap:7px}
+.wk-title b i{width:9px;height:9px;border-radius:50%}
+.wk-title span{font-family:var(--mono);font-size:11px;color:var(--ink-45)}
+.wk-card{background:#fff;border:1px solid var(--grid);border-radius:12px;padding:11px 13px;margin-bottom:7px}
+.wk-card b{font-family:var(--serif);font-size:13px;font-weight:600;display:block;line-height:1.5}
+.wk-card .wk-why{font-size:11px;color:var(--ink-70);line-height:1.6;margin-top:4px}
+.wk-card .wk-why em{font-style:normal;color:var(--cinnabar)}
+.wk-card .wk-act{display:flex;gap:7px;margin-top:8px}
+.wk-card .wk-act button{border:1px solid var(--grid);background:#fff;border-radius:8px;padding:4.5px 11px;font-size:10.5px;color:var(--ink-70);cursor:pointer}
+.wk-card .wk-act button.zhu{border-color:rgba(201,79,61,.45);color:var(--cinnabar)}
+.pond-card{margin:14px 18px 0;padding:11px 13px}
+.pond-card b{font-size:12px;display:flex;gap:7px;align-items:center}
+.pond-card ul{list-style:none;margin-top:8px}
+.pond-card li{display:flex;justify-content:space-between;gap:8px;font-size:11.5px;color:var(--ink-70);padding:6px 0;border-top:1px dashed var(--grid)}
+.pond-card li span{font-size:9.5px;font-family:var(--mono);color:var(--ink-45);flex:none}
+
+/* —— 屏8 PC 形态 —— */
+.pc-shell{width:760px;height:560px;background:#12161c;border-radius:18px;border:9px solid #12161c;box-shadow:0 30px 70px rgba(0,0,0,.45);overflow:hidden;position:relative}
+.pc-chrome{height:30px;background:#1b2129;display:flex;align-items:center;gap:6px;padding:0 12px;flex:none}
+.pc-chrome i{width:10px;height:10px;border-radius:50%;background:#3a424d}
+.pc-chrome .addr{flex:1;margin-left:10px;background:#12161c;border-radius:7px;height:18px;display:flex;align-items:center;padding:0 10px;font-family:var(--mono);font-size:9.5px;color:#7c8894}
+.pc-stage{width:1440px;height:890px;transform:scale(.4934);transform-origin:top left;background:var(--paper);display:grid;grid-template-columns:210px 1fr;grid-template-rows:1fr}
+.pc-side{background:#152830;color:#B9C7CC;display:flex;flex-direction:column;padding:22px 14px}
+.pc-side .brand{font-family:var(--serif);font-weight:900;font-size:21px;color:var(--paper);padding:0 10px 18px;display:flex;align-items:center;gap:9px}
+.pc-side .brand i{width:26px;height:26px;border-radius:8px;background:var(--cinnabar);display:flex;align-items:center;justify-content:center;font-size:13px;color:#fff;font-style:normal}
+.pc-side .pnav{display:flex;align-items:center;gap:11px;padding:11px 12px;border-radius:10px;font-size:13.5px;cursor:pointer}
+.pc-side .pnav svg{width:17px;height:17px;stroke:currentColor;fill:none;stroke-width:1.7;stroke-linecap:round;stroke-linejoin:round}
+.pc-side .pnav.on{background:rgba(250,250,247,.1);color:#fff;font-weight:600;box-shadow:inset 3px 0 0 var(--cinnabar)}
+.pc-side .pnav .cnt{margin-left:auto;font-family:var(--mono);font-size:10px;opacity:.55}
+.pc-main{overflow:hidden;display:flex;flex-direction:column}
+.pc-main-head{padding:26px 40px 16px;border-bottom:1px solid var(--grid);display:flex;justify-content:space-between;align-items:flex-end;flex:none}
+.pc-main-head h2{font-family:var(--serif);font-weight:900;font-size:27px}
+.pc-main-head small{display:block;color:var(--ink-45);font-size:12px;margin-top:5px}
+.pc-main-head .pc-chips{display:flex;gap:7px}
+.pc-main-body{flex:1;overflow:hidden;display:grid;grid-template-columns:1fr 300px;gap:0}
+.pc-doc{padding:22px 40px;overflow:hidden}
+.pc-doc h3{font-family:var(--serif);font-weight:900;font-size:23px;line-height:1.5;margin-bottom:12px}
+.pc-doc .fw-grid{display:flex;flex-direction:column;gap:8px;margin-top:12px}
+.pc-doc .fw-step{border-radius:12px}
+.pc-doc .meta-row{margin:0 0 14px}
+.pc-sidecol{border-left:1px solid var(--grid);padding:20px 20px;overflow:hidden}
+.pc-sidecol .scol-t{font-family:var(--mono);font-size:10px;letter-spacing:.2em;color:var(--ink-45);margin-bottom:10px}
+.pc-sidecol .fu{margin-bottom:8px}
+.pc-sidecol .sm-mini{background:#fff;border:1px solid var(--grid);border-radius:11px;padding:11px 12px;margin-top:14px}
+.pc-sidecol .sm-mini b{font-size:11px;display:block;margin-bottom:6px}
+.pc-sidecol .sm-mini p{font-size:11px;color:var(--ink-70);line-height:1.65}
+
+/* —— 屏2 复习地图（简历圈定的整理查看页） —— */
+.ov-head{padding:16px 18px 8px}
+.ov-head small{display:block;font-size:11px;color:var(--ink-45);margin-top:3px}
+.profile-anchor{margin:8px 18px 0;padding:12px 14px;display:flex;align-items:center;gap:10px}
+.profile-anchor .flag{flex:none;width:34px;height:34px;border-radius:9px;background:rgba(23,50,59,.08);display:flex;align-items:center;justify-content:center}
+.profile-anchor .flag svg{width:17px;height:17px;stroke:var(--ink);fill:none;stroke-width:1.7;stroke-linecap:round;stroke-linejoin:round}
+.profile-anchor b{font-size:13.5px}
+.profile-anchor small{display:block;font-size:11px;color:var(--ink-45);margin-top:1px}
+.ov-sum{margin:12px 18px 0;display:grid;grid-template-columns:repeat(4,1fr);border:1px solid var(--grid);border-radius:14px;background:#fff;overflow:hidden}
+.ov-sum>div{padding:11px 4px;text-align:center;border-right:1px solid var(--grid)}
+.ov-sum>div:last-child{border-right:none}
+.ov-sum b{font-family:var(--mono);font-size:17px;display:block}
+.ov-sum small{font-size:10px;color:var(--ink-45)}
+.ov-list{margin:0 18px;display:flex;flex-direction:column;gap:8px}
+.ov-row{padding:12px 14px;cursor:pointer}
+.ovr-top{display:flex;justify-content:space-between;align-items:baseline}
+.ovr-top b{font-size:13.5px}
+.ovr-num{font-family:var(--mono);font-size:14.5px;font-weight:700}
+.ovr-num i{font-style:normal;font-size:10.5px;color:var(--ink-45);font-weight:400}
+.ovr-src{display:block;font-size:10.5px;color:var(--ink-45);margin-top:3px}
+.ovr-src b{color:var(--ink-70);font-weight:600}
+.ovr-bar{margin-top:9px;height:6px;border-radius:3px;background:var(--paper-2);overflow:hidden}
+.ovr-bar i{display:block;height:100%;border-radius:3px;background:var(--ink)}
+.ovr-meta{display:flex;gap:10px;margin-top:6px;font-size:10.5px;color:var(--ink-45);align-items:center}
+.ovr-meta .go{margin-left:auto;color:var(--cinnabar);font-weight:600}
+
+/* —— 全景总览模式（评审台） —— */
+.ov-fab{position:fixed;right:22px;bottom:22px;z-index:99;background:var(--ink);color:#EDEFF2;border:1px solid rgba(250,250,247,.18);border-radius:999px;padding:13px 20px;font-size:13px;font-weight:600;cursor:pointer;box-shadow:0 12px 32px rgba(0,0,0,.45);font-family:var(--sans)}
+.ov-fab:hover{background:#1E3F4B}
+body.ov .ov-fab{background:var(--cinnabar);border-color:transparent}
+body.ov .bp-board{flex-wrap:wrap;justify-content:center;gap:52px;padding:52px 40px}
+body.ov .bp-frame{zoom:.42;cursor:pointer}
+body.ov .bp-frame:hover .scr,body.ov .bp-frame:hover .pc-shell{outline:4px solid var(--cinnabar);outline-offset:8px}
+body.ov .bp-frame .bp-note{opacity:.75}
+
+/* ============ 批注 ============ */
+.bp-note{width:390px;margin-top:26px}
+.bp-note .n-head{display:flex;align-items:baseline;gap:10px;border-left:3px solid var(--cinnabar);padding-left:12px}
+.bp-note .n-head .no{font-family:var(--mono);font-size:12px;color:var(--cinnabar)}
+.bp-note .n-head b{font-size:15.5px;font-weight:700;color:#EDEFF2}
+.bp-note .n-head span{font-family:var(--mono);font-size:10px;color:#8b95a1;margin-left:auto;white-space:nowrap}
+.bp-note .n-data,.bp-note .n-ix{font-size:12px;line-height:1.8;color:#A7AFB9;margin-top:10px;padding-left:15px}
+.bp-note .n-data b{color:#E3C98F;font-weight:600;font-family:var(--mono);font-size:11px}
+.bp-note .n-ix b{color:#EDEFF2;font-weight:600}
+.bp-note .n-tag{display:inline-block;font-family:var(--mono);font-size:9.5px;color:#8b95a1;border:1px solid #3a424d;border-radius:5px;padding:1px 6px;margin:10px 4px 0 15px}
+
+/* ============ 画板页脚 ============ */
+.bp-footer{background:var(--paper);padding:56px 48px 72px;border-top:1px solid #3a424d}
+.bp-footer h2{font-family:var(--serif);font-weight:900;font-size:26px;margin-bottom:6px}
+.bp-footer .f-sub{color:var(--ink-70);font-size:13px;margin-bottom:30px}
+.ship-steps{display:grid;grid-template-columns:repeat(3,1fr);gap:18px;max-width:1080px}
+.ship{background:#fff;border:1px solid var(--grid);border-radius:16px;padding:20px}
+.ship .s-tag{font-family:var(--mono);font-size:11px;color:var(--cinnabar);letter-spacing:.16em}
+.ship b{display:block;font-size:16px;margin:8px 0 10px}
+.ship p{font-size:12.5px;color:var(--ink-70);line-height:1.85}
+.ship p code{font-family:var(--mono);font-size:11px;background:var(--paper-2);border-radius:5px;padding:1px 5px}
+.ship .s-week{display:inline-block;margin-top:12px;font-family:var(--mono);font-size:10px;color:var(--ink-45);border:1px solid var(--grid);border-radius:999px;padding:3px 10px}
+
+@media (prefers-reduced-motion: reduce){
+  *{transition:none!important;animation:none!important;scroll-behavior:auto!important}
+}
+</style>
+</head>
+<body>
+
+<!-- ================= 画板头 ================= -->
+<header class="bp-hero">
+  <div class="kicker">ZHISHI · C-END PROTOTYPE REVIEW</div>
+  <h1>把一道题，<em>练到追问追不动</em>。</h1>
+  <p class="lede">
+    你的题库与普通刷题 App 的区别，藏在 kb_kp 的三个字段里：叙述框架（怎么答）、追问链（面试官会怎么追）、分级评分点（什么算及格/良好/优秀）。
+    所以 C 端不做"刷题量"，做<b>"知道自己几斤几两"</b>——每一屏都回答同一个问题：这道题，我现在在哪一档？
+    下面 9 屏串起一条核心旅程，全部基于你后端已有/规划中的数据字段，可直接对照接口开发。
+    <b>右下角「全景总览」可一键缩览全部页面</b>，点击任意屏放大进入；屏 02 是"地图" tab 的本相——一张按当前简历圈定的复习盘点清单，不炫技。
+  </p>
+  <div class="bp-journey">
+    <span class="jstop"><i class="dot">1</i>找题<span class="jstag">地图 · 题单</span></span><span class="arr">→</span>
+    <span class="jstop"><i class="dot">2</i>读懂<span class="jstag">学习页 · 资料</span></span><span class="arr">→</span>
+    <span class="jstop"><i class="dot">3</i>开练<span class="jstag">自测判定</span></span><span class="arr">→</span>
+    <span class="jstop"><i class="dot">4</i>追问<span class="jstag">追问链下钻</span></span><span class="arr">→</span>
+    <span class="jstop"><i class="dot">5</i>检验<span class="jstag">模拟考结果</span></span><span class="arr">→</span>
+    <span class="jstop"><i class="dot">6</i>复盘<span class="jstag">弱点本</span></span>
+  </div>
+  <div class="bp-tokens">
+    <div>
+      <div class="tk-title">色彩 · 宣纸与朱批</div>
+      <div class="swatches">
+        <div class="sw"><i style="background:#FAFAF7"></i><b>宣纸 FAFAF7</b></div>
+        <div class="sw"><i style="background:#17323B"></i><b>墨青 17323B</b></div>
+        <div class="sw"><i style="background:#C94F3D"></i><b>批注朱 C94F3D</b></div>
+        <div class="sw"><i style="background:#8A9B8E"></i><b>及格 8A9B8E</b></div>
+        <div class="sw"><i style="background:#3E7CB1"></i><b>良好 3E7CB1</b></div>
+        <div class="sw"><i style="background:#B98A2F"></i><b>优秀 B98A2F</b></div>
+      </div>
+    </div>
+    <div>
+      <div class="tk-title">字体 · 三声部</div>
+      <div class="typecards">
+        <div class="tcard"><span class="t-serif">题面用衬线，像考卷上的题</span><small>Noto Serif SC 900 · 展示/题面</small></div>
+        <div class="tcard"><span class="t-sans">正文与界面用系统无衬线，安静可靠。</span><small>PingFang SC / 微软雅黑 · 正文</small></div>
+        <div class="tcard"><span class="t-mono">freq_coverage = 0.78</span><small>等宽 · 数据/代码/字段</small></div>
+      </div>
+    </div>
+  </div>
+</header>
+
+<!-- ================= 画板主体 ================= -->
+<main class="bp-board">
+
+  <!-- ========== 01 地图 ========== -->
+  <section class="bp-frame">
+    <div class="scr">
+      <div class="scr-status"><span>9:41</span><span class="rs">
+        <svg width="15" height="11" viewBox="0 0 15 11"><g fill="#17323B"><rect x="0" y="7" width="2.5" height="4" rx="1"/><rect x="4" y="5" width="2.5" height="6" rx="1"/><rect x="8" y="2.5" width="2.5" height="8.5" rx="1"/><rect x="12" y="0" width="2.5" height="11" rx="1" opacity=".3"/></g></svg>
+        <svg width="15" height="11" viewBox="0 0 16 12"><path d="M8 10.8 5.6 8.3a3.4 3.4 0 0 1 4.8 0Zm4.2-4.4a7.6 7.6 0 0 0-8.4 0L2.3 4.8a10.4 10.4 0 0 1 11.4 0Z" fill="#17323B"/></svg>
+        <svg width="23" height="11" viewBox="0 0 25 12"><rect x="0.5" y="0.5" width="20" height="11" rx="3" fill="none" stroke="#17323B" opacity=".4"/><rect x="2" y="2" width="13" height="8" rx="1.6" fill="#17323B"/><rect x="22" y="4" width="2.5" height="4" rx="1" fill="#17323B" opacity=".4"/></svg>
+      </span></div>
+      <div class="scr-body">
+        <div class="greet">
+          <div><h2>晚上好，阿澈</h2><p>10月12日 · 距目标面试还有 19 天</p></div>
+          <div class="avatar">澈</div>
+        </div>
+        <div class="card profile-strip">
+          <span class="flag"><svg viewBox="0 0 24 24"><path d="M4 19V6a2 2 0 0 1 2-2h9l5 5v10a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2Z"/><path d="M14 4v5h5"/></svg></span>
+          <div style="flex:1"><b>Java 后端 · 3 年经验</b><small>目标 中级 · 备考第 3 周</small></div>
+          <span class="chip zhu">已定稿</span>
+        </div>
+        <div class="sect-label" style="margin-top:20px">今日三件事</div>
+        <div class="today-list">
+          <div class="card today-item"><span class="tno">壹</span><div style="flex:1"><b>继续上次：HashMap 的 1.8 改动</b><small>练到第 2 问 · 退化阈值还没说清</small></div><span class="go">›</span></div>
+          <div class="card today-item"><span class="tno">贰</span><div style="flex:1"><b>弱点重练 5 条</b><small>答缺集中在「数据库」· 约占 15 分钟</small></div><span class="go">›</span></div>
+          <div class="card today-item"><span class="tno">叁</span><div style="flex:1"><b>新题探路</b><small>从 86 题里随机抽一道没见过的</small></div><span class="go">›</span></div>
+        </div>
+        <div class="sect-label" style="margin-top:20px">领域地图</div>
+        <div class="dom-grid">
+          <div class="card dom-cell"><b>Java 语言与虚拟机</b><small>86 题 · 已练 32</small><div class="gauge3"><i style="width:55%;background:var(--pass)"></i><i style="width:25%;background:var(--good)"></i><i style="width:6%;background:var(--excel)"></i></div><div class="gl"><span>及格 55%</span><span>优秀 3</span></div></div>
+          <div class="card dom-cell"><b>数据库</b><small>64 题 · 已练 21</small><div class="gauge3"><i style="width:40%;background:var(--pass)"></i><i style="width:30%;background:var(--good)"></i><i style="width:4%;background:var(--excel)"></i></div><div class="gl"><span>及格 40%</span><span>优秀 2</span></div></div>
+          <div class="card dom-cell"><b>中间件与搜索</b><small>38 题 · 已练 9</small><div class="gauge3"><i style="width:22%;background:var(--pass)"></i><i style="width:8%;background:var(--good)"></i><i style="width:0%;background:var(--excel)"></i></div><div class="gl"><span>及格 22%</span><span>优秀 0</span></div></div>
+          <div class="card dom-cell"><b>分布式与架构</b><small>52 题 · 已练 6</small><div class="gauge3"><i style="width:10%;background:var(--pass)"></i><i style="width:4%;background:var(--good)"></i><i style="width:0%;background:var(--excel)"></i></div><div class="gl"><span>及格 10%</span><span>优秀 0</span></div></div>
+          <div class="card dom-cell"><b>计算机基础</b><small>44 题 · 已练 12</small><div class="gauge3"><i style="width:26%;background:var(--pass)"></i><i style="width:12%;background:var(--good)"></i><i style="width:2%;background:var(--excel)"></i></div><div class="gl"><span>及格 26%</span><span>优秀 1</span></div></div>
+          <div class="card dom-cell"><b>Go 语言</b><small>21 题 · 未开始</small><div class="gauge3"><i style="width:0"></i><i style="width:0"></i><i style="width:0"></i></div><div class="gl"><span>及格 0%</span><span>优秀 0</span></div></div>
+        </div>
+        <div style="height:18px"></div>
+      </div>
+      <div class="scr-tabbar">
+        <span class="tab on"><svg viewBox="0 0 24 24"><path d="M3 6.5 9 4l6 2.5L21 4v13.5L15 20l-6-2.5L3 20Z"/><path d="M9 4v13.5M15 6.5V20"/></svg>地图</span>
+        <span class="tab"><svg viewBox="0 0 24 24"><rect x="8" y="3" width="12" height="15" rx="2"/><path d="M5 7v11a3 3 0 0 0 3 3h9"/></svg>抽卡</span>
+        <span class="tab"><svg viewBox="0 0 24 24"><rect x="5" y="3" width="14" height="18" rx="2"/><path d="M9 8h6M9 12h6M9 16h4"/></svg>模拟考</span>
+        <span class="tab"><svg viewBox="0 0 24 24"><path d="M3.5 12a8.5 8.5 0 1 0 2.6-6.1"/><path d="M3.5 4.5v5h5"/><path d="M12 8v4.5l3 1.8"/></svg>复盘</span>
+        <span class="tab"><svg viewBox="0 0 24 24"><circle cx="12" cy="8" r="4"/><path d="M4.5 20.5c1.4-3.8 4.6-5.5 7.5-5.5s6.1 1.7 7.5 5.5"/></svg>我的</span>
+      </div>
+    </div>
+    <div class="bp-note">
+      <div class="n-head"><span class="no">01</span><b>地图 · 今日开练</b><span>route /map</span></div>
+      <p class="n-data">数据来源：<b>prf_profile</b>（当前档案/目标职级）、<b>kb_topic × domain</b>（7 领域网格）、作答记录聚合出三档占比。<b>今日三件事</b> = 继续上次 + 弱点重练 + 抽卡，全部是已有数据的聚合视图。</p>
+      <p class="n-ix">交互要点：首页不给"学习报告"，给<b>三个可点的动作</b>——打开 App 的第一秒就知道去哪；领域块显示三档色阶占比，一眼看出"哪块最虚"。</p>
+      <span class="n-tag">首屏=行动</span><span class="n-tag">色阶=掌握度语言</span>
+    </div>
+  </section>
+
+  <!-- ========== 02 复习地图 ========== -->
+  <section class="bp-frame">
+    <div class="scr">
+      <div class="scr-status"><span>9:41</span><span class="rs">
+        <svg width="15" height="11" viewBox="0 0 15 11"><g fill="#17323B"><rect x="0" y="7" width="2.5" height="4" rx="1"/><rect x="4" y="5" width="2.5" height="6" rx="1"/><rect x="8" y="2.5" width="2.5" height="8.5" rx="1"/><rect x="12" y="0" width="2.5" height="11" rx="1" opacity=".3"/></g></svg>
+        <svg width="15" height="11" viewBox="0 0 16 12"><path d="M8 10.8 5.6 8.3a3.4 3.4 0 0 1 4.8 0Zm4.2-4.4a7.6 7.6 0 0 0-8.4 0L2.3 4.8a10.4 10.4 0 0 1 11.4 0Z" fill="#17323B"/></svg>
+        <svg width="23" height="11" viewBox="0 0 25 12"><rect x="0.5" y="0.5" width="20" height="11" rx="3" fill="none" stroke="#17323B" opacity=".4"/><rect x="2" y="2" width="13" height="8" rx="1.6" fill="#17323B"/><rect x="22" y="4" width="2.5" height="4" rx="1" fill="#17323B" opacity=".4"/></svg>
+      </span></div>
+      <div class="scr-body">
+        <div class="ov-head">
+          <div><h2 class="h-serif" style="font-size:22px">复习地图</h2><small>按当前简历圈定的知识范围 · 10月12日</small></div>
+        </div>
+        <div class="card profile-anchor">
+          <span class="flag"><svg viewBox="0 0 24 24"><path d="M4 19V6a2 2 0 0 1 2-2h9l5 5v10a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2Z"/><path d="M14 4v5h5"/></svg></span>
+          <div style="flex:1"><b>Java 后端 · 3 年经验</b><small>目标 中级 · 面试还有 19 天 · 简历圈定 5 个领域 284 题</small></div>
+          <span class="chip zhu">已定稿</span>
+        </div>
+        <div class="ov-sum">
+          <div><b>339</b><small>题库总题</small></div>
+          <div><b>80</b><small>已复习</small></div>
+          <div><b>44</b><small>及格</small></div>
+          <div><b>30</b><small>良好</small></div>
+        </div>
+        <div class="sect-label" style="margin-top:18px">简历直接相关</div>
+        <div class="ov-list">
+          <div class="card ov-row">
+            <div class="ovr-top"><b>Java 语言与虚拟机</b><span class="ovr-num">32<i>/86</i></span></div>
+            <small class="ovr-src">简历技能条：<b>JVM 调优 · 并发编程 · 集合框架</b></small>
+            <div class="ovr-bar"><i style="width:37%"></i></div>
+            <div class="ovr-meta"><span>及格 55%</span><span>优秀 3</span><span class="go">查看题单 ›</span></div>
+          </div>
+          <div class="card ov-row">
+            <div class="ovr-top"><b>数据库</b><span class="ovr-num">21<i>/64</i></span></div>
+            <small class="ovr-src">简历技能条：<b>MySQL 索引优化 · 事务与锁</b></small>
+            <div class="ovr-bar"><i style="width:33%"></i></div>
+            <div class="ovr-meta"><span>及格 40%</span><span>优秀 2</span><span class="go">查看题单 ›</span></div>
+          </div>
+          <div class="card ov-row">
+            <div class="ovr-top"><b>中间件与搜索</b><span class="ovr-num">9<i>/38</i></span></div>
+            <small class="ovr-src">简历技能条：<b>Redis 缓存 · RabbitMQ</b></small>
+            <div class="ovr-bar"><i style="width:24%"></i></div>
+            <div class="ovr-meta"><span>及格 22%</span><span>优秀 0</span><span class="go">查看题单 ›</span></div>
+          </div>
+        </div>
+        <div class="sect-label" style="margin-top:18px">岗位常考 · 简历未直接覆盖</div>
+        <div class="ov-list">
+          <div class="card ov-row">
+            <div class="ovr-top"><b>分布式与架构</b><span class="ovr-num">6<i>/52</i></span></div>
+            <small class="ovr-src">中级后端面试高频出现，建议纳入复习</small>
+            <div class="ovr-bar"><i style="width:12%"></i></div>
+            <div class="ovr-meta"><span>及格 10%</span><span>优秀 0</span><span class="go">查看题单 ›</span></div>
+          </div>
+          <div class="card ov-row">
+            <div class="ovr-top"><b>计算机基础</b><span class="ovr-num">12<i>/44</i></span></div>
+            <small class="ovr-src">网络与操作系统，3 年经验常被追问</small>
+            <div class="ovr-bar"><i style="width:27%"></i></div>
+            <div class="ovr-meta"><span>及格 26%</span><span>优秀 1</span><span class="go">查看题单 ›</span></div>
+          </div>
+        </div>
+        <div class="sect-label" style="margin-top:18px">可拓展 · 按需开荒</div>
+        <div class="ov-list">
+          <div class="card ov-row">
+            <div class="ovr-top"><b>Go 语言</b><span class="ovr-num">0<i>/21</i></span></div>
+            <small class="ovr-src">简历与目标岗位未涉及，需要时再开</small>
+            <div class="ovr-bar"><i style="width:0%"></i></div>
+            <div class="ovr-meta"><span>未开始</span><span class="go">查看题单 ›</span></div>
+          </div>
+          <div class="card ov-row">
+            <div class="ovr-top"><b>工程素养</b><span class="ovr-num">0<i>/34</i></span></div>
+            <small class="ovr-src">系统设计与协作表达，终面常考</small>
+            <div class="ovr-bar"><i style="width:0%"></i></div>
+            <div class="ovr-meta"><span>未开始</span><span class="go">查看题单 ›</span></div>
+          </div>
+        </div>
+        <div style="height:14px"></div>
+      </div>
+      <div class="scr-tabbar">
+        <span class="tab on"><svg viewBox="0 0 24 24"><path d="M3 6.5 9 4l6 2.5L21 4v13.5L15 20l-6-2.5L3 20Z"/><path d="M9 4v13.5M15 6.5V20"/></svg>地图</span>
+        <span class="tab"><svg viewBox="0 0 24 24"><rect x="8" y="3" width="12" height="15" rx="2"/><path d="M5 7v11a3 3 0 0 0 3 3h9"/></svg>抽卡</span>
+        <span class="tab"><svg viewBox="0 0 24 24"><rect x="5" y="3" width="14" height="18" rx="2"/><path d="M9 8h6M9 12h6M9 16h4"/></svg>模拟考</span>
+        <span class="tab"><svg viewBox="0 0 24 24"><path d="M3.5 12a8.5 8.5 0 1 0 2.6-6.1"/><path d="M3.5 4.5v5h5"/><path d="M12 8v4.5l3 1.8"/></svg>复盘</span>
+        <span class="tab"><svg viewBox="0 0 24 24"><circle cx="12" cy="8" r="4"/><path d="M4.5 20.5c1.4-3.8 4.6-5.5 7.5-5.5s6.1 1.7 7.5 5.5"/></svg>我的</span>
+      </div>
+    </div>
+    <div class="bp-note">
+      <div class="n-head"><span class="no">02</span><b>复习地图 · 整理查看</b><span>route /map</span></div>
+      <p class="n-data">一屏回答一件事：<b>当前简历涉及哪些领域、各复习到哪了</b>。数据链路：当前档案 prf_profile 的技能条 prf_claim 锚定知识点（anchor_ids）→ 反查 kb_kp 所属领域 → 圈出"简历直接相关"；每个领域聚合 kb_kp 总题数 + 作答记录复习进度。</p>
+      <p class="n-ix">交互要点：分组即优先级——<b>简历直接相关 / 岗位常考 / 可拓展</b>三组，不用用户判断先看哪个；每行一根进度条 = 复习覆盖度，右侧"查看题单"直达屏03；没有地图没有迷雾，就是一张诚实的盘点清单。</p>
+      <span class="n-tag">prf_claim.anchor_ids</span><span class="n-tag">领域聚合</span><span class="n-tag">分组=优先级</span>
+    </div>
+  </section>
+
+  <!-- ========== 03 题目列表 ========== -->
+  <section class="bp-frame">
+    <div class="scr">
+      <div class="scr-status"><span>9:41</span><span class="rs">
+        <svg width="15" height="11" viewBox="0 0 15 11"><g fill="#17323B"><rect x="0" y="7" width="2.5" height="4" rx="1"/><rect x="4" y="5" width="2.5" height="6" rx="1"/><rect x="8" y="2.5" width="2.5" height="8.5" rx="1"/><rect x="12" y="0" width="2.5" height="11" rx="1" opacity=".3"/></g></svg>
+        <svg width="15" height="11" viewBox="0 0 16 12"><path d="M8 10.8 5.6 8.3a3.4 3.4 0 0 1 4.8 0Zm4.2-4.4a7.6 7.6 0 0 0-8.4 0L2.3 4.8a10.4 10.4 0 0 1 11.4 0Z" fill="#17323B"/></svg>
+        <svg width="23" height="11" viewBox="0 0 25 12"><rect x="0.5" y="0.5" width="20" height="11" rx="3" fill="none" stroke="#17323B" opacity=".4"/><rect x="2" y="2" width="13" height="8" rx="1.6" fill="#17323B"/><rect x="22" y="4" width="2.5" height="4" rx="1" fill="#17323B" opacity=".4"/></svg>
+      </span></div>
+      <div class="scr-body">
+        <div class="crumbs">地图 / <b>Java 语言与虚拟机</b></div>
+        <div class="domain-head">
+          <h2>Java 语言与虚拟机</h2>
+          <div class="dh-sub"><span>共 86 题 · 已练 32</span><b>及格率 55%</b></div>
+        </div>
+        <div class="dh-bar"><div class="gauge3"><i style="width:55%;background:var(--pass)"></i><i style="width:25%;background:var(--good)"></i><i style="width:6%;background:var(--excel)"></i></div></div>
+        <div class="filter-chips">
+          <span class="chip sel">高频优先</span><span class="chip">中级</span><span class="chip">高级</span><span class="chip">没练过</span><span class="chip">有追问</span>
+        </div>
+        <div class="topic-group">
+          <div class="topic-head"><b>集合与泛型</b><span>6 题</span></div>
+          <div class="card" style="margin:0 14px">
+            <div class="kp-row"><span class="st" style="background:var(--good)"></span><div class="kt"><b>HashMap 在 JDK 1.8 做了哪些改动？为什么引入红黑树？</b><small><span class="mono freq-hi">高频 78%</span><span>追问 3 层</span><span>资料 2 篇</span></small></div><span class="lvl-tag">中级</span></div>
+            <div class="kp-row"><span class="st" style="background:var(--none)"></span><div class="kt"><b>ConcurrentHashMap 是如何保证线程安全的？</b><small><span class="mono freq-hi">高频 71%</span><span>追问 2 层</span></small></div><span class="lvl-tag">中级</span></div>
+            <div class="kp-row"><span class="st" style="background:var(--pass)"></span><div class="kt"><b>ArrayList 扩容机制，和 LinkedList 怎么选？</b><small><span class="mono">中频 42%</span><span>追问 1 层</span></small></div><span class="lvl-tag">初级</span></div>
+          </div>
+        </div>
+        <div class="topic-group">
+          <div class="topic-head"><b>并发编程</b><span>9 题</span></div>
+          <div class="card" style="margin:0 14px">
+            <div class="kp-row"><span class="st" style="background:var(--miss)"></span><div class="kt"><b>synchronized 锁升级的过程，偏向锁为什么被废弃？</b><small><span class="mono freq-hi">高频 66%</span><span>追问 3 层</span></small></div><span class="lvl-tag">高级</span></div>
+            <div class="kp-row"><span class="st" style="background:var(--pass)"></span><div class="kt"><b>volatile 能解决什么问题，不能解决什么问题？</b><small><span class="mono freq-hi">高频 58%</span><span>追问 2 层</span></small></div><span class="lvl-tag">中级</span></div>
+          </div>
+        </div>
+        <div class="topic-group">
+          <div class="topic-head"><b>JVM</b><span>7 题</span></div>
+          <div class="card" style="margin:0 14px">
+            <div class="kp-row"><span class="st" style="background:var(--none)"></span><div class="kt"><b>对象什么时候进入老年代？分代收集的依据是什么？</b><small><span class="mono">中频 47%</span><span>追问 2 层</span><span>资料 1 篇</span></small></div><span class="lvl-tag">高级</span></div>
+            <div class="kp-row"><span class="st" style="background:var(--none)"></span><div class="kt"><b>G1 和 CMS 的区别？你们线上用的哪个，为什么？</b><small><span class="mono">低频 23%</span><span>追问 2 层</span></small></div><span class="lvl-tag">资深</span></div>
+          </div>
+        </div>
+        <div class="topic-group">
+          <div class="topic-head"><b>跨领域漫游 · 其他领域的题也会刷到</b><span>全量可见</span></div>
+          <div class="card" style="margin:0 14px;border-style:dashed">
+            <div class="kp-row exempt">
+              <span class="st"></span>
+              <div class="kt">
+                <b>说下 Paxos 算法的原理？</b>
+                <div class="exempt-badge"><b>资深 · 超出你的目标（中级）</b> · 不要求 · 不计入复习进度</div>
+              </div>
+              <span class="challenge-btn">选学挑战</span>
+            </div>
+          </div>
+        </div>
+        <div style="height:18px"></div>
+      </div>
+      <div class="scr-tabbar">
+        <span class="tab on"><svg viewBox="0 0 24 24"><path d="M3 6.5 9 4l6 2.5L21 4v13.5L15 20l-6-2.5L3 20Z"/><path d="M9 4v13.5M15 6.5V20"/></svg>地图</span>
+        <span class="tab"><svg viewBox="0 0 24 24"><rect x="8" y="3" width="12" height="15" rx="2"/><path d="M5 7v11a3 3 0 0 0 3 3h9"/></svg>抽卡</span>
+        <span class="tab"><svg viewBox="0 0 24 24"><rect x="5" y="3" width="14" height="18" rx="2"/><path d="M9 8h6M9 12h6M9 16h4"/></svg>模拟考</span>
+        <span class="tab"><svg viewBox="0 0 24 24"><path d="M3.5 12a8.5 8.5 0 1 0 2.6-6.1"/><path d="M3.5 4.5v5h5"/><path d="M12 8v4.5l3 1.8"/></svg>复盘</span>
+        <span class="tab"><svg viewBox="0 0 24 24"><circle cx="12" cy="8" r="4"/><path d="M4.5 20.5c1.4-3.8 4.6-5.5 7.5-5.5s6.1 1.7 7.5 5.5"/></svg>我的</span>
+      </div>
+    </div>
+    <div class="bp-note">
+      <div class="n-head"><span class="no">03</span><b>领域 · 题目列表</b><span>地图下钻</span></div>
+      <p class="n-data">数据来源：<b>kb_topic</b>（主题分组）、<b>kb_kp</b>（题面/难度/freq_coverage/追问层数）、掌握状态点（作答记录）。一行题 = 状态点 + 衬线题面 + 频率/追问/资料线索 + 难度角标。</p>
+      <p class="n-ix">交互要点：<b>状态点在左、难度在右</b>——先扫"练到哪档"，再看"这题多难"；<b>高频题的频率数字用批注朱</b>，面试前冲刺时按这个排序刷；筛选 chips 含"有追问"，服务主线玩法。底部<b>跨领域漫游</b>演示豁免卡（Paxos）：无追问的整题超纲内容靠 <b>level_rules.required 出必练集而非删除</b>——全量可见、带"不要求"角标，选学挑战不计档。</p>
+      <span class="n-tag">freq_coverage</span><span class="n-tag">difficulty</span><span class="n-tag">kb_topic</span><span class="n-tag">豁免卡=required 分范围</span>
+    </div>
+  </section>
+
+  <!-- ========== 04 知识点学习页 ========== -->
+  <section class="bp-frame">
+    <div class="scr">
+      <div class="scr-status"><span>9:41</span><span class="rs">
+        <svg width="15" height="11" viewBox="0 0 15 11"><g fill="#17323B"><rect x="0" y="7" width="2.5" height="4" rx="1"/><rect x="4" y="5" width="2.5" height="6" rx="1"/><rect x="8" y="2.5" width="2.5" height="8.5" rx="1"/><rect x="12" y="0" width="2.5" height="11" rx="1" opacity=".3"/></g></svg>
+        <svg width="15" height="11" viewBox="0 0 16 12"><path d="M8 10.8 5.6 8.3a3.4 3.4 0 0 1 4.8 0Zm4.2-4.4a7.6 7.6 0 0 0-8.4 0L2.3 4.8a10.4 10.4 0 0 1 11.4 0Z" fill="#17323B"/></svg>
+        <svg width="23" height="11" viewBox="0 0 25 12"><rect x="0.5" y="0.5" width="20" height="11" rx="3" fill="none" stroke="#17323B" opacity=".4"/><rect x="2" y="2" width="13" height="8" rx="1.6" fill="#17323B"/><rect x="22" y="4" width="2.5" height="4" rx="1" fill="#17323B" opacity=".4"/></svg>
+      </span></div>
+      <div class="scr-body">
+        <div class="learn-top">
+          <div class="lt-l"><span style="font-size:16px">‹</span><span>Java 语言与虚拟机 · 集合与泛型</span></div>
+          <div class="lt-r">
+            <svg viewBox="0 0 24 24"><circle cx="18" cy="5" r="2.6"/><circle cx="6" cy="12" r="2.6"/><circle cx="18" cy="19" r="2.6"/><path d="m8.4 10.8 7.2-4.3M8.4 13.2l7.2 4.3"/></svg>
+            <svg viewBox="0 0 24 24"><path d="M12 5v14M5 12h14"/></svg>
+          </div>
+        </div>
+        <div class="q-title">
+          <h2>HashMap 在 JDK 1.8 做了哪些改动？为什么引入红黑树？</h2>
+        </div>
+        <div class="variants">
+          <p>面试官还可能这样问（问法变体）</p>
+          <div class="vchips"><span class="chip">谈谈 HashMap 的底层实现</span><span class="chip">1.8 相比 1.7 优化了什么</span><span class="chip">为什么链表要转红黑树</span></div>
+        </div>
+        <div class="in-pad" style="padding-top:12px"><div class="meta-row">
+          <span class="chip">中级</span><span class="chip zhu">高频 78%</span><span class="chip">追问 3 层</span><span class="chip">资料 2 篇</span><span class="chip" style="border-color:var(--ink);color:var(--ink);font-weight:600">你的目标：练到第 2 问算够</span>
+        </div></div>
+        <div class="divider"></div>
+        <div class="sect-label">叙述框架 · 建议按这个顺序说</div>
+        <div class="framework">
+          <div class="fw-step"><span class="no">1</span><div><b>先给结论</b><small>数组 + 链表 + 红黑树，链表过长时转红黑树。</small></div></div>
+          <div class="fw-step"><span class="no">2</span><div><b>对比 1.7 讲改动</b><small>头插改尾插，解决并发扩容死循环；扩容时索引重算简化。</small></div></div>
+          <div class="fw-step"><span class="no">3</span><div><b>树化条件要精确</b><small>链表长度 ≥ 8 且数组容量 ≥ 64 才树化，否则先扩容。</small></div></div>
+          <div class="fw-step"><span class="no">4</span><div><b>收尾往上顶一层</b><small>为什么阈值是 8 —— 泊松分布下概率极低，是安全垫不是性能线。</small></div></div>
+        </div>
+        <div class="divider"></div>
+        <div class="sect-label">追问链 · 面试官会怎么追</div>
+        <div class="fu-track"><i class="done"></i><i class="done"></i><i></i></div>
+        <div class="followups">
+          <details class="fu l1" open><summary><span class="fl">第1层</span><span class="fd">顺着答</span><span class="fq">树化阈值为什么是 8？</span><span class="chev">›</span></summary><div class="fa">答到<b>泊松分布</b>即及格：哈希碰撞下单桶节点数到达 8 的概率约千万分之一，说明正常代码几乎不会触发树化。</div></details>
+          <details class="fu l2"><summary><span class="fl">第2层</span><span class="fd">往下钻</span><span class="fq">退化阈值为什么是 6，不是 7？</span><span class="chev">›</span></summary><div class="fa">留出缓冲带防止<b>在 7、8 之间反复抖动</b>：结构转换本身有成本，阈值错开避免频繁互转。</div></details>
+          <details class="fu l3"><summary><span class="fl">第3层</span><span class="fd">边界压测</span><span class="fq">让你重新设计扩容策略，怎么权衡？</span><span class="chev">›</span></summary><div class="fa">开放题，评估维度：内存换时间（提前扩容）、迁移成本（分批 rehash）、读多写少场景。答出<b>权衡框架</b>而非唯一答案。</div></details>
+        </div>
+        <div class="divider"></div>
+        <div class="sect-label">三档回答样例 · 对照自己的说法</div>
+        <div class="samples">
+          <div class="sm-tabs" id="smTabs">
+            <button class="on lv1" data-pane="p1">及格</button><button class="lv2" data-pane="p2">良好</button><button class="lv3" data-pane="p3">优秀</button>
+          </div>
+          <div class="card sm-pane lv1" id="p1"><b>及格 · 结构答对，能站住</b>"数组 + 链表 + 红黑树。链表长度超过 8 会转成红黑树，查询更快。1.8 还把头插法改成了尾插法。"</div>
+          <div class="card sm-pane lv2" id="p2" style="display:none"><b>良好 · 有对比、有条件、有因果</b>"1.8 的改动：① 头插改尾插，修复 1.7 并发扩容成环的问题；② 树化需同时满足链表 ≥ 8、容量 ≥ 64，否则优先扩容；③ 查询复杂度从 O(n) 降到 O(log n)，这是引入红黑树的原因——恶意哈希碰撞下防止性能退化。"</div>
+          <div class="card sm-pane lv3" id="p3" style="display:none"><b>优秀 · 讲到设计者的取舍</b>"在良好的基础上补：阈值 8 源自泊松分布——理想散列下单桶 8 个节点的概率约 0.00000006，树化是防御机制而非常态；退化阈值取 6 留缓冲防抖动；另外 1.8 扩容用 high/low 链拆分，免去了逐个 rehash。"</div>
+        </div>
+        <div style="height:16px"></div>
+        <div class="sect-label">关联资料 · 讲透这道题的文章</div>
+        <div class="card doc-link">
+          <span class="dico"><svg viewBox="0 0 24 24"><path d="M4 19V6a2 2 0 0 1 2-2h9l5 5v10a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2Z"/><path d="M14 4v5h5M8 13h8M8 17h5"/></svg></span>
+          <div style="flex:1"><b>《一文吃透 HashMap：从 1.7 到 1.8》</b><small>数据库之外 · 约 8 分钟 · 2 道关联题</small></div>
+          <span class="go" style="color:var(--ink-45)">›</span>
+        </div>
+        <div class="learn-actions">
+          <span class="act"><svg viewBox="0 0 24 24"><path d="M6 4h12v17l-6-4.5L6 21Z"/></svg>收藏</span>
+          <span class="act"><svg viewBox="0 0 24 24"><circle cx="18" cy="5" r="2.6"/><circle cx="6" cy="12" r="2.6"/><circle cx="18" cy="19" r="2.6"/><path d="m8.4 10.8 7.2-4.3M8.4 13.2l7.2 4.3"/></svg>分享</span>
+          <button class="btn-zhu">开始自测 · 我能答到哪一档</button>
+        </div>
+      </div>
+      <div class="scr-tabbar">
+        <span class="tab on"><svg viewBox="0 0 24 24"><path d="M3 6.5 9 4l6 2.5L21 4v13.5L15 20l-6-2.5L3 20Z"/><path d="M9 4v13.5M15 6.5V20"/></svg>地图</span>
+        <span class="tab"><svg viewBox="0 0 24 24"><rect x="8" y="3" width="12" height="15" rx="2"/><path d="M5 7v11a3 3 0 0 0 3 3h9"/></svg>抽卡</span>
+        <span class="tab"><svg viewBox="0 0 24 24"><rect x="5" y="3" width="14" height="18" rx="2"/><path d="M9 8h6M9 12h6M9 16h4"/></svg>模拟考</span>
+        <span class="tab"><svg viewBox="0 0 24 24"><path d="M3.5 12a8.5 8.5 0 1 0 2.6-6.1"/><path d="M3.5 4.5v5h5"/><path d="M12 8v4.5l3 1.8"/></svg>复盘</span>
+        <span class="tab"><svg viewBox="0 0 24 24"><circle cx="12" cy="8" r="4"/><path d="M4.5 20.5c1.4-3.8 4.6-5.5 7.5-5.5s6.1 1.7 7.5 5.5"/></svg>我的</span>
+      </div>
+    </div>
+    <div class="bp-note">
+      <div class="n-head"><span class="no">04</span><b>知识点 · 学习页</b><span>核心内容页 · 与 /share/:kpId 同构</span></div>
+      <p class="n-data">一页装下 kb_kp 的全部资产：<b>title</b>（衬线题面）、<b>variants</b>（变体 chips）、<b>framework_md</b>（叙述框架步骤卡）、<b>followups</b>（追问链按 layer 分层折叠）、<b>answer_samples</b>（三档样例 tab）、<b>kb_doc</b> 挂载（关联资料卡）。</p>
+      <p class="n-ix">交互要点：这页可点 —— <b>追问链能逐层展开</b>、三档样例能切换对照；meta 行的<b>"你的目标：练到第 2 问算够"</b>即 stop_layer 停止点（目标刻度），把"学到多深算够"明示给用户；底部主按钮"开始自测"把学习流直接喂给练习页，收藏/分享对齐你的 share 规划接口。</p>
+      <span class="n-tag">framework_md</span><span class="n-tag">followups.layer</span><span class="n-tag">answer_samples</span>
+    </div>
+  </section>
+
+  <!-- ========== 05 练习判定（可交互） ========== -->
+  <section class="bp-frame">
+    <div class="scr">
+      <div class="scr-status"><span>9:41</span><span class="rs">
+        <svg width="15" height="11" viewBox="0 0 15 11"><g fill="#17323B"><rect x="0" y="7" width="2.5" height="4" rx="1"/><rect x="4" y="5" width="2.5" height="6" rx="1"/><rect x="8" y="2.5" width="2.5" height="8.5" rx="1"/><rect x="12" y="0" width="2.5" height="11" rx="1" opacity=".3"/></g></svg>
+        <svg width="15" height="11" viewBox="0 0 16 12"><path d="M8 10.8 5.6 8.3a3.4 3.4 0 0 1 4.8 0Zm4.2-4.4a7.6 7.6 0 0 0-8.4 0L2.3 4.8a10.4 10.4 0 0 1 11.4 0Z" fill="#17323B"/></svg>
+        <svg width="23" height="11" viewBox="0 0 25 12"><rect x="0.5" y="0.5" width="20" height="11" rx="3" fill="none" stroke="#17323B" opacity=".4"/><rect x="2" y="2" width="13" height="8" rx="1.6" fill="#17323B"/><rect x="22" y="4" width="2.5" height="4" rx="1" fill="#17323B" opacity=".4"/></svg>
+      </span></div>
+      <div class="scr-body" id="drill">
+        <div class="drill-top">
+          <span class="prog">自测 1/10 · 停留 1′24″</span>
+          <span class="lvlsel" id="lvlSel"><span data-lv="junior">初级</span><span data-lv="mid" class="sel">中级</span><span data-lv="senior">高级</span></span>
+        </div>
+        <div class="drill-q"><h2>HashMap 在 JDK 1.8 做了哪些改动？为什么引入红黑树？</h2></div>
+        <div class="drill-hint">先不看框架，按你的思路把这道题说一遍——再逐条对照下面的点。切换右上角职级，看看<b>同一道题对不同职级的期望差在哪</b>。</div>
+        <div class="drill-target" id="drillTarget"></div>
+        <div class="drill-wrap">
+          <div class="pt-list" id="ptList"></div>
+          <div class="gauge-rail">
+            <div class="gauge-step" data-lv="1">及格</div>
+            <div class="gauge-step" data-lv="2">良好</div>
+            <div class="gauge-step" data-lv="3">优秀</div>
+            <div class="gauge-step hit" data-lv="0" style="background:var(--paper-2);border-color:var(--grid);color:var(--ink-45)">未达</div>
+          </div>
+        </div>
+        <div class="drill-where" id="drillWhere">当前：<b>未达</b> —— 勾出你说到的点，看看自己卡在哪一档。</div>
+        <div style="padding:14px 18px 4px"><button class="btn-zhu" id="drillSubmit">提交 · 记入我的掌握度</button></div>
+        <p style="text-align:center;font-size:10.5px;color:var(--ink-45);padding:0 30px;line-height:1.7">漏掉的点会自动进入弱点本，下次优先重练。<br>（判定引擎就绪后，这里可切换为 AI 判定 / 语音作答）</p>
+        <div style="height:12px"></div>
+      </div>
+      <div class="scr-tabbar">
+        <span class="tab"><svg viewBox="0 0 24 24"><path d="M3 6.5 9 4l6 2.5L21 4v13.5L15 20l-6-2.5L3 20Z"/><path d="M9 4v13.5M15 6.5V20"/></svg>地图</span>
+        <span class="tab on"><svg viewBox="0 0 24 24"><rect x="8" y="3" width="12" height="15" rx="2"/><path d="M5 7v11a3 3 0 0 0 3 3h9"/></svg>抽卡</span>
+        <span class="tab"><svg viewBox="0 0 24 24"><rect x="5" y="3" width="14" height="18" rx="2"/><path d="M9 8h6M9 12h6M9 16h4"/></svg>模拟考</span>
+        <span class="tab"><svg viewBox="0 0 24 24"><path d="M3.5 12a8.5 8.5 0 1 0 2.6-6.1"/><path d="M3.5 4.5v5h5"/><path d="M12 8v4.5l3 1.8"/></svg>复盘</span>
+        <span class="tab"><svg viewBox="0 0 24 24"><circle cx="12" cy="8" r="4"/><path d="M4.5 20.5c1.4-3.8 4.6-5.5 7.5-5.5s6.1 1.7 7.5 5.5"/></svg>我的</span>
+      </div>
+    </div>
+    <div class="bp-note">
+      <div class="n-head"><span class="no">05</span><b>练习 · 自评判定</b><span>可交互 · 点上面的灯试试</span></div>
+      <p class="n-data">这一页把 <b>scoring_points</b>（pass/good/excellent 分级评分点）直接变成玩法：勾选=点亮，右侧档位尺实时爬升。右上角<b>职级切换是真联动的</b>：评分点集合与"停止点"提示随 level_rules 变化——required 定范围、stop_layer 定深度，同一道题三个职级三把尺。</p>
+      <p class="n-ix">两件事都试试：① 切换<b>初级/中级/高级</b>——初级只有 2 条及格点，中级加 2 条良好点并出现<b>超纲挑战行</b>（虚线，答不答都不计档），高级把优秀点也纳入判定；② 中级档下点亮评分点看档位爬升。判定引擎就绪前先跑"自评模式"，链路不用改。</p>
+      <span class="n-tag">标志性交互</span><span class="n-tag">scoring_points</span><span class="n-tag">stop_layer 联动</span><span class="n-tag">超纲不计档</span>
+    </div>
+  </section>
+
+  <!-- ========== 06 资料阅读 ========== -->
+  <section class="bp-frame">
+    <div class="scr">
+      <div class="scr-status"><span>9:41</span><span class="rs">
+        <svg width="15" height="11" viewBox="0 0 15 11"><g fill="#17323B"><rect x="0" y="7" width="2.5" height="4" rx="1"/><rect x="4" y="5" width="2.5" height="6" rx="1"/><rect x="8" y="2.5" width="2.5" height="8.5" rx="1"/><rect x="12" y="0" width="2.5" height="11" rx="1" opacity=".3"/></g></svg>
+        <svg width="15" height="11" viewBox="0 0 16 12"><path d="M8 10.8 5.6 8.3a3.4 3.4 0 0 1 4.8 0Zm4.2-4.4a7.6 7.6 0 0 0-8.4 0L2.3 4.8a10.4 10.4 0 0 1 11.4 0Z" fill="#17323B"/></svg>
+        <svg width="23" height="11" viewBox="0 0 25 12"><rect x="0.5" y="0.5" width="20" height="11" rx="3" fill="none" stroke="#17323B" opacity=".4"/><rect x="2" y="2" width="13" height="8" rx="1.6" fill="#17323B"/><rect x="22" y="4" width="2.5" height="4" rx="1" fill="#17323B" opacity=".4"/></svg>
+      </span></div>
+      <div class="scr-body">
+        <div class="learn-top">
+          <div class="lt-l"><span style="font-size:16px">‹</span><span>资料 · 集合与泛型</span></div>
+          <div class="lt-r"><svg viewBox="0 0 24 24"><path d="M6 4h12v17l-6-4.5L6 21Z"/></svg><svg viewBox="0 0 24 24"><circle cx="12" cy="5" r="1.4"/><circle cx="12" cy="12" r="1.4"/><circle cx="12" cy="19" r="1.4"/></svg></div>
+        </div>
+        <div class="read-prog"><i></i></div>
+        <div class="doc-head">
+          <div class="meta-row"><span class="chip">Java 语言与虚拟机</span><span class="chip">中级</span><span class="chip">约 8 分钟</span></div>
+          <h2>一文吃透 HashMap：从 1.7 到 1.8</h2>
+        </div>
+        <div class="doc-body">
+          <h3>先回答：为什么改？</h3>
+          <p>1.7 的 HashMap 在并发扩容时可能因头插法形成环形链表，查询直接死循环 CPU 打满。1.8 改为尾插，从根上消除成环条件——这也是面试最爱追问的起点。</p>
+          <blockquote><b>考点提示</b>：回答时先讲"为什么改"，再讲"改了什么"，顺序反过来会显得背题。</blockquote>
+          <h3>树化的精确条件</h3>
+          <p>树化要同时满足两个条件，缺一不可：</p>
+          <pre>if (binCount >= TREEIFY_THRESHOLD - 1   // 链表 >= 8
+    &amp;&amp; table.length >= MIN_TREEIFY_CAPACITY) { // 容量 >= 64
+    treeifyBin(tab, hash);              // 否则只扩容
+}</pre>
+          <p>容量不足时优先扩容而非树化——扩容拆桶本身就是一次"减压"。</p>
+          <blockquote><b>考点提示</b>：只说"超过 8 就转红黑树"是及格线，两个条件都说全才到良好。</blockquote>
+          <h3>阈值 8 的数学来源</h3>
+          <p>理想散列下，单桶节点数服从泊松分布，到达 8 的概率约千万分之一。所以 8 不是性能线，是概率安全垫——正常代码几乎不会触发树化，触发了就说明 hash 写得有问题。</p>
+        </div>
+        <div class="kp-back">
+          <div class="kb-t"><svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="9"/><path d="M12 8v5M12 16.5v.01"/></svg>这篇文章讲透了 3 道高频题 · 点击直达</div>
+          <a><b>HashMap 在 JDK 1.8 做了哪些改动？</b><small>高频 78%</small></a>
+          <a><b>为什么树化阈值是 8、退化是 6？</b><small>高频 55%</small></a>
+          <a><b>HashMap 扩容时发生了什么？</b><small>中频 44%</small></a>
+        </div>
+        <div class="src-note">来源与版权 · 整理自 Oracle Javadoc 与 OpenJDK 源码注释，仅用于个人学习参考。—— source_url 溯源字段，每篇资料可查出处。</div>
+        <div style="height:20px"></div>
+      </div>
+      <div class="scr-tabbar">
+        <span class="tab"><svg viewBox="0 0 24 24"><path d="M3 6.5 9 4l6 2.5L21 4v13.5L15 20l-6-2.5L3 20Z"/><path d="M9 4v13.5M15 6.5V20"/></svg>地图</span>
+        <span class="tab"><svg viewBox="0 0 24 24"><rect x="8" y="3" width="12" height="15" rx="2"/><path d="M5 7v11a3 3 0 0 0 3 3h9"/></svg>抽卡</span>
+        <span class="tab"><svg viewBox="0 0 24 24"><rect x="5" y="3" width="14" height="18" rx="2"/><path d="M9 8h6M9 12h6M9 16h4"/></svg>模拟考</span>
+        <span class="tab"><svg viewBox="0 0 24 24"><path d="M3.5 12a8.5 8.5 0 1 0 2.6-6.1"/><path d="M3.5 4.5v5h5"/><path d="M12 8v4.5l3 1.8"/></svg>复盘</span>
+        <span class="tab"><svg viewBox="0 0 24 24"><circle cx="12" cy="8" r="4"/><path d="M4.5 20.5c1.4-3.8 4.6-5.5 7.5-5.5s6.1 1.7 7.5 5.5"/></svg>我的</span>
+      </div>
+    </div>
+    <div class="bp-note">
+      <div class="n-head"><span class="no">06</span><b>资料 · 阅读页</b><span>kb_doc 上 C 端</span></div>
+      <p class="n-data">kb_doc 的 <b>content_md</b>（Markdown 正文）、<b>source_url</b>（页尾版权溯源，体现你"来源可查"的内容纪律）、<b>kp_id</b> 挂载反向利用——文中"讲透了 3 道高频题"就是挂载关系反查，资料给题引流。</p>
+      <p class="n-ix">交互要点：<b>朱线引用块=考点提示</b>，读文章时顺手标记"这里会被追问"；底部"考点回链"让读者从资料跳回题目开练，形成资料↔题目双向循环。</p>
+      <span class="n-tag">content_md</span><span class="n-tag">source_url</span><span class="n-tag">kp_id 反查</span>
+    </div>
+  </section>
+
+  <!-- ========== 07 模拟考结果 ========== -->
+  <section class="bp-frame">
+    <div class="scr">
+      <div class="scr-status"><span>9:41</span><span class="rs">
+        <svg width="15" height="11" viewBox="0 0 15 11"><g fill="#17323B"><rect x="0" y="7" width="2.5" height="4" rx="1"/><rect x="4" y="5" width="2.5" height="6" rx="1"/><rect x="8" y="2.5" width="2.5" height="8.5" rx="1"/><rect x="12" y="0" width="2.5" height="11" rx="1" opacity=".3"/></g></svg>
+        <svg width="15" height="11" viewBox="0 0 16 12"><path d="M8 10.8 5.6 8.3a3.4 3.4 0 0 1 4.8 0Zm4.2-4.4a7.6 7.6 0 0 0-8.4 0L2.3 4.8a10.4 10.4 0 0 1 11.4 0Z" fill="#17323B"/></svg>
+        <svg width="23" height="11" viewBox="0 0 25 12"><rect x="0.5" y="0.5" width="20" height="11" rx="3" fill="none" stroke="#17323B" opacity=".4"/><rect x="2" y="2" width="13" height="8" rx="1.6" fill="#17323B"/><rect x="22" y="4" width="2.5" height="4" rx="1" fill="#17323B" opacity=".4"/></svg>
+      </span></div>
+      <div class="scr-body">
+        <div class="exam-head">
+          <span class="eh-tag">SIMULATION · 结果单</span>
+          <h2>中级卷 · 拿下 33%</h2>
+          <small><span>12 题</span><span>用时 38 分钟</span><span>10月12日</span></small>
+        </div>
+        <div class="card verdict-band">
+          <div class="vb-bar">
+            <i style="width:33%;background:var(--good)"></i><i style="width:33%;background:var(--miss)"></i><i style="width:17%;background:var(--cinnabar)"></i><i style="width:17%;background:var(--none)"></i>
+          </div>
+          <div class="vb-legend">
+            <span><i style="background:var(--good)"></i>答对 <b>4</b></span>
+            <span><i style="background:var(--miss)"></i>答缺 <b>4</b></span>
+            <span><i style="background:var(--cinnabar)"></i>答错 <b>2</b></span>
+            <span><i style="background:var(--none)"></i>未答 <b>2</b></span>
+          </div>
+        </div>
+        <div class="card fall-card">
+          <h4><span class="zhu-dot"></span>你在第 2 层被追倒</h4>
+          <div class="fall-line"><span class="lay">HashMap</span><div class="fb"><b>第 2 问 · 退化阈值为什么是 6</b><small>答缺 —— 没说到"留缓冲防抖动"</small></div></div>
+          <div class="fall-line"><span class="lay">MySQL</span><div class="fb"><b>第 2 问 · 最左前缀与 ORDER BY</b><small>答错 —— 把"索引可用于排序"说反了</small></div></div>
+          <div class="fall-line"><span class="lay">Redis</span><div class="fb"><b>第 1 问 · RDB 与 AOF 怎么选</b><small>未答 —— 直接跳过，按答缺计</small></div></div>
+        </div>
+        <div class="exam-rows">
+          <div class="exam-row"><span class="vd" style="background:var(--good)">答对</span><span class="et">volatile 能解决什么问题？</span><span class="el">良好</span></div>
+          <div class="exam-row"><span class="vd" style="background:var(--miss)">答缺</span><span class="et">synchronized 锁升级的过程？</span><span class="el">及格</span></div>
+          <div class="exam-row"><span class="vd" style="background:var(--cinnabar)">答错</span><span class="et">对象什么时候进入老年代？</span><span class="el">—</span></div>
+          <div class="exam-row"><span class="vd" style="background:var(--none)">未答</span><span class="et">G1 和 CMS 的区别？</span><span class="el">—</span></div>
+        </div>
+        <div class="exam-cta">
+          <button class="btn-zhu">重练答缺的 4 条</button>
+          <button class="btn-ghost">逐题回看</button>
+        </div>
+        <div class="record-invite">
+          <svg viewBox="0 0 24 24"><path d="M12 5v14M5 12h14"/></svg>
+          <div style="flex:1"><b>这场面试里，有题库里没有的题吗？</b><small>录进来，人工核对后进候选池 —— 复盘录题</small></div>
+          <span style="color:var(--ink-45)">›</span>
+        </div>
+        <div style="height:18px"></div>
+      </div>
+      <div class="scr-tabbar">
+        <span class="tab"><svg viewBox="0 0 24 24"><path d="M3 6.5 9 4l6 2.5L21 4v13.5L15 20l-6-2.5L3 20Z"/><path d="M9 4v13.5M15 6.5V20"/></svg>地图</span>
+        <span class="tab"><svg viewBox="0 0 24 24"><rect x="8" y="3" width="12" height="15" rx="2"/><path d="M5 7v11a3 3 0 0 0 3 3h9"/></svg>抽卡</span>
+        <span class="tab on"><svg viewBox="0 0 24 24"><rect x="5" y="3" width="14" height="18" rx="2"/><path d="M9 8h6M9 12h6M9 16h4"/></svg>模拟考</span>
+        <span class="tab"><svg viewBox="0 0 24 24"><path d="M3.5 12a8.5 8.5 0 1 0 2.6-6.1"/><path d="M3.5 4.5v5h5"/><path d="M12 8v4.5l3 1.8"/></svg>复盘</span>
+        <span class="tab"><svg viewBox="0 0 24 24"><circle cx="12" cy="8" r="4"/><path d="M4.5 20.5c1.4-3.8 4.6-5.5 7.5-5.5s6.1 1.7 7.5 5.5"/></svg>我的</span>
+      </div>
+    </div>
+    <div class="bp-note">
+      <div class="n-head"><span class="no">07</span><b>模拟考 · 结果页</b><span>judge_session 复用到 C 端</span></div>
+      <p class="n-data">四值答况来自 <b>judge_answer.verdict</b>（答对/答缺/答错/未答——"未答"是独立值，单独配色）；"你在第 2 层被追倒"来自 <b>followups.layer</b> × 作答记录，是刷题 App 给不出的报告。</p>
+      <p class="n-ix">交互要点：结果页的最重要动作只有一个——<b>「重练答缺的 4 条」</b>；复盘录题入口常驻底部，把你面试里遇到的新题回流进内容池。</p>
+      <span class="n-tag">verdict 四值</span><span class="n-tag">layer 败点</span><span class="n-tag">录题回流</span>
+    </div>
+  </section>
+
+  <!-- ========== 08 复盘 · 弱点本 ========== -->
+  <section class="bp-frame">
+    <div class="scr">
+      <div class="scr-status"><span>9:41</span><span class="rs">
+        <svg width="15" height="11" viewBox="0 0 15 11"><g fill="#17323B"><rect x="0" y="7" width="2.5" height="4" rx="1"/><rect x="4" y="5" width="2.5" height="6" rx="1"/><rect x="8" y="2.5" width="2.5" height="8.5" rx="1"/><rect x="12" y="0" width="2.5" height="11" rx="1" opacity=".3"/></g></svg>
+        <svg width="15" height="11" viewBox="0 0 16 12"><path d="M8 10.8 5.6 8.3a3.4 3.4 0 0 1 4.8 0Zm4.2-4.4a7.6 7.6 0 0 0-8.4 0L2.3 4.8a10.4 10.4 0 0 1 11.4 0Z" fill="#17323B"/></svg>
+        <svg width="23" height="11" viewBox="0 0 25 12"><rect x="0.5" y="0.5" width="20" height="11" rx="3" fill="none" stroke="#17323B" opacity=".4"/><rect x="2" y="2" width="13" height="8" rx="1.6" fill="#17323B"/><rect x="22" y="4" width="2.5" height="4" rx="1" fill="#17323B" opacity=".4"/></svg>
+      </span></div>
+      <div class="scr-body">
+        <div class="rv-head">
+          <div><h2>复盘 · 弱点本</h2><small>最近 7 天练了 43 次 · 比上周多 12 次</small></div>
+        </div>
+        <div class="in-pad" style="padding-top:4px">
+          <div class="heat"><i class="d3"></i><i class="d2"></i><i class="d1"></i><i class="d3"></i><i class="d2"></i><i class="d1"></i><i></i></div>
+          <div class="heat-l"><span>周一</span><span>周日</span></div>
+        </div>
+        <div class="wk-group">
+          <div class="wk-title"><b><i style="background:var(--miss)"></i>答缺 · 说漏了点</b><span>5 条</span></div>
+          <div class="wk-card">
+            <b>HashMap 树化条件为什么是 8 和 64？</b>
+            <div class="wk-why">缺：<em>泊松分布说明 8 是概率安全垫</em> —— 连续 2 次没说到</div>
+            <div class="wk-act"><button class="zhu">重练</button><button>看三档样例</button></div>
+          </div>
+          <div class="wk-card">
+            <b>RDB 和 AOF 各适合什么场景？</b>
+            <div class="wk-why">缺：<em>AOF 的 everysec 折中策略</em> —— 昨天 · 模拟考</div>
+            <div class="wk-act"><button class="zhu">重练</button><button>看叙述框架</button></div>
+          </div>
+          <div class="wk-title" style="padding-top:14px"><b><i style="background:var(--cinnabar)"></i>答错 · 说反了</b><span>2 条</span></div>
+          <div class="wk-card">
+            <b>联合索引 (a,b,c)，WHERE b=1 能走索引吗？</b>
+            <div class="wk-why">答成"可以"，<em>实际不满足最左前缀</em> —— 需要回学习页重学</div>
+            <div class="wk-act"><button class="zhu">重学</button><button>看追问链</button></div>
+          </div>
+          <div class="wk-title" style="padding-top:14px"><b><i style="background:var(--none)"></i>未答 · 完全陌生</b><span>2 条</span></div>
+          <div class="wk-card">
+            <b>G1 的 Region 划分和卡片表是怎么回事？</b>
+            <div class="wk-why">从没答过 —— 建议先读关联资料再开练</div>
+            <div class="wk-act"><button class="zhu">先去学</button><button>找资料</button></div>
+          </div>
+        </div>
+        <div class="card pond-card">
+          <b><svg width="13" height="13" viewBox="0 0 24 24" style="stroke:var(--ink-70);fill:none;stroke-width:2;stroke-linecap:round"><path d="M12 5v14M5 12h14"/></svg>我录的题 · 候选池</b>
+          <ul>
+            <li>你们分库分表怎么估的分片数？<span>待入库</span></li>
+            <li>线上 GC 频繁，你的排查顺序？<span>待入库</span></li>
+            <li>接口幂等你们怎么做的？<span>已入库 · 高频 61%</span></li>
+          </ul>
+        </div>
+        <div style="height:18px"></div>
+      </div>
+      <div class="scr-tabbar">
+        <span class="tab"><svg viewBox="0 0 24 24"><path d="M3 6.5 9 4l6 2.5L21 4v13.5L15 20l-6-2.5L3 20Z"/><path d="M9 4v13.5M15 6.5V20"/></svg>地图</span>
+        <span class="tab"><svg viewBox="0 0 24 24"><rect x="8" y="3" width="12" height="15" rx="2"/><path d="M5 7v11a3 3 0 0 0 3 3h9"/></svg>抽卡</span>
+        <span class="tab"><svg viewBox="0 0 24 24"><rect x="5" y="3" width="14" height="18" rx="2"/><path d="M9 8h6M9 12h6M9 16h4"/></svg>模拟考</span>
+        <span class="tab on"><svg viewBox="0 0 24 24"><path d="M3.5 12a8.5 8.5 0 1 0 2.6-6.1"/><path d="M3.5 4.5v5h5"/><path d="M12 8v4.5l3 1.8"/></svg>复盘</span>
+        <span class="tab"><svg viewBox="0 0 24 24"><circle cx="12" cy="8" r="4"/><path d="M4.5 20.5c1.4-3.8 4.6-5.5 7.5-5.5s6.1 1.7 7.5 5.5"/></svg>我的</span>
+      </div>
+    </div>
+    <div class="bp-note">
+      <div class="n-head"><span class="no">08</span><b>复盘 · 弱点本</b><span>route /review</span></div>
+      <p class="n-data">按 verdict 分组呈现弱点：<b>答缺=说漏了哪条评分点</b>（直接引用 scoring_points 原文）、答错=给重学入口、未答=给资料入口；「我录的题」是复盘录题的候选池状态（对齐你暂缓清单的录题规划）。</p>
+      <p class="n-ix">交互要点：每张弱点卡的按钮指向不同的下一步（重练/重学/找资料），<b>弱点和动作一一对应</b>，不做笼统的"去复习"。</p>
+      <span class="n-tag">verdict 分组</span><span class="n-tag">评分点原文回放</span><span class="n-tag">录题候选池</span>
+    </div>
+  </section>
+
+  <!-- ========== 09 PC 形态 ========== -->
+  <section class="bp-frame">
+    <div class="pc-shell">
+      <div class="pc-chrome"><i></i><i></i><i></i><span class="addr">zhiji.app/kp/1024 · HashMap 在 JDK 1.8 做了哪些改动</span></div>
+      <div class="pc-stage">
+        <aside class="pc-side">
+          <div class="brand"><i>知</i>知己</div>
+          <div class="pnav"><svg viewBox="0 0 24 24"><path d="M3 6.5 9 4l6 2.5L21 4v13.5L15 20l-6-2.5L3 20Z"/><path d="M9 4v13.5M15 6.5V20"/></svg>地图<span class="cnt">86</span></div>
+          <div class="pnav"><svg viewBox="0 0 24 24"><rect x="8" y="3" width="12" height="15" rx="2"/><path d="M5 7v11a3 3 0 0 0 3 3h9"/></svg>抽卡</div>
+          <div class="pnav"><svg viewBox="0 0 24 24"><rect x="5" y="3" width="14" height="18" rx="2"/><path d="M9 8h6M9 12h6M9 16h4"/></svg>模拟考</div>
+          <div class="pnav"><svg viewBox="0 0 24 24"><path d="M3.5 12a8.5 8.5 0 1 0 2.6-6.1"/><path d="M3.5 4.5v5h5"/><path d="M12 8v4.5l3 1.8"/></svg>复盘<span class="cnt">9</span></div>
+          <div class="pnav"><svg viewBox="0 0 24 24"><circle cx="12" cy="8" r="4"/><path d="M4.5 20.5c1.4-3.8 4.6-5.5 7.5-5.5s6.1 1.7 7.5 5.5"/></svg>我的</div>
+          <div style="margin-top:auto;padding:0 12px;font-size:10.5px;opacity:.55;line-height:1.7">当前档案<br>Java 后端 · 3 年 · 目标中级</div>
+        </aside>
+        <div class="pc-main">
+          <div class="pc-main-head">
+            <div>
+              <h2>HashMap 在 JDK 1.8 做了哪些改动？为什么引入红黑树？</h2>
+              <small>Java 语言与虚拟机 / 集合与泛型 · 你当前处于「良好」档</small>
+            </div>
+            <div class="pc-chips"><span class="chip zhu">高频 78%</span><span class="chip">中级</span><span class="chip">追问 3 层</span></div>
+          </div>
+          <div class="pc-main-body">
+            <div class="pc-doc">
+              <div class="meta-row"><span class="chip sel" style="background:var(--ink);color:var(--paper);border-color:var(--ink)">叙述框架</span><span class="chip">追问链</span><span class="chip">三档样例</span><span class="chip">关联资料</span></div>
+              <div class="fw-grid">
+                <div class="fw-step"><span class="no">1</span><div><b>先给结论</b><small>数组 + 链表 + 红黑树，链表过长时转红黑树。</small></div></div>
+                <div class="fw-step"><span class="no">2</span><div><b>对比 1.7 讲改动</b><small>头插改尾插，解决并发扩容死循环；扩容索引重算简化。</small></div></div>
+                <div class="fw-step"><span class="no">3</span><div><b>树化条件要精确</b><small>链表长度 ≥ 8 且数组容量 ≥ 64 才树化，否则先扩容。</small></div></div>
+                <div class="fw-step"><span class="no">4</span><div><b>收尾往上顶一层</b><small>为什么阈值是 8 —— 泊松分布下概率极低，是安全垫不是性能线。</small></div></div>
+              </div>
+              <div class="card sm-pane lv2" style="margin-top:14px;min-height:0"><b>良好样例 · 你当前对标这一档</b>"1.8 的改动：① 头插改尾插，修复并发扩容成环；② 树化需同时满足链表 ≥ 8、容量 ≥ 64；③ 查询从 O(n) 降到 O(log n)，防止恶意碰撞下的性能退化。"</div>
+            </div>
+            <aside class="pc-sidecol">
+              <div class="scol-t">追问链 · 3 层</div>
+              <details class="fu l1" open><summary><span class="fl">第1层</span><span class="fd">顺着答</span><span class="fq">树化阈值为什么是 8？</span><span class="chev">›</span></summary><div class="fa">答到<b>泊松分布</b>即及格。</div></details>
+              <details class="fu l2"><summary><span class="fl">第2层</span><span class="fd">往下钻</span><span class="fq">退化阈值为什么是 6？</span><span class="chev">›</span></summary><div class="fa">留缓冲防止结构<b>反复抖动</b>。</div></details>
+              <details class="fu l3"><summary><span class="fl">第3层</span><span class="fd">边界压测</span><span class="fq">让你重新设计扩容策略？</span><span class="chev">›</span></summary><div class="fa">答<b>权衡框架</b>而非唯一答案。</div></details>
+              <div class="sm-mini"><b>关联资料</b><p>《一文吃透 HashMap：从 1.7 到 1.8》 · 约 8 分钟</p></div>
+              <button class="btn-zhu" style="margin-top:14px;padding:12px;font-size:13.5px">开始自测</button>
+            </aside>
+          </div>
+        </div>
+      </div>
+    </div>
+    <div class="bp-note" style="width:760px">
+      <div class="n-head"><span class="no">09</span><b>PC 形态 · ≥1024px</b><span>同一页面，物化成应用壳</span></div>
+      <p class="n-data">按你的 LearnLayout 规范：同一份 tabs 数据源在桌面物化为<b>深色左侧栏</b>（墨青底的"面试室"感），内容居中两栏——左栏正文流（框架/样例），右栏工具列（追问链/资料/开始自测）。</p>
+      <p class="n-ix">交互要点：手机上追问链在正文流里纵向展开，PC 上<b>晋升为常驻右栏</b>——桌面宽屏正好承载"边读框架边看追问"的双列动线。</p>
+      <span class="n-tag">grid-template-areas</span><span class="n-tag">同构不同形</span>
+    </div>
+  </section>
+
+</main>
+
+<!-- ================= 页脚：落地顺序 ================= -->
+<footer class="bp-footer">
+  <h2>怎么落地：三步走</h2>
+  <p class="f-sub">原型到开发的顺序建议——每一步都只依赖你已经有的表和接口，不空转。</p>
+  <div class="ship-steps">
+    <div class="ship">
+      <span class="s-tag">STEP 1</span>
+      <b>先让题能被看见</b>
+      <p>屏 03 + 04：题目列表 + 学习页。给 <code>kb_kp / kb_doc</code> 开一个 C 端公开接口（复用 <code>/api/share/kp/{id}</code> 规划），数据全是现成的，<b>一周内 C 端就能从空壳变成真站</b>，分享页同步复用。</p>
+      <span class="s-week">只依赖：已有数据</span>
+    </div>
+    <div class="ship">
+      <span class="s-tag">STEP 2</span>
+      <b>让题能被练</b>
+      <p>屏 05：自评判定。<code>scoring_points</code> 已在库里，先做"自评模式"——一张作答记录表（kp_id + 勾选的点 + 档位 + 时间）就能把掌握度、弱点本、领域色阶全部点亮，判定引擎后接不用改链路。</p>
+      <span class="s-week">新增：一张作答记录表</span>
+    </div>
+    <div class="ship">
+      <span class="s-tag">STEP 3</span>
+      <b>让练完有回响</b>
+      <p>屏 07 + 08：模拟考结果 + 弱点本。把 B 端 <code>judge_session / judge_answer</code> 复用给 C 端（会话绑定客户与目标职级），verdict 四值与 layer 败点直接出报告，复盘录题表随后跟上。</p>
+      <span class="s-week">复用：判定引擎</span>
+    </div>
+  </div>
+</footer>
+
+<button class="ov-fab" id="ovFab" type="button">全景总览</button>
+
+<script>
+// —— 全景总览：一键缩览全部屏，点击任意屏放大进入 ——
+(function(){
+  var fab=document.getElementById('ovFab');
+  fab.addEventListener('click',function(){
+    var on=document.body.classList.toggle('ov');
+    fab.textContent=on?'回到画板':'全景总览';
+    if(on)window.scrollTo({top:document.querySelector('.bp-board').offsetTop-20,behavior:'smooth'});
+  });
+  document.querySelectorAll('.bp-frame').forEach(function(f){
+    f.addEventListener('click',function(e){
+      if(!document.body.classList.contains('ov'))return;
+      if(e.target.closest('button,.pt,summary,.tab,details'))return;
+      document.body.classList.remove('ov');
+      fab.textContent='全景总览';
+      f.scrollIntoView({behavior:'smooth',inline:'center',block:'start'});
+    });
+  });
+})();
+
+// —— 屏2：复习地图行点击（原型演示） ——
+(function(){
+  document.querySelectorAll('.ov-row').forEach(function(r){
+    r.addEventListener('click',function(){ r.style.outline='2px solid var(--cinnabar)'; setTimeout(function(){r.style.outline='';},350); });
+  });
+})();
+
+// —— 屏5：评分点亮灯 × 职级切换联动（标志性交互）——
+(function(){
+  var drill=document.getElementById('drill');
+  if(!drill)return;
+  var listEl=document.getElementById('ptList');
+  var steps=drill.querySelectorAll('.gauge-step');
+  var where=document.getElementById('drillWhere');
+  var target=document.getElementById('drillTarget');
+  var lvlSel=document.getElementById('lvlSel');
+  var NAMES=['未达','及格','良好','优秀'];
+  var LVNAME={junior:'初级',mid:'中级',senior:'高级'};
+  var HINTS=[
+    '勾出你说到的点，看看自己卡在哪一档。',
+    '到及格了。还想往上走：把 GOOD 良好点也说全（还差 {n} 条）。',
+    '良好档稳了。想冲优秀：把 EXCEL 优秀点点亮（还差 {n} 条）。',
+    '优秀档 —— 这题面试官追到停止点也追不倒你了。'
+  ];
+  // level_rules 演示：required 定范围、stop_layer 定深度
+  var SETS={
+    junior:{
+      note:'初级 · 练到第 1 问：说出结构就算够',
+      pts:[
+        {l:1,b:'PASS · 及格点',t:'说出「数组 + 链表 + 红黑树」的基础结构'},
+        {l:1,b:'PASS · 及格点',t:'提到头插改尾插，避免并发扩容死循环'}
+      ],
+      cha:null
+    },
+    mid:{
+      note:'中级 · 练到第 2 问：说清树化条件与引入原因',
+      pts:[
+        {l:1,b:'PASS · 及格点',t:'说出「数组 + 链表 + 红黑树」的基础结构'},
+        {l:1,b:'PASS · 及格点',t:'提到头插改尾插，避免并发扩容死循环'},
+        {l:2,b:'GOOD · 良好点',t:'树化条件说精确：长度 ≥ 8 且容量 ≥ 64'},
+        {l:2,b:'GOOD · 良好点',t:'解释为什么引入红黑树：防止查询退化为 O(n)'}
+      ],
+      cha:'第 3 问 · 让你重新设计扩容策略，怎么权衡？'
+    },
+    senior:{
+      note:'高级 · 练到第 3 问：优秀点也纳入判定',
+      pts:[
+        {l:1,b:'PASS · 及格点',t:'说出「数组 + 链表 + 红黑树」的基础结构'},
+        {l:1,b:'PASS · 及格点',t:'提到头插改尾插，避免并发扩容死循环'},
+        {l:2,b:'GOOD · 良好点',t:'树化条件说精确：长度 ≥ 8 且容量 ≥ 64'},
+        {l:2,b:'GOOD · 良好点',t:'解释为什么引入红黑树：防止查询退化为 O(n)'},
+        {l:3,b:'EXCEL · 优秀点',t:'讲到泊松分布：阈值 8 是概率安全垫'}
+      ],
+      cha:null
+    }
+  };
+  var cur='mid';
+  function build(){
+    var s=SETS[cur];
+    listEl.innerHTML='';
+    s.pts.forEach(function(p){
+      var el=document.createElement('div');
+      el.className='pt l'+p.l;
+      el.dataset.lvl=p.l===1?'pass':(p.l===2?'good':'excellent');
+      el.innerHTML='<span class="lamp"></span><div class="pt-body"><b>'+p.b+'</b><span>'+p.t+'</span></div>';
+      el.addEventListener('click',function(){el.classList.toggle('on');render();});
+      listEl.appendChild(el);
+    });
+    if(s.cha){
+      var c=document.createElement('div');
+      c.className='pt cha';
+      c.innerHTML='<span class="lamp"></span><div class="pt-body"><b>超出'+LVNAME[cur]+'要求 · 超纲挑战</b><span>'+s.cha+'——答不答都不计入档位</span></div>';
+      c.addEventListener('click',function(){c.style.outline='2px solid var(--cinnabar)';setTimeout(function(){c.style.outline='';},350);});
+      listEl.appendChild(c);
+    }
+    target.innerHTML='<span class="tflag">停止点</span><span>'+s.note+'</span>';
+  }
+  function count(){
+    var c={pass:0,good:0,excellent:0};
+    listEl.querySelectorAll('.pt:not(.cha)').forEach(function(p){if(p.classList.contains('on'))c[p.dataset.lvl]++;});
+    return c;
+  }
+  function lvOf(){var c=count();if(c.excellent>0)return 3;if(c.good>=2)return 2;if(c.pass>=2)return 1;return 0;}
+  function remainAt(lv){
+    var c=count();
+    if(lv===1)return Math.max(0,2-c.good);
+    if(lv===2)return Math.max(0,1-c.excellent);
+    return 0;
+  }
+  function render(){
+    var lv=lvOf();
+    steps.forEach(function(s){
+      var v=+s.dataset.lv;
+      s.classList.remove('hit','g1','g2','g3');
+      if(v===lv&&lv>0){s.classList.add('hit');if(lv===1)s.classList.add('g1');if(lv===2)s.classList.add('g2');if(lv===3)s.classList.add('g3');}
+    });
+    var un=steps[3];
+    if(lv>0){un.classList.remove('hit');un.style.background='var(--paper-2)';un.style.borderColor='var(--grid)';un.style.color='var(--ink-45)';}
+    else{un.classList.add('hit');}
+    where.innerHTML='当前：<b>'+NAMES[lv]+'</b> —— '+HINTS[lv].replace('{n}',remainAt(lv));
+  }
+  lvlSel.querySelectorAll('span').forEach(function(sp){
+    sp.addEventListener('click',function(){
+      lvlSel.querySelectorAll('span').forEach(function(x){x.classList.remove('sel');});
+      sp.classList.add('sel');
+      cur=sp.dataset.lv;
+      build();render();
+    });
+  });
+  build();render();
+})();
+
+// —— 屏3：三档样例 tab ——
+(function(){
+  var tabs=document.getElementById('smTabs');
+  if(!tabs)return;
+  var btns=tabs.querySelectorAll('button');
+  btns.forEach(function(b){
+    b.addEventListener('click',function(){
+      btns.forEach(function(x){x.classList.remove('on');});
+      b.classList.add('on');
+      ['p1','p2','p3'].forEach(function(id){
+        var el=document.getElementById(id);
+        if(el)el.style.display=(id===b.dataset.pane)?'block':'none';
+      });
+    });
+  });
+})();
+
+// —— 底部 tab：点击切换本屏激活态（仅原型演示） ——
+document.querySelectorAll('.scr-tabbar').forEach(function(bar){
+  bar.querySelectorAll('.tab').forEach(function(t){
+    t.addEventListener('click',function(){
+      bar.querySelectorAll('.tab').forEach(function(x){x.classList.remove('on');});
+      t.classList.add('on');
+    });
+  });
+});
+</script>
+</body>
+</html>

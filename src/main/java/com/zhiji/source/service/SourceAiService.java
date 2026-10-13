@@ -17,9 +17,10 @@ import org.springframework.stereotype.Service;
 import tools.jackson.databind.json.JsonMapper;
 
 /**
- * 素材库 AI 辅助（核心模块定义 5.1/6.4）：AI 改写、一键拆分预填、概述生成、分类建议、反推出题。
- * AI 只以按钮形式存在——产物永远回到人手里：改写回编辑器、拆分是可调预填、
- * 概述分类反推均为建议，用不用由人、位置由人定、提交由人确认。
+ * 素材库 AI 辅助（核心模块定义 5.1/6.4）：AI 改写（可带人工指令）、标题生成、追问链识别、
+ * 概述生成、分类建议、反推出题。
+ * AI 只以按钮形式存在——产物永远回到人手里：改写回编辑器、标题/追问链/概述分类反推均为建议，
+ * 用不用由人、位置由人定、提交由人确认。
  */
 @Service
 public class SourceAiService {
@@ -45,15 +46,15 @@ public class SourceAiService {
         this.llmClient = llmClient;
     }
 
-    /** AI 改写产物（正文即产物；kp/doc 定类由向导入口预置 + 提交时人工选择，不再由 AI 建议）。 */
-    public record RewriteResp(String content) {
+    /** 标题生成产物（题面/文章题名，生成后可再改）。 */
+    public record TitleResp(String title) {
     }
 
-    /** 拆分预填项：anchor 为原文标题锚点，由前端据此切正文。 */
-    public record SplitSlice(String title, String anchor) {
+    /** 追问链识别草稿：前端补 id 与 status 后作为 followups 提交。 */
+    public record FollowupDraft(int layer, String direction, String content) {
     }
 
-    public record SplitResp(boolean needSplit, List<SplitSlice> slices) {
+    public record FollowupsResp(List<FollowupDraft> followups) {
     }
 
     /** 分类建议：仅领域内推荐主题位置，采纳或无视由人。 */
@@ -72,37 +73,62 @@ public class SourceAiService {
     public record DifficultyResp(String difficulty, String reason) {
     }
 
-    public RewriteResp rewrite(String content) {
-        String text = requireContent(content);
-        String raw = llmClient.complete(LlmRequest.admin(LlmPurpose.SOURCE_REWRITE,
-                prompt("prompts/source_rewrite.txt", Map.of("content", text)))
-                .timeoutSeconds(REWRITE_TIMEOUT_SECONDS)
-                .maxTokens(REWRITE_MAX_TOKENS)
-                .build());
-        return new RewriteResp(raw.strip());
+    /** 改写模式：kp 面试题答案式 / doc 资料讲解式 / general 通用整理（素材行类型标记缺失时的兜底）。 */
+    private static String normalizeMode(String mode) {
+        return "kp".equals(mode) || "doc".equals(mode) ? mode : "general";
     }
 
     /** 流式改写：onDelta 逐片段回调（SSE 推给前端打字机式呈现），返回拼接后的完整正文。 */
-    public String rewriteStream(String content, java.util.function.Consumer<String> onDelta) {
+    public String rewriteStream(String content, String mode, String instruction,
+            java.util.function.Consumer<String> onDelta) {
         String text = requireContent(content);
         return llmClient.streamComplete(LlmRequest.admin(LlmPurpose.SOURCE_REWRITE,
-                prompt("prompts/source_rewrite.txt", Map.of("content", text)))
+                prompt("prompts/source_rewrite.txt",
+                        Map.of("content", text, "mode", normalizeMode(mode), "instruction", normalizeInstruction(instruction))))
                 .timeoutSeconds(REWRITE_TIMEOUT_SECONDS)
                 .maxTokens(REWRITE_MAX_TOKENS)
                 .build(), onDelta);
     }
 
-    public SplitResp split(String content) {
+    /** 人工改写指令规整：空指令提示模板忽略该段。 */
+    private static String normalizeInstruction(String instruction) {
+        return instruction == null || instruction.isBlank() ? "（无特别要求，按通用规则整理）" : instruction.strip();
+    }
+
+    /** 标题生成：内容明确后按定类拟题（kp 题面问句 / doc 文章题名），生成后可再改。 */
+    public TitleResp title(String content, String mode) {
         String text = requireContent(content);
-        SplitResp resp = llmClient.completeJson(LlmRequest.admin(LlmPurpose.SOURCE_SPLIT,
-                prompt("prompts/source_split.txt", Map.of("content", text)))
+        String raw = llmClient.complete(LlmRequest.admin(LlmPurpose.SOURCE_TITLE,
+                prompt("prompts/source_title.txt", Map.of("content", text, "mode", normalizeMode(mode))))
                 .timeoutSeconds(JSON_TASK_TIMEOUT_SECONDS)
-                .build(), SplitResp.class);
-        List<SplitSlice> slices = resp.slices() == null ? List.of()
-                : resp.slices().stream()
-                        .filter(s -> s.title() != null && !s.title().isBlank())
+                .build());
+        String title = raw.strip().replaceFirst("^[\"'#]+", "").replaceFirst("[\"']+$", "");
+        if (title.length() > 120) {
+            title = title.substring(0, 120);
+        }
+        return new TitleResp(title);
+    }
+
+    /**
+     * 追问链识别：问答题正文自带多问/下钻内容时，整理成追问层草稿（layer 从 1 递进）。
+     * 只识别「内容里真实存在的下钻回答」，不凭空发明追问。
+     */
+    public FollowupsResp followups(String content) {
+        String text = requireContent(content);
+        FollowupsResp resp = llmClient.completeJson(LlmRequest.admin(LlmPurpose.SOURCE_FOLLOWUP,
+                prompt("prompts/source_followup.txt", Map.of("content", text)))
+                .timeoutSeconds(JSON_TASK_TIMEOUT_SECONDS)
+                .build(), FollowupsResp.class);
+        List<FollowupDraft> drafts = resp.followups() == null ? List.of()
+                : resp.followups().stream()
+                        .filter(f -> f.content() != null && !f.content().isBlank())
+                        .map(f -> {
+                            int layer = Math.min(Math.max(f.layer(), 1), 20);
+                            String direction = f.direction() == null ? "" : f.direction().strip();
+                            return new FollowupDraft(layer, direction, f.content().strip());
+                        })
                         .toList();
-        return new SplitResp(resp.needSplit(), slices);
+        return new FollowupsResp(drafts);
     }
 
     public String summarize(String content) {
@@ -176,7 +202,7 @@ public class SourceAiService {
         List<Long> ids = new ArrayList<>();
         for (InferResp infer : inferences) {
             SourceService.SourceItemView created = sourceService.create(infer.question(),
-                    segmentAround(infer.anchor()), infer.question(), "inferred");
+                    segmentAround(infer.anchor()), infer.question(), "inferred", null);
             ids.add(created.id());
         }
         return ids;

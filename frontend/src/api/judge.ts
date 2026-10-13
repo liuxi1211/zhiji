@@ -74,11 +74,10 @@ export const GRADE_LABELS: Record<string, string> = {
   fail: '不及格'
 }
 
-/** 职级中文标签（五档） */
+/** 职级中文标签（四档） */
 export const LEVEL_LABELS: Record<string, string> = {
   junior: '初级',
   mid: '中级',
   senior: '高级',
-  expert: '资深',
-  master: '专家'
+  expert: '资深'
 }

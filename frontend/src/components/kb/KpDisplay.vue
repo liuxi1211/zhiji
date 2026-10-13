@@ -11,7 +11,7 @@ const md = createMarkdown()
 const frameworkHtml = computed(() => md.render(props.kp.frameworkMd ?? ''))
 
 const DIFF_LABELS: Record<string, string> = { junior: '初级', mid: '中级', senior: '高级', expert: '资深' }
-const LEVEL_LABELS: Record<string, string> = { junior: '初级', mid: '中级', senior: '高级', expert: '资深', master: '专家' }
+const LEVEL_LABELS: Record<string, string> = { junior: '初级', mid: '中级', senior: '高级', expert: '资深' }
 const GRADE_LABELS: Record<string, string> = { pass: '及格', good: '良好', excellent: '优秀' }
 
 const activeFollowups = computed(() => props.kp.followups.filter((f) => f.status === 'active'))
@@ -29,7 +29,7 @@ const groupedSamples = computed(() =>
       <h3 class="kp-title">{{ kp.title }}</h3>
       <div class="kp-meta">
         <span class="meta-item">{{ DIFF_LABELS[kp.difficulty] ?? kp.difficulty }}</span>
-        <span class="meta-item">{{ kp.topicName }}</span>
+        <span v-if="kp.topicName" class="meta-item">{{ kp.topicName }}</span>
         <span v-if="kp.freqManual + kp.freqSignal + kp.freqCoverage > 0" class="meta-item">
           频率 {{ kp.freqManual + kp.freqSignal + kp.freqCoverage }}
         </span>

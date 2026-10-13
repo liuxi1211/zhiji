@@ -44,7 +44,7 @@ import org.springframework.test.web.servlet.setup.MockMvcBuilders;
 import org.springframework.web.context.WebApplicationContext;
 
 /**
- * 素材库链路（核心模块定义 5.1）：手写/导入/抓取入库、状态机、拆分、提交门槛、AI 辅助编排。
+ * 素材库链路（核心模块定义 5.1）：手写/导入/抓取入库、状态机、提交门槛（含追问链）、AI 辅助编排。
  * LLM 用 StubLlmTransport 完全替代网络；B 端会话走员工登录（/api/admin/**）。
  */
 @SpringBootTest
@@ -77,6 +77,9 @@ class SourceFlowTest {
 
     @Autowired
     KbTopicService kbTopicService;
+
+    @Autowired
+    com.zhiji.kb.service.KbContentService kbContentService;
 
     @Autowired
     KbReviewService kbReviewService;
@@ -118,12 +121,15 @@ class SourceFlowTest {
     @Test
     void createListAndUpdateFlow() {
         asStaff();
-        SourceService.SourceItemView created = sourceService.create("HashMap 扩容", "# HashMap\n\n负载因子 0.75", null, "manual");
+        SourceService.SourceItemView created = sourceService.create("HashMap 扩容", "# HashMap\n\n负载因子 0.75", null, "manual", "doc");
         assertThat(created.status()).isEqualTo("pending");
+        assertThat(created.contentType()).isEqualTo("doc");
 
         SourceService.SourceItemView updated = sourceService.update(created.id(), null, null,
-                "HashMap 扩容机制与负载因子的取舍", "mid", "java", "集合框架", null);
+                "HashMap 扩容机制与负载因子的取舍", null, "mid", "java", "集合框架", null);
         assertThat(updated.summary()).contains("扩容");
+        // update 的 null 语义是「不动」：类型标记保持原值
+        assertThat(updated.contentType()).isEqualTo("doc");
         assertThat(updated.difficulty()).isEqualTo("mid");
         assertThat(updated.domainCode()).isEqualTo("java");
     }
@@ -131,25 +137,27 @@ class SourceFlowTest {
     @Test
     void submitRequiresSummaryAndDifficulty() {
         asStaff();
-        SourceService.SourceItemView created = sourceService.create("无概述素材", "正文", null, "manual");
+        SourceService.SourceItemView created = sourceService.create("无概述素材", "正文", null, "manual", null);
         Long topicId = kbTopicService.list("java").stream()
                 .filter(t -> "JVM".equals(t.name())).findFirst().orElseThrow().id();
-        assertThatThrownBy(() -> sourceService.submit(created.id(), "java", topicId, "kp"))
+        assertThatThrownBy(() -> sourceService.submit(created.id(), "java", topicId, "kp", null))
                 .isInstanceOf(BizException.class)
                 .hasMessageContaining("概述");
-        sourceService.update(created.id(), null, null, "补齐概述", null, null, null, null);
-        assertThatThrownBy(() -> sourceService.submit(created.id(), "java", topicId, "kp"))
+        sourceService.update(created.id(), null, null, "补齐概述", null, null, null, null, null);
+        assertThatThrownBy(() -> sourceService.submit(created.id(), "java", topicId, "kp", null))
                 .isInstanceOf(BizException.class)
                 .hasMessageContaining("难度");
-        sourceService.update(created.id(), null, null, null, "mid", null, null, null);
-        List<SourceService.SourceItemView> submitted = sourceService.submit(created.id(), "java", topicId, "kp");
+        sourceService.update(created.id(), null, null, null, null, "mid", null, null, null);
+        List<SourceService.SourceItemView> submitted = sourceService.submit(created.id(), "java", topicId, "kp", null);
         assertThat(submitted).hasSize(1);
         assertThat(submitted.get(0).status()).isEqualTo("submitted");
+        // 定类回写素材行：类型标记在入库时落定，素材库列表可见最终归属
+        assertThat(submitted.get(0).contentType()).isEqualTo("kp");
         // 提交在标准库产生待审核内容（进门先过审核门，不校不上线）
         assertThat(kbReviewService.queue(null, 1, 100).items().stream()
                 .anyMatch(item -> "无概述素材".equals(item.title()))).isTrue();
         // 已入库素材长期保留：不可编辑、不可删、不可放弃
-        assertThatThrownBy(() -> sourceService.update(submitted.get(0).id(), "改标题", null, null, null, null, null, null))
+        assertThatThrownBy(() -> sourceService.update(submitted.get(0).id(), "改标题", null, null, null, null, null, null, null))
                 .isInstanceOf(BizException.class)
                 .hasMessageContaining("断联");
         assertThatThrownBy(() -> sourceService.delete(submitted.get(0).id()))
@@ -158,20 +166,32 @@ class SourceFlowTest {
     }
 
     @Test
-    void splitCreatesChildrenAndDiscardsParent() {
+    void submitCarriesFollowupsIntoPendingKp() {
         asStaff();
-        SourceService.SourceItemView parent = sourceService.create("混合素材",
-                "# 主题一\n\nHashMap 内容\n\n# 主题二\n\nRedis 内容", null, "manual");
-        SourceService.SplitResp resp = sourceService.split(parent.id(), List.of(
-                new SourceService.SplitSliceInput("HashMap 扩容", null),
-                new SourceService.SplitSliceInput("Redis 持久化", null)));
-        assertThat(resp.slices()).hasSize(2);
-        assertThat(sourceService.get(parent.id()).status()).isEqualTo("discarded");
-        List<SourceService.SourceItemView> children = sourceService.children(parent.id());
-        assertThat(children).hasSize(2);
-        assertThat(children.get(0).parentId()).isEqualTo(parent.id());
-        // 子素材按标题锚点预填正文：未显式给内容时取母素材切段
-        assertThat(children.get(1).contentMd()).contains("Redis");
+        // 共享测试库：标题带随机后缀，避免跨用例重跑同名干扰
+        String run = java.util.UUID.randomUUID().toString().substring(0, 8);
+        SourceService.SourceItemView created = sourceService.create("带追问链的题-" + run,
+                "先讲结论，再展开原理，顺带说了底层实现。", null, "manual", null);
+        sourceService.update(created.id(), null, null, "概述", null, "mid", "java", null, null);
+        Long topicId = kbTopicService.list("java").stream()
+                .filter(t -> "JVM".equals(t.name())).findFirst().orElseThrow().id();
+        var followups = List.of(
+                new com.zhiji.kb.service.KbContentService.Followup("fu-test-1", 1, "原理", "为什么要这样设计？", "active"),
+                new com.zhiji.kb.service.KbContentService.Followup("fu-test-2", 2, "底层实现", "底层是如何实现的？", "active"));
+        sourceService.submit(created.id(), "java", topicId, "kp", followups);
+        // 追问链随提交写入 pending 知识点（向导内 AI 识别/人工整理的产物）
+        com.zhiji.kb.service.KbContentService.KpView kp = kbContentService.getKp(
+                kbContentService.listByTopic(topicId, "kp", "pending").stream()
+                        .filter(item -> ("带追问链的题-" + run).equals(item.title())).findFirst().orElseThrow().id());
+        assertThat(kp.followups()).hasSize(2);
+        assertThat(kp.followups().get(0).id()).isEqualTo("fu-test-1");
+        // 入库即受红线约束：id 缺失的追问链直接拒绝
+        SourceService.SourceItemView second = sourceService.create("缺 id 的追问链-" + run, "正文", null, "manual", null);
+        sourceService.update(second.id(), null, null, "概述", null, "mid", null, null, null);
+        assertThatThrownBy(() -> sourceService.submit(second.id(), "java", topicId, "kp", List.of(
+                new com.zhiji.kb.service.KbContentService.Followup("", 1, "原理", "问句", "active"))))
+                .isInstanceOf(BizException.class)
+                .hasMessageContaining("红线");
     }
 
     @Test
@@ -213,16 +233,33 @@ class SourceFlowTest {
     void aiActionsReturnDraftsNotPersisted() throws Exception {
         asStaff();
         SourceService.SourceItemView created = sourceService.create("待改写素材",
-                "# JVM\n\nG1 回收器分代内容。", null, "manual");
+                "# JVM\n\nG1 回收器分代内容。", null, "manual", null);
+        // 流式改写可带人工指令；素材正文是只读快照（改写产物回前端编辑器，不落库）
         stub.respond("改写后的正文");
-        mvc.perform(post("/api/admin/sources/" + created.id() + "/ai/rewrite").header("Authorization", staffToken))
+        mvc.perform(post("/api/admin/sources/" + created.id() + "/ai/rewrite/stream")
+                        .header("Authorization", staffToken)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"instruction\":\"面向初级候选人，多举例子\"}"))
                 .andExpect(status().isOk());
-        stub.respond("{\"needSplit\":true,\"slices\":[{\"title\":\"G1 原理\",\"anchor\":\"# JVM\"}]}");
-        MvcResult split = mvc.perform(post("/api/admin/sources/" + created.id() + "/ai/split")
-                        .header("Authorization", staffToken))
+        // 标题生成与概述一样是建议产物，不落库
+        stub.respond("什么情况下 G1 会触发 Mixed GC？");
+        MvcResult title = mvc.perform(post("/api/admin/kb/ai/title")
+                        .header("Authorization", staffToken)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(new tools.jackson.databind.json.JsonMapper().writeValueAsString(
+                                Map.of("contentMd", "G1 回收器分代内容。", "mode", "kp"))))
                 .andExpect(status().isOk())
                 .andReturn();
-        assertThat(split.getResponse().getContentAsString(StandardCharsets.UTF_8)).contains("G1 原理");
+        assertThat(title.getResponse().getContentAsString(StandardCharsets.UTF_8)).contains("Mixed GC");
+        stub.respond("{\"followups\":[{\"layer\":1,\"direction\":\"原理\",\"content\":\"为什么要分代？\"}]}");
+        MvcResult followups = mvc.perform(post("/api/admin/kb/ai/followups")
+                        .header("Authorization", staffToken)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(new tools.jackson.databind.json.JsonMapper().writeValueAsString(
+                                Map.of("contentMd", "G1 回收器分代内容。"))))
+                .andExpect(status().isOk())
+                .andReturn();
+        assertThat(followups.getResponse().getContentAsString(StandardCharsets.UTF_8)).contains("为什么要分代");
         stub.respond("一段百字概述");
         mvc.perform(post("/api/admin/sources/" + created.id() + "/ai/summary").header("Authorization", staffToken))
                 .andExpect(status().isOk());
@@ -238,7 +275,7 @@ class SourceFlowTest {
     @Test
     void discardAndDeletePurgesAssets() throws Exception {
         asStaff();
-        SourceService.SourceItemView created = sourceService.create("待删素材", "正文", null, "manual");
+        SourceService.SourceItemView created = sourceService.create("待删素材", "正文", null, "manual", null);
         mvc.perform(delete("/api/admin/sources/" + created.id()).header("Authorization", staffToken))
                 .andExpect(status().isOk());
         assertThatThrownBy(() -> sourceService.get(created.id())).isInstanceOf(BizException.class);
@@ -247,8 +284,8 @@ class SourceFlowTest {
     @Test
     void updateRejectsUnknownDomain() {
         asStaff();
-        SourceService.SourceItemView created = sourceService.create("领域校验", "正文", null, "manual");
-        assertThatThrownBy(() -> sourceService.update(created.id(), null, null, null, null, "not_a_domain", null, null))
+        SourceService.SourceItemView created = sourceService.create("领域校验", "正文", null, "manual", null);
+        assertThatThrownBy(() -> sourceService.update(created.id(), null, null, null, null, null, "not_a_domain", null, null))
                 .isInstanceOf(BizException.class)
                 .hasMessageContaining("领域");
     }
@@ -256,7 +293,7 @@ class SourceFlowTest {
     @Test
     void classifyOnlyAdoptsKnownTopic() throws Exception {
         asStaff();
-        SourceService.SourceItemView created = sourceService.create("分类建议", "MySQL 索引下推", null, "manual");
+        SourceService.SourceItemView created = sourceService.create("分类建议", "MySQL 索引下推", null, "manual", null);
         stub.respond("{\"topicName\":\"MySQL\",\"reason\":\"索引主题\"}");
         MvcResult ok = mvc.perform(post("/api/admin/sources/" + created.id() + "/ai/classify")
                         .header("Authorization", staffToken)

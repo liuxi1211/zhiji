@@ -30,13 +30,14 @@ public final class RewriteStreamSupport {
     private RewriteStreamSupport() {
     }
 
-    /** 以 SseEmitter 承载一次流式改写：LLM 流在虚拟线程里推进，delta/done/error 三类帧按序发出。 */
-    public static SseEmitter stream(SourceAiService aiService, String content) {
+    /** 以 SseEmitter 承载一次流式改写：LLM 流在虚拟线程里推进，delta/done/error 三类帧按序发出。
+     *  mode 决定成稿模式（kp/doc/general），instruction 为人工录入的改写要求（可空）。 */
+    public static SseEmitter stream(SourceAiService aiService, String content, String mode, String instruction) {
         SseEmitter emitter = new SseEmitter(STREAM_TIMEOUT_MS);
         ExecutorService executor = Executors.newVirtualThreadPerTaskExecutor();
         executor.submit(() -> {
             try {
-                String full = aiService.rewriteStream(content, delta -> {
+                String full = aiService.rewriteStream(content, mode, instruction, delta -> {
                     try {
                         emitter.send(SseEmitter.event().name("delta")
                                 .data(Map.of("text", delta), MediaType.APPLICATION_JSON));

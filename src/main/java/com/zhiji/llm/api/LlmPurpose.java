@@ -30,7 +30,8 @@ public enum LlmPurpose implements ConstantItem {
 
     // —— B 端（内容维护者人工触发：不限流，仅全站熔断兜底 + 计量可观测） ——
     SOURCE_REWRITE("source_rewrite", "素材 AI 改写", Side.B, LimitKey.NONE, Tier.QUALITY),
-    SOURCE_SPLIT("source_split", "素材一键拆分", Side.B, LimitKey.NONE, Tier.QUALITY),
+    SOURCE_TITLE("source_title", "标题生成", Side.B, LimitKey.NONE, Tier.QUALITY),
+    SOURCE_FOLLOWUP("source_followup", "追问链识别", Side.B, LimitKey.NONE, Tier.QUALITY),
     SOURCE_SUMMARY("source_summary", "素材概述生成", Side.B, LimitKey.NONE, Tier.QUALITY),
     SOURCE_CLASSIFY("source_classify", "素材分类建议", Side.B, LimitKey.NONE, Tier.QUALITY),
     SOURCE_INFER("source_infer", "素材反推出题", Side.B, LimitKey.NONE, Tier.QUALITY),
