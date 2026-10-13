@@ -19,7 +19,7 @@ public class SourceItem {
 
     private String title;
 
-    /** Markdown 正文；图片引用形如 asset:source/{itemId}/{file}（落盘即真相的路径约定） */
+    /** Markdown 正文；图片引用为公共图片库地址 /api/assets/{sha256}.{ext}（无鉴权、内容寻址） */
     private String contentMd;
 
     /** 素材概述（百字内）：齐备是提交进入标准库的前置条件（5.1 边界「概述是入库门槛」） */

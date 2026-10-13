@@ -113,7 +113,7 @@ const allChecksPass = computed(() =>
 async function doPass() {
   if (!detail.value) return
   if (!allChecksPass.value) {
-    ElMessage.warning('四项强制校验全部通过才能放行（不校不上线）')
+    ElMessage.warning('四项强制校验全部通过才能放行')
     return
   }
   try {
@@ -361,7 +361,7 @@ onMounted(async () => {
 
       <!-- Tab3 复核到期 -->
       <el-tab-pane label="复核到期" name="due">
-        <p class="tab-hint">上线后的内容有复核到期机制：到期回审核队列复检（一期列表人工巡检，不自动扫描）。</p>
+        <p class="tab-hint">上线后的内容有复核到期机制：到期后回到审核队列复检。</p>
         <el-table :data="dueItems" v-loading="loading" size="default" border height="100%">
           <el-table-column label="类型" width="90">
             <template #default="{ row }">{{ row.contentType === 'kp' ? '知识点' : '资料讲解' }}</template>

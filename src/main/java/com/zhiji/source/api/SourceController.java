@@ -7,9 +7,6 @@ import com.zhiji.source.service.SourceService;
 import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.Size;
 import java.util.List;
-import org.springframework.core.io.FileSystemResource;
-import org.springframework.http.MediaType;
-import org.springframework.http.ResponseEntity;
 import org.springframework.validation.annotation.Validated;
 import org.springframework.web.bind.annotation.DeleteMapping;
 import org.springframework.web.bind.annotation.GetMapping;
@@ -93,7 +90,7 @@ public class SourceController {
     }
 
     @PostMapping("/import")
-    public SourceService.SourceItemView importFile(@RequestPart("file") MultipartFile file) {
+    public List<SourceService.SourceItemView> importFile(@RequestPart("file") MultipartFile file) {
         return sourceService.importFile(file);
     }
 
@@ -122,21 +119,6 @@ public class SourceController {
     @DeleteMapping("/{id}")
     public void delete(@PathVariable long id) {
         sourceService.delete(id);
-    }
-
-    @GetMapping("/{id}/assets/{fileName}")
-    public ResponseEntity<FileSystemResource> asset(@PathVariable long id, @PathVariable String fileName) {
-        var path = sourceService.assetPath(id, fileName);
-        String lower = fileName.toLowerCase();
-        MediaType mediaType = switch (lower.substring(lower.lastIndexOf('.') + 1)) {
-            case "png" -> MediaType.IMAGE_PNG;
-            case "jpg", "jpeg" -> MediaType.IMAGE_JPEG;
-            case "gif" -> MediaType.IMAGE_GIF;
-            case "svg" -> MediaType.valueOf("image/svg+xml");
-            case "webp" -> MediaType.valueOf("image/webp");
-            default -> MediaType.APPLICATION_OCTET_STREAM;
-        };
-        return ResponseEntity.ok().contentType(mediaType).body(new FileSystemResource(path));
     }
 
     // —— AI 辅助（产物回人手里，不直接落库） ——

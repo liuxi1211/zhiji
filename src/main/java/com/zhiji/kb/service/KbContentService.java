@@ -1,6 +1,7 @@
 package com.zhiji.kb.service;
 
 import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
+import com.zhiji.common.asset.MediaAssetService;
 import com.zhiji.common.exception.BizException;
 import com.zhiji.common.security.AuthContext;
 import com.zhiji.common.web.PageResult;
@@ -49,14 +50,16 @@ public class KbContentService {
     private final KbDocMapper docMapper;
     private final KbReviewMapper reviewMapper;
     private final KbTopicMapper topicMapper;
+    private final MediaAssetService mediaAssetService;
     private final JsonMapper jsonMapper = new JsonMapper();
 
     public KbContentService(KbKpMapper kpMapper, KbDocMapper docMapper, KbReviewMapper reviewMapper,
-            KbTopicMapper topicMapper) {
+            KbTopicMapper topicMapper, MediaAssetService mediaAssetService) {
         this.kpMapper = kpMapper;
         this.docMapper = docMapper;
         this.reviewMapper = reviewMapper;
         this.topicMapper = topicMapper;
+        this.mediaAssetService = mediaAssetService;
     }
 
     // —— 结构化列的类型契约（与前端 types.ts 一一对应） ——
@@ -128,6 +131,9 @@ public class KbContentService {
         requireTopicInDomain(topicId, domainCode);
         String trimmedTitle = requireTitle(title);
         List<Followup> safeFollowups = "kp".equals(contentType) ? validateNewFollowups(followups) : List.of();
+        // 进门收口：正文里的外链图片在此一次性本地化（能下到就换本系统地址，下不到保留原链），
+        // 使标准库内容成为自包含资产——C 端与分享页不再依赖第三方图床（进门即快照的图片边界）。
+        String localizedBody = mediaAssetService.localizeExternalImages(body == null ? "" : body);
         String now = now();
         long contentId;
         if ("kp".equals(contentType)) {
@@ -136,7 +142,7 @@ public class KbContentService {
             kp.setTopicId(topicId);
             kp.setTitle(trimmedTitle);
             kp.setSummary(trimSummary(summary));
-            kp.setFrameworkMd(body == null ? "" : body);
+            kp.setFrameworkMd(localizedBody);
             kp.setDifficulty(difficulty);
             kp.setFollowups(safeFollowups.isEmpty() ? null : toJson(safeFollowups));
             kp.setFreqManual(0);
@@ -155,7 +161,7 @@ public class KbContentService {
             doc.setTopicId(topicId);
             doc.setTitle(trimmedTitle);
             doc.setSummary(trimSummary(summary));
-            doc.setContentMd(body == null ? "" : body);
+            doc.setContentMd(localizedBody);
             doc.setDifficulty(difficulty);
             doc.setSourceUrl(sourceUrl);
             doc.setStatus("pending");

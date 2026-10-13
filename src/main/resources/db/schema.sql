@@ -69,7 +69,7 @@ CREATE TABLE IF NOT EXISTS src_item (
     id           INTEGER PRIMARY KEY AUTOINCREMENT,
     parent_id    INTEGER,                                   -- 拆分产出的子素材指向母素材；null 即母素材
     title        TEXT    NOT NULL,
-    content_md   TEXT    NOT NULL DEFAULT '',               -- Markdown 正文；图片引用形如 asset:source/{itemId}/{file}
+    content_md   TEXT    NOT NULL DEFAULT '',               -- Markdown 正文；图片引用为公共图片库地址 /api/assets/{sha256}.{ext}
     summary      TEXT,                                      -- 素材概述（百字内）：齐备是提交入库的门槛（5.1 边界）
     content_type TEXT CHECK (content_type IS NULL OR content_type IN ('kp','doc')),
                                                             -- 目标类型标记：kp 面试题线 / doc 文章线；初始导入无法判定时留空，人工填写或采纳 AI 建议

@@ -10,7 +10,7 @@ import { computed, reactive, ref, watch } from 'vue'
 import { useRouter } from 'vue-router'
 import MarkdownIt from 'markdown-it'
 import { ElMessage } from 'element-plus'
-import { Delete, MagicStick, Plus, Right, VideoPause } from '@element-plus/icons-vue'
+import { Check, Delete, MagicStick, Plus, Right, VideoPause } from '@element-plus/icons-vue'
 import { aiClassify, aiDifficulty, aiSummary, getSource, submitSource, updateSource } from '@/api/source'
 import { streamAiRewrite } from '@/api/stream'
 import {
@@ -25,6 +25,7 @@ import {
 import type { KbContentType, KbFollowupDraft, SourceDifficulty, SourceItemView } from '@/api/types'
 import { useConstantsStore } from '@/stores/constants'
 import { createMarkdown, newFollowupId } from '@/utils/markdown'
+import ImageAttachments from './ImageAttachments.vue'
 
 const props = defineProps<{
   modelValue: boolean
@@ -87,15 +88,13 @@ const topicOptions = ref<{ id: number; name: string }[]>([])
 
 const domainOptions = computed(() => constants.items('domain'))
 
-/** 弹窗头副标题：模式语义一行讲清 */
+/** 弹窗头副标题：只说明模式来源，步骤序列由下方步骤条承载，不在此重复 */
 const subtitle = computed(() => {
   if (mode.value === 'source') {
-    return '素材接续入库：编写 → 概述与分类 → 入标准库，每步成果自动写回素材行'
+    return '素材接续入库'
   }
   const typeLabel = props.presetType === 'doc' ? '资料讲解' : props.presetType === 'kp' ? '知识点' : null
-  return typeLabel
-    ? `直达新建（${typeLabel}）：成熟内容直接写成品，提交进审核队列`
-    : '直达新建：成熟内容直接写成品，提交进审核队列'
+  return typeLabel ? `直达新建（${typeLabel}）` : '直达新建'
 })
 
 function messageOf(error: unknown, fallback: string): string {
@@ -444,7 +443,7 @@ async function doSubmit() {
     }
     submitted.value = true
     emit('submitted')
-    ElMessage.success('已提交进标准库审核队列（不校不上线）')
+    ElMessage.success('已提交，进入审核队列')
   } catch (error) {
     ElMessage.error(messageOf(error, '提交失败'))
   } finally {
@@ -466,8 +465,8 @@ const topicName = (topicId: number | null) =>
 <template>
   <el-dialog
     :model-value="modelValue"
+    class="wizard-dialog"
     width="min(960px, 94vw)"
-    top="24px"
     destroy-on-close
     :close-on-click-modal="false"
     @update:model-value="(v: boolean) => emit('update:modelValue', v)"
@@ -483,29 +482,54 @@ const topicName = (topicId: number | null) =>
 
     <!-- 固定高度舞台：三步共用同一块画布，切换只有内容平移，弹窗外框纹丝不动 -->
     <div v-else-if="!submitted" class="wizard-stage">
-      <el-steps :active="step" align-center finish-status="success" class="wizard-steps">
-        <el-step v-for="(label, index) in STEPS" :key="index" :title="label" />
-      </el-steps>
+      <!-- 步骤条：编号与描述同行（① 编写 —— ② 概述与分类 —— ③ 入标准库），居中紧凑不拉伸 -->
+      <nav class="wizard-steps" aria-label="向导步骤">
+        <template v-for="(label, index) in STEPS" :key="label">
+          <div
+            class="wizard-step"
+            :class="{ 'is-active': step === index, 'is-done': step > index }"
+            :aria-current="step === index ? 'step' : undefined"
+          >
+            <span class="step-badge">
+              <el-icon v-if="step > index"><Check /></el-icon>
+              <template v-else>{{ index + 1 }}</template>
+            </span>
+            <span class="step-label">{{ label }}</span>
+          </div>
+          <span
+            v-if="index < STEPS.length - 1"
+            class="step-connector"
+            :class="{ 'is-done': step > index }"
+            aria-hidden="true"
+          ></span>
+        </template>
+      </nav>
 
       <div class="step-viewport">
         <Transition :name="stepDirection === 'fwd' ? 'step-fwd' : 'step-back'" mode="out-in">
           <!-- 第 1 步：编写 -->
           <section v-if="step === 0" key="step-0" class="step-body step-body--write">
-        <div class="title-row">
-          <span class="title-label">标题：</span>
-          <el-input v-model="item.title" placeholder="面试题线写完整题面" maxlength="120" class="title-input" />
-          <el-button class="btn-ai" :icon="MagicStick" :loading="busy.title" :disabled="!item.contentMd.trim()" @click="doTitle">
-            AI 命名
-          </el-button>
-        </div>
-        <div class="editor-block">
-          <div class="editor-toolbar">
-            <el-radio-group v-model="editorTab" size="small">
+        <!-- 工具行横跨两列：左列「标题…[编辑|预览]」（按钮贴编辑区右缘），右列字数（落在图片区上方） -->
+        <div class="editor-toolbar">
+          <div class="toolbar-main">
+            <!-- 左上：标题 + AI 命名 -->
+            <div class="title-row">
+              <span class="title-label">标题：</span>
+              <el-input v-model="item.title" placeholder="面试题线写完整题面" maxlength="120" class="title-input" />
+              <el-button class="btn-ai" size="small" :icon="MagicStick" :loading="busy.title" :disabled="!item.contentMd.trim()" @click="doTitle">
+                AI 命名
+              </el-button>
+            </div>
+            <!-- 左列右缘：编辑/预览切换（最右侧对齐编辑区最右侧） -->
+            <el-radio-group v-model="editorTab" size="small" class="editor-toolbar-tabs">
               <el-radio-button value="edit">编辑</el-radio-button>
               <el-radio-button value="preview">预览</el-radio-button>
             </el-radio-group>
-            <span class="word-count zj-num">{{ wordCount }} 字</span>
           </div>
+          <!-- 右列：字数跟在切换按钮后，位置在右侧图片区上方 -->
+          <span class="word-count zj-num">{{ wordCount }} 字</span>
+        </div>
+        <div class="editor-block">
           <el-input
             v-if="editorTab === 'edit'"
             v-model="item.contentMd"
@@ -516,30 +540,32 @@ const topicName = (topicId: number | null) =>
           />
           <div v-else class="preview-pane md-body" v-html="renderMd(item.contentMd)"></div>
         </div>
-        <div class="ai-panel">
-          <div class="ai-panel-text">
+        <!-- 右侧辅助栏：附件处理与 AI 改写收在护栏里，正文独占左栏整高，不再被辅助块挤压 -->
+        <aside class="write-rail">
+          <!-- 附件面板（紧凑）：正文图片一览与处理，进标准库前可在此本地化/替换/删除 -->
+          <ImageAttachments v-model="item.contentMd" compact />
+          <div class="ai-panel">
             <p class="ai-panel-title">AI 改写</p>
-            <p class="ai-panel-hint">改进要求可留空（留空按通用规则整理）；结果逐字回编辑器，可撤销。</p>
+            <div class="ai-panel-actions">
+              <el-input
+                v-model="rewriteInstruction"
+                type="textarea"
+                :rows="3"
+                class="ai-panel-input"
+                :disabled="busy.rewrite"
+                placeholder="改进要求（可留空，留空按通用规则整理）"
+              />
+              <el-button
+                :icon="busy.rewrite ? VideoPause : MagicStick"
+                :type="busy.rewrite ? 'danger' : 'primary'"
+                :class="{ 'btn-ai': !busy.rewrite }"
+                plain
+                @click="busy.rewrite ? stopRewrite() : doRewrite()"
+              >{{ busy.rewrite ? '停止' : '开始改写' }}</el-button>
+              <el-button v-if="preRewrite && !busy.rewrite" @click="undoRewrite">撤销改写</el-button>
+            </div>
           </div>
-          <div class="ai-panel-actions">
-            <el-input
-              v-model="rewriteInstruction"
-              type="textarea"
-              :rows="3"
-              class="ai-panel-input"
-              :disabled="busy.rewrite"
-              placeholder="改进要求（可留空）"
-            />
-            <el-button
-              :icon="busy.rewrite ? VideoPause : MagicStick"
-              :type="busy.rewrite ? 'danger' : 'primary'"
-              :class="{ 'btn-ai': !busy.rewrite }"
-              plain
-              @click="busy.rewrite ? stopRewrite() : doRewrite()"
-            >{{ busy.rewrite ? '停止' : '开始改写' }}</el-button>
-            <el-button v-if="preRewrite && !busy.rewrite" @click="undoRewrite">撤销改写</el-button>
-          </div>
-        </div>
+        </aside>
       </section>
 
       <!-- 第 2 步：概述、难度与分类（左右两栏：概述占左栏整高，难度与位置收右栏） -->
@@ -592,7 +618,7 @@ const topicName = (topicId: number | null) =>
 
       <!-- 第 3 步：入标准库（定类卡 + 左确认/右追问链，两栏填满画布） -->
           <section v-else key="step-2" class="step-body step-body--meta">
-        <p class="step-hint">确认定类与位置后提交：进门先过审核门，审核通过才对用户可见（不校不上线）。</p>
+        <p class="step-hint">确认定类与位置后提交；提交后进入审核，审核通过才对用户可见。</p>
         <div class="type-cards">
           <button type="button" class="type-card" :class="{ active: contentType === 'kp' }" @click="contentType = 'kp'">
             <span class="type-card-title">面试题线（知识点）</span>
@@ -637,7 +663,7 @@ const topicName = (topicId: number | null) =>
                 </div>
               </div>
               <p v-if="followupsDraft.length === 0" class="followup-empty">
-                暂无追问层：正文若自带多问/下钻内容（追问雏形），AI 可识别成追问层草稿；每行可改可删，也可手动加一层。提交后层身份不可再删，只能停用（红线 2）。
+                暂无追问层：正文若自带多问/下钻内容，AI 可识别成追问层草稿；每行可改可删，也可手动加一层。提交后追问层只能停用，不能删除。
               </p>
               <div v-else class="followup-list followup-scroll">
                 <div v-for="(f, index) in followupsDraft" :key="index" class="followup-line">
@@ -654,8 +680,8 @@ const topicName = (topicId: number | null) =>
               </div>
               <ul class="doc-notes">
                 <li>文章线不携带追问链与评分要点，挂载知识点后即可发布学习；</li>
-                <li>提交即进标准库审核队列（待审核），审核通过才对用户可见——不校不上线；</li>
-                <li>素材接续模式下，标题、正文、概述与难度已逐步写回素材行，提交后素材标记「已进标准库」。</li>
+                <li>提交后进入审核队列，审核通过才对用户可见；</li>
+                <li>素材接续模式下，标题、正文、概述与难度已逐步保存回素材，提交后素材标记「已进标准库」。</li>
               </ul>
             </template>
           </div>
@@ -677,8 +703,7 @@ const topicName = (topicId: number | null) =>
 
     <template #footer>
       <template v-if="!loading && !submitted">
-        <div v-show="step === 0" class="footer-row">
-          <p class="footer-hint">下一步会把标题与正文写回素材行</p>
+        <div v-show="step === 0" class="footer-row footer-row--end">
           <el-button type="primary" :loading="loading" @click="nextFromStep1">下一步<el-icon class="el-icon--right"><Right /></el-icon></el-button>
         </div>
         <div v-show="step === 1" class="footer-row">
@@ -717,21 +742,100 @@ const topicName = (topicId: number | null) =>
 }
 
 .wizard-loading {
-  /* 与舞台同高：加载骨架不引起弹窗尺寸跳动。
-     高度 = 视口高 - 固定开销（上下边距 + header + footer + 留白 ≈ 280px），任何屏幕都稳定不溢出 */
-  height: calc(100vh - 280px);
+  /* 与舞台同高（由弹窗外壳 flex 分配），加载骨架不引起弹窗尺寸跳动 */
+  flex: 1 1 0;
+  min-height: 0;
 }
 
-/* 固定高度舞台：三步共用同一块画布，body 高度不再随步骤内容伸缩 */
+/* 固定高度舞台：三步共用同一块画布，body 高度不再随步骤内容伸缩；
+ * 高度由弹窗外壳（.wizard-dialog）算好，这里只负责吃满 */
 .wizard-stage {
-  height: calc(100vh - 280px);
+  flex: 1 1 0;
+  min-height: 0;
   display: flex;
   flex-direction: column;
 }
 
+/* 步骤条：编号与描述同行，居中紧凑；下方留白加大，与内容拉开呼吸 */
 .wizard-steps {
   flex: none;
-  padding: 2px 0 14px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 10px;
+  padding: 2px 0 24px;
+}
+
+.wizard-step {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  flex: none;
+}
+
+.step-badge {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  flex: none;
+  width: 22px;
+  height: 22px;
+  border-radius: 50%;
+  font-size: 12px;
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
+  color: var(--zj-ink-500);
+  background: var(--zj-surface-sunken);
+  border: 1px solid var(--zj-line);
+  transition: color var(--zj-dur-fast) var(--zj-ease-out),
+    background var(--zj-dur-fast) var(--zj-ease-out),
+    border-color var(--zj-dur-fast) var(--zj-ease-out);
+}
+
+.wizard-step .step-badge :deep(svg) {
+  width: 13px;
+  height: 13px;
+}
+
+.step-label {
+  font-size: var(--zj-fs-sm);
+  color: var(--zj-ink-500);
+  transition: color var(--zj-dur-fast) var(--zj-ease-out);
+}
+
+/* 当前步：实底主色，视觉焦点 */
+.wizard-step.is-active .step-badge {
+  color: #fff;
+  background: var(--zj-primary);
+  border-color: var(--zj-primary);
+}
+
+.wizard-step.is-active .step-label {
+  color: var(--zj-ink-900);
+  font-weight: 600;
+}
+
+/* 已过步：线框主色 + 勾，弱于当前步但明确"已完成" */
+.wizard-step.is-done .step-badge {
+  color: var(--zj-primary);
+  background: var(--zj-primary-soft);
+  border-color: var(--zj-primary);
+}
+
+.wizard-step.is-done .step-label {
+  color: var(--zj-ink-600);
+}
+
+/* 连接线：等宽短横，已走过的变主色 */
+.step-connector {
+  flex: none;
+  width: 40px;
+  height: 1px;
+  background: var(--zj-line);
+}
+
+.step-connector.is-done {
+  background: var(--zj-primary);
 }
 
 /* 步骤画布：占满舞台剩余高度，步骤切换的过渡在此发生 */
@@ -750,14 +854,35 @@ const topicName = (topicId: number | null) =>
   padding-right: 2px;
 }
 
-/* 第 1 步不滚：编辑区吃满画布剩余高度，编辑器多高弹窗就多高 */
+/* 第 1 步不滚：编辑区吃满画布剩余高度，编辑器多高弹窗就多高。
+ * 栅格：工具行通栏（左列标题/切换、右列字数），第二行＝编辑器（左）+ 辅助护栏（右）。
+ * 右列首行只放字数，辅助护栏从第 2 行起，顶部与编辑器对齐 */
 .step-body--write {
   overflow: hidden;
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 300px;
+  grid-template-rows: auto minmax(0, 1fr);
+  grid-template-areas:
+    'toolbar toolbar'
+    'editor rail';
+  gap: 10px 14px;
+}
+
+.step-body--write .editor-toolbar {
+  grid-area: toolbar;
 }
 
 .step-body--write .editor-block {
-  flex: 1 1 0;
+  grid-area: editor;
   min-height: 0;
+  min-width: 0;
+}
+
+/* 编辑器块：纵向排（正文框吃满其高度） */
+.step-body--write .editor-block {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
 }
 
 .step-body--write .content-input {
@@ -773,6 +898,38 @@ const topicName = (topicId: number | null) =>
   flex: 1 1 0;
   min-height: 0;
   max-height: none;
+}
+
+/* 右侧辅助栏：附件面板吃满剩余高度（图多时向下方借空间，而非卡在固定 max-height），
+ * AI 改写固定贴底；附件网格自身内部滚动，不撑破画布 */
+.write-rail {
+  grid-area: rail;
+  min-height: 0;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  overflow: hidden;
+  padding-right: 2px;
+}
+
+/* 展开时允许收缩（不强制撑满）：图少时按内容高排布，本地化按钮紧跟其下；
+ * 图多时向下借满护栏高度，仍不够才内部滚动 */
+.write-rail .attach-panel--open {
+  flex: 1 1 auto;
+  min-height: 0;
+}
+
+/* 网格按内容自适应：flex-grow=0（不撑高，按钮紧跟图下），flex-shrink=1（空间不够才收缩滚动）；
+ * 覆盖面板默认的固定 max-height，让高度真正受护栏可用空间约束 */
+.write-rail :deep(.attach-grid) {
+  flex: 0 1 auto;
+  min-height: 0;
+  max-height: none;
+}
+
+.write-rail .ai-panel {
+  flex: none;
 }
 
 /* 步骤切换过渡：前进向左推出、后退向右推回，配合外框不动营造"同一界面翻页"感 */
@@ -809,11 +966,30 @@ const topicName = (topicId: number | null) =>
   color: var(--zj-ink-600);
 }
 
-/* 标题行：标签 + 输入占满 + AI 命名按钮固定右侧 */
+/* 工具行：与正文栅格同列宽——左列放标题与切换，右列放字数（右列即图片区上方） */
+.editor-toolbar {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 300px;
+  align-items: center;
+  gap: 14px;
+}
+
+/* 左列：标题 + AI 命名在左、编辑/预览贴右缘（＝编辑区右缘） */
+.toolbar-main {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  min-width: 0;
+}
+
+/* 标题区：标签 + 输入自适应 + AI 命名按钮 */
 .title-row {
   display: flex;
   gap: 8px;
   align-items: center;
+  flex: 1 1 auto;
+  min-width: 0;
 }
 
 .title-label {
@@ -823,22 +999,29 @@ const topicName = (topicId: number | null) =>
   color: var(--zj-ink-700);
 }
 
+.title-input {
+  flex: 0 1 320px;
+  min-width: 160px;
+}
+
 .title-input :deep(.el-input__inner) {
   font-weight: 600;
 }
 
-/* 编辑区：工具行（tab + 字数）+ 单区域正文，切换不换布局 */
+.editor-toolbar-tabs {
+  flex: none;
+}
+
+/* 右列：字数，落在右侧图片区上方 */
+.editor-toolbar .word-count {
+  justify-self: start;
+}
+
+/* 编辑区：工具行 + 单区域正文，切换不换布局 */
 .editor-block {
   display: flex;
   flex-direction: column;
   gap: 8px;
-}
-
-.editor-toolbar {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 12px;
 }
 
 .word-count {
@@ -874,7 +1057,7 @@ const topicName = (topicId: number | null) =>
   max-width: 100%;
 }
 
-/* AI 改写面板：文案在上（标题+说明），输入与动作在下，与编辑区明确分区 */
+/* AI 改写面板：标题在上，输入与动作在下，与编辑区明确分区 */
 .ai-panel {
   display: flex;
   flex-direction: column;
@@ -885,23 +1068,11 @@ const topicName = (topicId: number | null) =>
   background: var(--zj-primary-soft);
 }
 
-.ai-panel-text {
-  display: flex;
-  flex-direction: column;
-  gap: 2px;
-}
-
 .ai-panel-title {
   margin: 0;
   font-size: var(--zj-fs-sm);
   font-weight: 600;
   color: var(--zj-ink-800);
-}
-
-.ai-panel-hint {
-  margin: 0;
-  font-size: 12px;
-  color: var(--zj-ink-600);
 }
 
 .ai-panel-actions {
@@ -919,6 +1090,17 @@ const topicName = (topicId: number | null) =>
 
 .ai-panel-input :deep(textarea) {
   resize: none;
+}
+
+/* 辅助栏内 AI 面板：栏窄，输入与按钮改纵向堆叠、按钮铺满宽，避免横向挤压 */
+.write-rail .ai-panel-actions {
+  flex-direction: column;
+  align-items: stretch;
+}
+
+.write-rail .ai-panel-input {
+  flex: none;
+  min-width: 0;
 }
 
 /* 第 2 步：左右两栏填满画布——概述占左栏整高，难度/领域/主题收在右栏 */
@@ -1157,7 +1339,57 @@ const topicName = (topicId: number | null) =>
   margin-right: auto;
 }
 
+/* 步骤一的底栏只有「下一步」，靠右收尾；其它步底栏含「上一步」自动占左 */
+.footer-row--end {
+  justify-content: flex-end;
+}
+
+@media (max-width: 900px) {
+  /* 窄屏：侧栏收不进去，栅格改纵向堆叠——工具行、正文、辅助栏依次顺排，整体可滚 */
+  .step-body--write {
+    display: flex;
+    flex-direction: column;
+    overflow-y: auto;
+  }
+
+  .step-body--write .editor-toolbar,
+  .step-body--write .editor-block,
+  .write-rail {
+    grid-area: auto;
+  }
+
+  /* 工具行窄屏改单列：标题/切换、字数上下顺排 */
+  .editor-toolbar {
+    grid-template-columns: minmax(0, 1fr);
+    gap: 8px;
+  }
+
+  .step-body--write .editor-block {
+    flex: none;
+    height: 46vh;
+  }
+
+  .write-rail {
+    flex: none;
+    overflow: visible;
+    padding-right: 0;
+  }
+
+  .write-rail .ai-panel {
+    margin-top: 0;
+  }
+}
+
 @media (max-width: 720px) {
+  /* 工具行太窄时换行：标题一行、切换一行，避免互相挤压 */
+  .toolbar-main {
+    flex-wrap: wrap;
+  }
+
+  .title-input {
+    flex: 1 1 auto;
+  }
+
   .step-body--meta {
     overflow-y: auto;
   }
@@ -1182,5 +1414,24 @@ const topicName = (topicId: number | null) =>
   .direction-input {
     width: 130px;
   }
+}
+</style>
+
+<!-- 弹窗外壳：Element 渲染且 teleport 到 body，不受本组件 scoped 约束，故用独立全局块（类名限定不污染他处）。
+     高度 = 视口高 - 上下各 24px 固定开销：顶部到视口 24px、底部到屏幕下边缘 24px，
+     固定项不随屏漂移，1K/2K/4K 都得到"撑满且留边"的一致效果；body 吃满剩余高度。 -->
+<style>
+.el-dialog.wizard-dialog {
+  margin: 24px auto;
+  height: calc(100vh - 48px);
+  display: flex;
+  flex-direction: column;
+}
+
+.wizard-dialog .el-dialog__body {
+  flex: 1 1 0;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
 }
 </style>

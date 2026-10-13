@@ -27,11 +27,12 @@ export async function createSource(req: SourceCreateReq): Promise<SourceItemView
   return (await request.post<SourceItemView>('/admin/sources', req)).data
 }
 
-export async function importSource(file: File): Promise<SourceItemView> {
+/** 导入文件：单文件返回一条，zip 内多文档各成一条，返回本次导入的素材列表 */
+export async function importSource(file: File): Promise<SourceItemView[]> {
   const form = new FormData()
   form.append('file', file)
   return (
-    await request.post<SourceItemView>('/admin/sources/import', form, {
+    await request.post<SourceItemView[]>('/admin/sources/import', form, {
       headers: { 'Content-Type': 'multipart/form-data' },
       // zip 导入可能较大，放宽默认 20s 超时
       timeout: 120000
@@ -99,9 +100,4 @@ export async function aiInfer(id: number): Promise<SourceInferItem[]> {
 
 export async function saveInferred(id: number, inferences: SourceInferItem[]): Promise<number[]> {
   return (await request.post<number[]>(`/admin/sources/${id}/ai/infer/save`, { inferences })).data
-}
-
-/** 素材图片的访问地址（B 端会话 cookie 无关，走同源 /api 反代） */
-export function sourceAssetUrl(itemId: number, fileName: string): string {
-  return `/api/admin/sources/${itemId}/assets/${fileName}`
 }

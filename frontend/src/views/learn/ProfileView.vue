@@ -724,7 +724,7 @@ async function copyMarkdown() {
               <el-form-item>
                 <template #label>
                   技术栈
-                  <span class="form-label-hint">*必填 · AI 只会写这里出现的技术——防编造的第一道闸</span>
+                  <span class="form-label-hint">*必填 · AI 只会使用这里列出的技术，不会编造</span>
                 </template>
                 <div class="stack-editor">
                   <div class="stack-chips">

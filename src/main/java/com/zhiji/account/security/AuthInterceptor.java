@@ -27,8 +27,10 @@ public class AuthInterceptor implements HandlerInterceptor {
         if (!uri.startsWith("/api/")) {
             return true;
         }
-        // 公开白名单（基础架构PRD 3.3）：常量下发、分享、登录注册动作本身
+        // 公开白名单（基础架构PRD 3.3）：常量下发、分享、登录注册动作本身、公共图片库
+        // /api/assets/** 为内容寻址的公共图片（文件名白名单约束，无遍历面），B 端/C 端/分享页共用，免鉴权
         if (uri.startsWith("/api/constants") || uri.startsWith("/api/share/")
+                || uri.startsWith("/api/assets/")
                 || uri.equals("/api/auth/customer/login") || uri.equals("/api/auth/customer/register")
                 || uri.equals("/api/auth/customer/captcha") || uri.equals("/api/auth/staff/login")) {
             return true;

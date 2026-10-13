@@ -1,8 +1,5 @@
 zhiji:
   data-dir: ${java.io.tmpdir}
-  source:
-    # 素材图片落盘目录与数据目录同口径，测试期指向临时目录避免污染 ./data
-    data-dir: ${java.io.tmpdir}
   auth:
     jwt-secret: test-secret-test-secret-test-secret-000
     captcha-enabled: false

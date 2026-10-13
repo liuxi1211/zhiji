@@ -8,6 +8,7 @@ import { computed, onMounted, reactive, ref } from 'vue'
 import { ElMessage, ElMessageBox } from 'element-plus'
 import { ArrowDown, Delete, Edit, MagicStick, Plus, Position, Refresh, Search, Upload, VideoPause } from '@element-plus/icons-vue'
 import WizardDialog from '@/components/kb/WizardDialog.vue'
+import ImageAttachments from '@/components/kb/ImageAttachments.vue'
 import {
   createSource,
   deleteSource,
@@ -180,9 +181,18 @@ async function onImportFile(event: Event) {
   loading.value = true
   try {
     const created = await importSource(file)
-    ElMessage.success(`导入成功：${created.title}`)
+    if (!created.length) {
+      ElMessage.warning('文件里没有可导入的内容')
+      return
+    }
+    // zip 内多文档各成一条素材：逐条提示，打开第一条继续整理
+    ElMessage.success(
+      created.length === 1
+        ? `导入成功：${created[0].title}`
+        : `导入成功 ${created.length} 条素材（压缩包内每个文档各成一条）`
+    )
     await load()
-    void openEditor(created.id)
+    void openEditor(created[0].id)
   } catch (error) {
     ElMessage.error(messageOf(error, '导入失败'))
   } finally {
@@ -426,7 +436,7 @@ async function remove(item: SourceItemView) {
       />
 
       <el-table :data="items" height="100%">
-        <el-table-column label="标题" min-width="280">
+        <el-table-column label="标题" min-width="240">
           <template #default="{ row }">
             <div class="title-cell">
               <el-link :underline="false" class="title-link" @click="openEditor(row.id)">{{ row.title }}</el-link>
@@ -435,25 +445,25 @@ async function remove(item: SourceItemView) {
             <div v-if="row.summary" class="row-summary">{{ row.summary }}</div>
           </template>
         </el-table-column>
-        <el-table-column label="状态" width="110">
+        <el-table-column label="状态" min-width="100">
           <template #default="{ row }">
             <el-tag size="small" :type="TAG_TYPES[row.status as SourceStatus]" disable-transitions>
               {{ STATUS_LABELS[row.status as SourceStatus] }}
             </el-tag>
           </template>
         </el-table-column>
-        <el-table-column label="来源" width="96">
+        <el-table-column label="来源" min-width="88">
           <template #default="{ row }">
             <span class="type-chip">{{ TYPE_LABELS[row.sourceType as SourceType] }}</span>
           </template>
         </el-table-column>
-        <el-table-column label="类型" width="92">
+        <el-table-column label="类型" min-width="90">
           <template #default="{ row }">
             <span v-if="row.contentType" class="type-chip">{{ CONTENT_TYPE_LABELS[row.contentType] }}</span>
             <span v-else class="dim">未定</span>
           </template>
         </el-table-column>
-        <el-table-column label="领域" width="120">
+        <el-table-column label="领域" min-width="110">
           <template #default="{ row }">
             <span v-if="domainCodesOf(row).length" class="type-chip">
               {{ domainName(row.domainCode ?? 'OTHER') }}
@@ -461,7 +471,7 @@ async function remove(item: SourceItemView) {
             <span v-else class="dim">—</span>
           </template>
         </el-table-column>
-        <el-table-column label="更新时间" width="150">
+        <el-table-column label="更新时间" min-width="140">
           <template #default="{ row }"><span class="zj-num">{{ row.updatedAt }}</span></template>
         </el-table-column>
         <el-table-column label="操作" width="210" fixed="right">
@@ -546,16 +556,22 @@ async function remove(item: SourceItemView) {
           <el-input v-model="fetchUrl" placeholder="https://github.com/... 或公众号文章链接" />
         </el-form-item>
       </el-form>
-      <p class="hint">抓取正文转 Markdown；失败回退空稿由人工补录，URL 自动记入出处（服务版权追溯）。</p>
+      <p class="hint">抓取正文转 Markdown；失败时回退为空稿，可人工补录，原链接自动记入出处。</p>
       <template #footer>
         <el-button @click="fetchVisible = false">取消</el-button>
         <el-button type="primary" :loading="fetching" @click="submitFetch">抓取</el-button>
       </template>
     </el-dialog>
 
-    <!-- 轻量整理：编辑 + AI 改写；弹窗够大即可，宽度封顶 880 —— Markdown 行太宽反而难读
+    <!-- 轻量整理：编辑 + AI 改写；宽度封顶 880 —— Markdown 行太宽反而难读。
+      * 高度固定：顶部到视口 24px、底部到屏幕下边缘 24px（见 .editor-dialog），正文区吃满剩余高度
       * （概述 / 难度 / 分类 / 入库走新增向导 5.2；多主题长文可在此复制删减成多条素材分别入库） -->
-    <el-dialog v-model="editorVisible" width="min(880px, 92vw)" top="5vh" destroy-on-close>
+    <el-dialog
+      v-model="editorVisible"
+      class="editor-dialog"
+      width="min(880px, 92vw)"
+      destroy-on-close
+    >
       <template #header>
         <div class="editor-head">
           <span class="editor-head-title">编辑素材</span>
@@ -569,21 +585,11 @@ async function remove(item: SourceItemView) {
         </div>
       </template>
       <div v-loading="editorLoading" class="editor">
-        <el-form label-position="top">
+        <el-form label-position="top" class="editor-form">
           <el-form-item label="标题" required>
             <el-input v-model="form.title" maxlength="120" />
           </el-form-item>
-          <el-form-item label="类型（初始导入无法判定可留空，AI 改写后可采纳建议）">
-            <div class="type-row">
-              <el-radio-group v-model="form.contentType">
-                <el-radio-button value="">未定</el-radio-button>
-                <el-radio-button value="kp">知识点（面试题线）</el-radio-button>
-                <el-radio-button value="doc">资料讲解（文章线）</el-radio-button>
-              </el-radio-group>
-              <span class="type-hint">类型也决定 AI 改写的成稿模式：知识点按参考答案式组织，资料讲解按讲解文章式组织</span>
-            </div>
-          </el-form-item>
-          <el-form-item>
+          <el-form-item class="editor-content-item">
             <template #label>
               <div class="label-row">
                 <el-radio-group v-model="editorTab" size="small">
@@ -591,6 +597,23 @@ async function remove(item: SourceItemView) {
                   <el-radio-button value="preview">预览</el-radio-button>
                 </el-radio-group>
                 <div class="label-row-right">
+                  <!-- 类型即 AI 改写的成稿模式：初始导入无法判定可留空，AI 改写后可采纳建议 -->
+                  <el-tooltip
+                    placement="top"
+                    content="类型决定 AI 改写的成稿模式：知识点按参考答案式组织，资料讲解按讲解文章式组织。初始导入无法判定可留空，AI 改写后可采纳建议。"
+                  >
+                    <el-select
+                      v-model="form.contentType"
+                      size="small"
+                      class="type-select"
+                      placeholder="类型：未定"
+                      clearable
+                      value-on-clear=""
+                    >
+                      <el-option label="知识点（面试题线）" value="kp" />
+                      <el-option label="资料讲解（文章线）" value="doc" />
+                    </el-select>
+                  </el-tooltip>
                   <span class="word-count zj-num">{{ wordCount }} 字</span>
                   <el-button
                     v-if="!rewriting && preRewrite"
@@ -619,6 +642,8 @@ async function remove(item: SourceItemView) {
             />
             <div v-else class="preview" v-html="renderMarkdown(form.contentMd)"></div>
           </el-form-item>
+          <!-- 附件面板：正文图片一览与处理（本地化 / 上传替换 / 删除），与正文双向联动 -->
+          <ImageAttachments v-model="form.contentMd" />
         </el-form>
         <p class="hint">概述、难度与分类在「进标准库」时由新增向导引导补齐；此处只做轻量整理。</p>
       </div>
@@ -824,22 +849,46 @@ async function remove(item: SourceItemView) {
 }
 
 /* —— 编辑对话框 —— */
+/* 外壳：固定高度（上距 24px、下距屏幕底 24px），内部 flex 链让正文区吃满剩余高度 */
 .editor {
+  flex: 1 1 0;
+  min-height: 0;
+  width: 100%;
   display: flex;
   flex-direction: column;
   gap: 8px;
 }
 
-.type-row {
+.editor-form {
+  flex: 1 1 0;
+  min-height: 0;
   display: flex;
-  align-items: center;
-  gap: 12px;
-  flex-wrap: wrap;
+  flex-direction: column;
 }
 
-.type-hint {
-  font-size: 12px;
-  color: var(--zj-ink-500);
+/* 正文项吃掉表单剩余高度；底部附件面板与提示行保底不挤压 */
+.editor-content-item {
+  flex: 1 1 0;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+  margin-bottom: 0;
+}
+
+.editor-content-item :deep(.el-form-item__content) {
+  flex: 1 1 0;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+}
+
+.editor-form :deep(.attach-panel) {
+  flex: none;
+}
+
+/* 类型下拉：嵌在编辑区标签行内，与 AI 改写同排；宽度收窄避免挤压右侧动作 */
+.type-select {
+  width: 168px;
 }
 
 .editor-head {
@@ -885,17 +934,26 @@ async function remove(item: SourceItemView) {
   color: var(--zj-ink-500);
 }
 
+/* 正文区：编辑与预览两态都吃满表单剩余高度，切换 tab 弹窗外框纹丝不动 */
+.content-input,
+.preview {
+  flex: 1 1 0;
+  min-height: 0;
+}
+
+.content-input :deep(.el-textarea) {
+  height: 100%;
+}
+
 .content-input :deep(textarea) {
-  /* 行数只是兜底：编辑区高度按视口自适应，大屏小屏都尽量占满弹窗可用高度 */
-  min-height: 56vh;
+  height: 100%;
   font-family: 'JetBrains Mono', Consolas, monospace;
   font-size: 13px;
   line-height: 1.6;
 }
 
 .preview {
-  min-height: 56vh;
-  max-height: 64vh;
+  /* 与编辑区同高：内容超高走内部滚动，不撑高弹窗 */
   overflow-y: auto;
   padding: 12px 16px;
   border: 1px solid var(--zj-line-soft);
@@ -943,5 +1001,23 @@ async function remove(item: SourceItemView) {
   .row-summary {
     max-width: 640px;
   }
+}
+</style>
+
+<!-- 编辑弹窗外壳是 Element 渲染、且 teleport 到 body，不受本组件 scoped 约束，故用独立全局块（类名带 editor-dialog 限定，不污染他处）。
+     高度 = 视口高 - 上下各 24px 固定开销：顶部到视口 24px、底部到屏幕下边缘 24px，body 吃满剩余高度。 -->
+<style>
+.el-dialog.editor-dialog {
+  margin: 24px auto;
+  height: calc(100vh - 48px);
+  display: flex;
+  flex-direction: column;
+}
+
+.editor-dialog .el-dialog__body {
+  flex: 1 1 0;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
 }
 </style>

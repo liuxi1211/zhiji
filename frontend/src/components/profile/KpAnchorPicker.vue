@@ -73,7 +73,7 @@ function close() {
       clearable
       :prefix-icon="Search"
     />
-    <p class="picker-hint">锚点必须是已上线知识点，AI 与手动添加同门槛校验</p>
+    <p class="picker-hint">锚点必须是已上线的知识点</p>
     <div v-loading="searching" class="picker-list">
       <p v-if="!keyword.trim()" class="picker-empty">输入关键词开始搜索</p>
       <p v-else-if="!searching && results.length === 0" class="picker-empty">没有匹配的已上线知识点</p>

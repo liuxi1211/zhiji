@@ -59,7 +59,7 @@ const groupedSamples = computed(() =>
           <span>{{ f.content }}</span>
         </li>
       </ol>
-      <p v-if="disabledFollowups.length" class="muted-note">（{{ disabledFollowups.length }} 层已停用，不在判定范围）</p>
+      <p v-if="disabledFollowups.length" class="muted-note">（{{ disabledFollowups.length }} 层已停用，不参与判定）</p>
     </section>
 
     <section v-if="kp.scoringPoints.length" class="kp-section">

@@ -3,32 +3,28 @@ package com.zhiji.source.service;
 import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
 import com.baomidou.mybatisplus.core.conditions.query.QueryWrapper;
 import com.baomidou.mybatisplus.extension.plugins.pagination.Page;
+import com.zhiji.common.asset.MarkdownImages;
+import com.zhiji.common.asset.MediaAssetService;
 import com.zhiji.common.constant.ConstantRegistry;
 import com.zhiji.common.exception.BizException;
 import com.zhiji.common.security.AuthContext;
 import com.zhiji.common.web.PageResult;
 import com.zhiji.kb.service.KbContentService;
 import com.zhiji.kb.service.KbTopicService;
-import com.zhiji.source.config.SourceProperties;
 import com.zhiji.source.domain.SourceItem;
 import com.zhiji.source.repo.SourceItemMapper;
+import java.io.ByteArrayInputStream;
 import java.io.IOException;
 import java.io.InputStream;
 import java.nio.charset.StandardCharsets;
-import java.nio.file.Files;
-import java.nio.file.Path;
-import java.nio.file.StandardCopyOption;
 import java.time.LocalDateTime;
 import java.time.format.DateTimeFormatter;
 import java.util.ArrayList;
-import java.util.Comparator;
 import java.util.HashMap;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
-import java.util.regex.Matcher;
-import java.util.regex.Pattern;
 import java.util.stream.Collectors;
 import java.util.zip.ZipEntry;
 import java.util.zip.ZipInputStream;
@@ -43,8 +39,12 @@ import org.springframework.web.multipart.MultipartFile;
  * 轻量整理（编辑/AI 改写由 SourceAiService 产出后回写）、状态推进与提交入库。
  * 多主题长文由人工在素材层拆分（复制删减成多条素材），不再提供系统拆分。
  *
- * 图片资产「落盘即真相」（暂缓清单 1.6 已销账口径）：导入压缩包内的图片按引用路径落盘
- * data/assets/source/{itemId}/{file}，未被正文引用的不落盘；删除素材连带清理图片目录。
+ * 导入语义（txt / md / zip）：
+ * - 单文件（txt/md）→ 一条素材，正文原文保留；
+ * - zip 压缩包 → 包内**每个文档各成一条素材**（一份文档一条，不再把多文档拼成一条）；
+ *   包内图片经 {@link MediaAssetService} 收入公共图片库，正文里的本地图片引用改写为
+ *   公共地址 {@code /api/assets/{sha256}.{ext}}（无鉴权、任何人可查，B/C 端与分享页共用）；
+ *   未被任何文档引用的图片不入库。
  */
 @Service
 public class SourceService {
@@ -57,23 +57,22 @@ public class SourceService {
     private static final long MAX_ZIP_BYTES = 50L * 1024 * 1024;
     private static final long MAX_IMAGE_BYTES = 10L * 1024 * 1024;
 
-    private static final Pattern IMAGE_REF = Pattern.compile("asset:source/(\\d+)/([A-Za-z0-9._-]+)");
-    private static final Pattern MD_IMAGE = Pattern.compile("!\\[[^\\]]*]\\(([^)]+)\\)");
     private static final List<String> IMAGE_EXTS = List.of(".png", ".jpg", ".jpeg", ".gif", ".webp", ".svg");
 
     private final SourceItemMapper mapper;
     private final ConstantRegistry constantRegistry;
     private final KbTopicService kbTopicService;
     private final KbContentService kbContentService;
-    private final Path assetRoot;
+    private final MediaAssetService mediaAssetService;
 
     public SourceService(SourceItemMapper mapper, ConstantRegistry constantRegistry,
-            KbTopicService kbTopicService, KbContentService kbContentService, SourceProperties properties) {
+            KbTopicService kbTopicService, KbContentService kbContentService,
+            MediaAssetService mediaAssetService) {
         this.mapper = mapper;
         this.constantRegistry = constantRegistry;
         this.kbTopicService = kbTopicService;
         this.kbContentService = kbContentService;
-        this.assetRoot = Path.of(properties.getDataDir(), "assets");
+        this.mediaAssetService = mediaAssetService;
     }
 
     public record SourceItemView(long id, Long parentId, String title, String contentMd, String summary,
@@ -194,11 +193,10 @@ public class SourceService {
     }
 
     /**
-     * 导入 txt / md 单文件或含图片资源的 zip 压缩包。
-     * zip 内图片按正文引用落盘（落盘即真相），未引用的图片不落盘——
-     * 先导文本建条目，再按条目 id 建图片目录，最后把命中引用的图片写入并回填路径。
+     * 导入 txt / md 单文件或含图片资源的 zip 压缩包，返回本次导入的素材列表。
+     * 单文件 → 一条素材；zip → 包内每个文档各成一条素材，图片收入公共图片库并改写正文引用。
      */
-    public SourceItemView importFile(MultipartFile file) {
+    public List<SourceItemView> importFile(MultipartFile file) {
         if (file == null || file.isEmpty()) {
             throw BizException.validation("请选择要导入的文件");
         }
@@ -214,8 +212,8 @@ public class SourceService {
                     throw BizException.validation("文本文件超过 2MB 上限");
                 }
                 String text = new String(bytes, StandardCharsets.UTF_8);
-                String title = name.substring(0, name.lastIndexOf('.'));
-                return create(title, text, null, "import", null);
+                String title = stripExt(name);
+                return List.of(create(title, text, null, "import", null));
             }
             throw BizException.validation("仅支持 txt / md 文本与 zip 压缩包（含打包图片资源）");
         } catch (BizException e) {
@@ -225,92 +223,121 @@ public class SourceService {
         }
     }
 
-    private SourceItemView importZip(String name, InputStream in) throws IOException {
+    /**
+     * zip 导入：包内每个文本文件各成一条素材（包内几个文档就导入几篇），图片按正文引用收入公共图片库。
+     * 文档以「包内完整路径」为键——不同目录下的同名文档各成一条、互不覆盖；
+     * 图片按文件名与正文引用匹配（引用 {@code ./images/x.png} 命中包内 {@code x.png}），
+     * 命中即入库并把引用改写为公共地址；未被引用的图片不入库（落盘即真相的收料口径）。
+     */
+    private List<SourceItemView> importZip(String name, InputStream in) throws IOException {
         byte[] all = in.readAllBytes();
         if (all.length > MAX_ZIP_BYTES) {
             throw BizException.validation("压缩包超过 50MB 上限");
         }
-        Map<String, byte[]> images = new LinkedHashMap<>();
-        StringBuilder textBuilder = new StringBuilder();
-        try (ZipInputStream zip = new ZipInputStream(new java.io.ByteArrayInputStream(all))) {
+        // 包内文档按「完整路径」为键（LinkedHashMap 保序）：同名不同目录各成一条，几个文档就导入几篇
+        Map<String, String> docs = new LinkedHashMap<>();
+        // 图片按文件名索引供正文引用匹配
+        Map<String, byte[]> images = new HashMap<>();
+        try (ZipInputStream zip = new ZipInputStream(new ByteArrayInputStream(all))) {
             ZipEntry entry;
             while ((entry = zip.getNextEntry()) != null) {
                 if (entry.isDirectory()) {
                     continue;
                 }
-                String entryName = Path.of(entry.getName()).getFileName().toString();
+                String entryPath = normalizeEntry(entry.getName());
+                if (entryPath.isEmpty()) {
+                    continue;
+                }
+                String entryName = fileName(entryPath);
                 String entryLower = entryName.toLowerCase(Locale.ROOT);
                 byte[] bytes = zip.readAllBytes();
                 if (IMAGE_EXTS.stream().anyMatch(entryLower::endsWith)) {
                     if (bytes.length <= MAX_IMAGE_BYTES) {
-                        images.put(entryName, bytes);
+                        images.putIfAbsent(entryName, bytes);
                     }
                 } else if (entryLower.endsWith(".txt") || entryLower.endsWith(".md")
                         || entryLower.endsWith(".markdown")) {
-                    if (textBuilder.length() > 0) {
-                        textBuilder.append("\n\n");
-                    }
-                    textBuilder.append(new String(bytes, StandardCharsets.UTF_8));
+                    docs.put(entryPath, new String(bytes, StandardCharsets.UTF_8));
                 }
             }
         }
-        String text = textBuilder.toString().strip();
-        if (text.isEmpty() && images.isEmpty()) {
+        if (docs.isEmpty() && images.isEmpty()) {
             throw BizException.validation("压缩包内没有可导入的文本或图片");
         }
-        String title = name.endsWith(".zip") ? name.substring(0, name.length() - 4) : name;
-        SourceItem item = new SourceItem();
-        item.setTitle(title);
-        item.setContentMd(text);
-        item.setSourceType("import");
-        item.setStatus("pending");
-        item.setCreatedBy(requireStaffId());
-        mapper.insert(item);
-        if (!images.isEmpty()) {
-            String rendered = materializeImages(item.getId(), text, images);
-            item.setContentMd(rendered);
-            mapper.updateById(item);
+        List<SourceItemView> created = new ArrayList<>();
+        if (docs.isEmpty()) {
+            // 只有图片没有正文：保留空稿素材（图片无处引用，不入库），供人工补录
+            created.add(create(stripExt(name), "", null, "import", null));
+            return created;
         }
-        return toView(item, Map.of(), domainNames());
+        // 一个文档一条素材：包内几个文档就导入几篇，标题取文档文件名（去扩展名）
+        for (Map.Entry<String, String> doc : docs.entrySet()) {
+            String rewritten = rewriteImageRefs(doc.getValue(), images);
+            created.add(create(stripExt(fileName(doc.getKey())), rewritten, null, "import", null));
+        }
+        return created;
     }
 
-    /**
-     * 图片落盘即真相：只写正文引用到的图片（MD 图片语法或 asset: 标记），
-     * 引用统一规范化为 asset:source/{itemId}/{file}，前端用 /api/admin/sources/{id}/assets/{file} 取图。
-     */
-    private String materializeImages(long itemId, String contentMd, Map<String, byte[]> images) {
-        if (contentMd == null || contentMd.isBlank()) {
+    /** 规整 zip 内条目路径：统一分隔符、去前导斜杠（Windows 打包软件可能写反斜杠）。 */
+    private static String normalizeEntry(String entryName) {
+        if (entryName == null) {
+            return "";
+        }
+        return entryName.replace('\\', '/').replaceAll("^/+", "").strip();
+    }
+
+    /** 把正文里指向包内图片的本地引用改写为公共图片库地址；未命中的引用保持原样。 */
+    private String rewriteImageRefs(String contentMd, Map<String, byte[]> images) {
+        if (contentMd == null || contentMd.isBlank() || images.isEmpty()) {
             return contentMd;
         }
-        Path dir = assetRoot.resolve("source").resolve(String.valueOf(itemId));
-        Map<String, String> matched = new HashMap<>();
-        Matcher matcher = MD_IMAGE.matcher(contentMd);
-        StringBuilder sb = new StringBuilder();
-        while (matcher.find()) {
-            String ref = matcher.group(1);
-            String fileName = Path.of(ref.strip()).getFileName().toString();
-            if (images.containsKey(fileName)) {
-                String token = "asset:source/" + itemId + "/" + fileName;
-                matched.put(fileName, token);
-                matcher.appendReplacement(sb, Matcher.quoteReplacement("![](" + token + ")"));
-            }
+        String afterMd = MarkdownImages.replace(MarkdownImages.MD, contentMd, m -> {
+            String url = toPublicUrl(MarkdownImages.firstToken(m.group(2)), images);
+            return url == null ? null : "![" + m.group(1) + "](" + url + ")";
+        });
+        return MarkdownImages.replace(MarkdownImages.HTML_SRC, afterMd, m -> {
+            String url = toPublicUrl(MarkdownImages.firstToken(m.group(2)), images);
+            return url == null ? null : m.group(1) + url + m.group(3);
+        });
+    }
+
+    /** 本地引用 → 公共图片库地址；外链/data:/已是公共地址的引用一律不动（返回 null）。 */
+    private String toPublicUrl(String ref, Map<String, byte[]> images) {
+        if (ref == null || ref.isBlank()) {
+            return null;
         }
-        matcher.appendTail(sb);
-        if (matched.isEmpty()) {
-            return contentMd;
+        String lower = ref.toLowerCase(Locale.ROOT);
+        if (lower.startsWith("http://") || lower.startsWith("https://") || lower.startsWith("data:")
+                || lower.startsWith("asset:") || lower.startsWith("/api/assets/")) {
+            return null;
         }
+        String base;
         try {
-            Files.createDirectories(dir);
-            for (Map.Entry<String, String> e : matched.entrySet()) {
-                try (InputStream img = new java.io.ByteArrayInputStream(images.get(e.getKey()))) {
-                    Files.copy(img, dir.resolve(e.getKey()), StandardCopyOption.REPLACE_EXISTING);
-                }
-            }
-        } catch (IOException e) {
-            throw BizException.of(500, "SOURCE_ASSET_FAILED", "图片落盘失败：" + e.getMessage());
+            base = java.nio.file.Path.of(ref).getFileName().toString();
+        } catch (RuntimeException e) {
+            return null;
         }
-        log.info("素材 {} 落盘图片 {} 张", itemId, matched.size());
-        return sb.toString();
+        byte[] bytes = images.get(base);
+        if (bytes == null) {
+            return null;
+        }
+        String stored = mediaAssetService.store(bytes, base);
+        return stored == null ? null : mediaAssetService.publicUrl(stored);
+    }
+
+    /** 取路径的最后一段文件名（兼容 / 与 \ 两种分隔符）。 */
+    private static String fileName(String path) {
+        try {
+            return java.nio.file.Path.of(path).getFileName().toString();
+        } catch (RuntimeException e) {
+            int slash = Math.max(path.lastIndexOf('/'), path.lastIndexOf('\\'));
+            return slash < 0 ? path : path.substring(slash + 1);
+        }
+    }
+
+    private static String stripExt(String name) {
+        int dot = name.lastIndexOf('.');
+        return dot <= 0 ? name : name.substring(0, dot);
     }
 
     /** URL 抓取：正文转 Markdown；失败回退空稿人工补（正文为空、URL 进出处字段）。 */
@@ -487,7 +514,7 @@ public class SourceService {
         return toView(item, childCounts(), domainNames());
     }
 
-    /** 删除：仅限未入库素材；连带清理图片目录（删除素材连带清理其图片，5.1 边界）。 */
+    /** 删除：仅限未入库素材。图片已进公共图片库（内容寻址共享），随素材删除不联动清理。 */
     public void delete(long id) {
         SourceItem item = requireItem(id);
         if ("submitted".equals(item.getStatus())) {
@@ -502,19 +529,6 @@ public class SourceService {
             }
         }
         mapper.deleteById(id);
-        deleteAssetDir(id);
-    }
-
-    /** 素材图片资产读取（仅 B 端会话可达；文件名由白名单正则约束，无路径穿越面）。 */
-    public Path assetPath(long itemId, String fileName) {
-        if (!fileName.matches("[A-Za-z0-9._-]+")) {
-            throw BizException.validation("文件名不合法");
-        }
-        Path path = assetRoot.resolve("source").resolve(String.valueOf(itemId)).resolve(fileName);
-        if (!Files.exists(path)) {
-            throw BizException.notFound("图片不存在");
-        }
-        return path;
     }
 
     /**
@@ -580,24 +594,6 @@ public class SourceService {
                 item.getSubmittedAt(),
                 childCounts.getOrDefault(item.getId(), 0L).intValue(),
                 item.getCreatedAt(), item.getUpdatedAt());
-    }
-
-    private void deleteAssetDir(long itemId) {
-        Path dir = assetRoot.resolve("source").resolve(String.valueOf(itemId));
-        if (!Files.exists(dir)) {
-            return;
-        }
-        try (var walk = Files.walk(dir)) {
-            walk.sorted(Comparator.reverseOrder()).forEach(path -> {
-                try {
-                    Files.deleteIfExists(path);
-                } catch (IOException e) {
-                    log.warn("清理素材图片失败：{} - {}", path, e.getMessage());
-                }
-            });
-        } catch (IOException e) {
-            log.warn("清理素材图片目录失败：{} - {}", dir, e.getMessage());
-        }
     }
 
     private String now() {

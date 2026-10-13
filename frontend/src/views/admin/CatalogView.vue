@@ -468,7 +468,7 @@ function statusTagType(status: KbStatus): 'primary' | 'success' | 'info' | 'warn
     <header class="view-head">
       <div>
         <h1>知识库管理</h1>
-        <p class="view-sub">领域 → 主题 → 知识点/资料讲解：资产家底，编辑与组织维护、试判入口都在这里</p>
+        <p class="view-sub">领域 → 主题 → 知识点/资料讲解：浏览与检索，编辑、组织维护与试判入口都在这里</p>
       </div>
       <div class="head-actions">
         <el-badge :value="dueCount" :hidden="dueCount === 0">
@@ -512,7 +512,7 @@ function statusTagType(status: KbStatus): 'primary' | 'success' | 'info' | 'warn
         <div class="content-filter">
           <el-input
             v-model="keyword"
-            placeholder="模糊搜索题面/摘要/正文（服务复盘录题同一能力）"
+            placeholder="模糊搜索题面/摘要/正文"
             style="width: 320px"
             clearable
             @keyup.enter="doSearch"
@@ -598,7 +598,7 @@ function statusTagType(status: KbStatus): 'primary' | 'success' | 'info' | 'warn
           </el-select>
         </el-form-item>
         <el-form-item v-if="topicDialog.mode === 'create' || topicDialog.mode === 'rename'" label="主题名">
-          <el-input v-model="topicDialog.name" maxlength="60" placeholder="按「给用户看」的标准命名" />
+          <el-input v-model="topicDialog.name" maxlength="60" placeholder="面向用户的主题名称" />
         </el-form-item>
       </el-form>
       <template #footer>

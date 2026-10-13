@@ -193,7 +193,7 @@ function submit() {
             <el-switch v-model="f.status" active-value="active" inactive-value="disabled" active-text="启用" inline-prompt />
           </div>
           <el-button size="small" :icon="Plus" @click="addFollowup">加一层</el-button>
-          <p class="hint">层身份一经分配永不复用、永不修改（红线 2）：只能新增或停用，不能删除</p>
+          <p class="hint">追问层一旦提交就只能停用、不能删除，请确认后再加。</p>
         </div>
       </el-form-item>
 
@@ -247,7 +247,7 @@ function submit() {
 
       <el-form-item label="频率标定">
         <el-input-number v-model="draft.freqManual" :min="0" controls-position="right" />
-        <span class="hint inline-hint">人工标定的热度信号（面经回流与覆盖度由系统写入）</span>
+        <span class="hint inline-hint">人工标定的热度；面经回流与覆盖度由系统自动统计</span>
       </el-form-item>
     </el-form>
 
