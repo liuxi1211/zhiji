@@ -114,7 +114,7 @@ class JudgeFlowTest {
         String run = UUID.randomUUID().toString().substring(0, 8);
         long topicId;
         try {
-            topicId = topicService.create("java", "判定主题-" + run).id();
+            topicId = topicService.create("java", "判定主题-" + run, null).id();
         } catch (BizException e) {
             topicId = topicService.list("java").stream()
                     .filter(t -> ("判定主题-" + run).equals(t.name()))

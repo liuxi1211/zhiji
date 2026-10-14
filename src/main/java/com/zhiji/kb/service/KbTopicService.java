@@ -41,9 +41,26 @@ public class KbTopicService {
         this.constantRegistry = constantRegistry;
     }
 
-    /** 主题视图：附内容计数，目录树一次取齐。 */
-    public record TopicView(long id, String domainCode, String name, String status, Long mergedIntoId,
-            long kpCount, long docCount, String createdAt, String updatedAt) {
+    /** 主题视图：附内容计数，目录树一次取齐；description 为覆盖范围描述（可空）。 */
+    public record TopicView(long id, String domainCode, String name, String description, String status,
+            Long mergedIntoId, long kpCount, long docCount, String createdAt, String updatedAt) {
+    }
+
+    /** 主题摘要（AI 定位/分类注入用）：名字 + 覆盖范围描述（无描述退化为名字本身）。 */
+    public record TopicBrief(String name, String description) {
+    }
+
+    /** 全库主题摘要（按领域分组键为 domainCode 的取数口径由调用方传入域 code 列表逐域拉取）。 */
+    public List<TopicBrief> listBriefs(String domainCode) {
+        requireDomain(domainCode);
+        return topicMapper.selectList(new LambdaQueryWrapper<KbTopic>()
+                        .eq(KbTopic::getDomainCode, domainCode)
+                        .eq(KbTopic::getStatus, "active")
+                        .orderByAsc(KbTopic::getId))
+                .stream()
+                .map(t -> new TopicBrief(t.getName(),
+                        t.getDescription() == null || t.getDescription().isBlank() ? "" : t.getDescription().strip()))
+                .toList();
     }
 
     public List<TopicView> list(String domainCode) {
@@ -66,7 +83,19 @@ public class KbTopicService {
                 .stream().map(KbTopic::getName).toList();
     }
 
-    public TopicView create(String domainCode, String name) {
+    /** 描述规整：空白转 null，限长 200（AI 注入与人读提示都够用）。 */
+    private String normalizeDescription(String description) {
+        if (description == null || description.isBlank()) {
+            return null;
+        }
+        String trimmed = description.strip();
+        if (trimmed.length() > 200) {
+            throw BizException.validation("主题描述长度 200 以内");
+        }
+        return trimmed;
+    }
+
+    public TopicView create(String domainCode, String name, String description) {
         requireDomain(domainCode);
         String trimmed = requireName(name);
         if (topicMapper.selectCount(new LambdaQueryWrapper<KbTopic>()
@@ -76,6 +105,7 @@ public class KbTopicService {
         KbTopic topic = new KbTopic();
         topic.setDomainCode(domainCode);
         topic.setName(trimmed);
+        topic.setDescription(normalizeDescription(description));
         topic.setStatus("active");
         String now = now();
         topic.setCreatedAt(now);
@@ -84,8 +114,8 @@ public class KbTopicService {
         return toView(topic, contentCounts());
     }
 
-    /** 改名：主题名按"给用户看"的标准命名，支持人工随时改名（5.2）。 */
-    public TopicView rename(long id, String name) {
+    /** 改名/改描述：主题名按"给用户看"的标准命名，描述补齐后 AI 定位更准（5.2 组织结构可改）。 */
+    public TopicView rename(long id, String name, String description) {
         KbTopic topic = requireActive(id);
         String trimmed = requireName(name);
         Long duplicate = topicMapper.selectCount(new LambdaQueryWrapper<KbTopic>()
@@ -93,9 +123,10 @@ public class KbTopicService {
                 .eq(KbTopic::getName, trimmed)
                 .ne(KbTopic::getId, id));
         if (duplicate != null && duplicate > 0) {
-            throw BizException.conflict("KB_TOPIC_EXISTS", "该领域下已存在同名主题");
+            throw BizException.conflict("KB_TOPIC_EXISTS", "该领域下���存在同名主题");
         }
         topic.setName(trimmed);
+        topic.setDescription(normalizeDescription(description));
         topic.setUpdatedAt(now());
         topicMapper.updateById(topic);
         return toView(topic, contentCounts());
@@ -177,8 +208,9 @@ public class KbTopicService {
 
     private TopicView toView(KbTopic topic, Map<Long, long[]> counts) {
         long[] pair = counts.getOrDefault(topic.getId(), new long[2]);
-        return new TopicView(topic.getId(), topic.getDomainCode(), topic.getName(), topic.getStatus(),
-                topic.getMergedIntoId(), pair[0], pair[1], topic.getCreatedAt(), topic.getUpdatedAt());
+        return new TopicView(topic.getId(), topic.getDomainCode(), topic.getName(), topic.getDescription(),
+                topic.getStatus(), topic.getMergedIntoId(), pair[0], pair[1], topic.getCreatedAt(),
+                topic.getUpdatedAt());
     }
 
     private String now() {

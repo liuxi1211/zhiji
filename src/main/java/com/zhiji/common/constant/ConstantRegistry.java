@@ -66,6 +66,22 @@ public class ConstantRegistry implements ApplicationListener<ContextRefreshedEve
         return Collections.unmodifiableMap(groups);
     }
 
-    public record Item(String code, String name) {
+    /**
+     * 运行时覆盖常量组（配置域驱动，如 kb.domains 保存后发布常量组 domain）：
+     * 内存快照即下发事实源，改动经 GET /api/constants 即时可见。
+     */
+    public void override(String group, List<Item> items) {
+        groups.put(group, List.copyOf(items));
+    }
+
+    /**
+     * 常量项：code/name 为通用契约；desc 为可选说明（领域组的覆盖范围等配置驱动组带值，
+     * 枚举组恒 null），随 GET /api/constants 透传给前端展示。
+     */
+    public record Item(String code, String name, String desc) {
+
+        public Item(String code, String name) {
+            this(code, name, null);
+        }
     }
 }

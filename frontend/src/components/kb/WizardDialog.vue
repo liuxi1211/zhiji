@@ -11,14 +11,16 @@ import { useRouter } from 'vue-router'
 import MarkdownIt from 'markdown-it'
 import { ElMessage } from 'element-plus'
 import { Check, Delete, MagicStick, Plus, Right, VideoPause } from '@element-plus/icons-vue'
-import { aiClassify, aiDifficulty, aiSummary, getSource, submitSource, updateSource } from '@/api/source'
+import { aiClassify, aiDifficulty, aiLocate, aiSummary, getSource, submitSource, updateSource } from '@/api/source'
 import { streamAiRewrite } from '@/api/stream'
 import {
   aiClassifyContent,
   aiDifficultyContent,
+  aiLocateContent,
   aiFollowupsContent,
   aiSummaryContent,
   aiTitleContent,
+  createTopic,
   directSubmit,
   listTopics
 } from '@/api/kb'
@@ -81,10 +83,10 @@ const contentType = ref<KbContentType>('kp')
 const submitted = ref(false)
 
 // —— AI 按钮的忙碌态（产物回到人手里，按钮各自独立） ——
-const busy = reactive({ rewrite: false, title: false, summary: false, difficulty: false, classify: false, followups: false })
+const busy = reactive({ rewrite: false, title: false, summary: false, difficulty: false, domain: false, classify: false, followups: false })
 
 const item = ref<WizardItem>(newItem({}))
-const topicOptions = ref<{ id: number; name: string }[]>([])
+const topicOptions = ref<{ id: number; name: string; description: string | null }[]>([])
 
 const domainOptions = computed(() => constants.items('domain'))
 
@@ -278,7 +280,13 @@ async function nextFromStep1() {
 
 async function reloadTopics() {
   const domainCode = item.value.domainCode ?? ''
-  topicOptions.value = domainCode ? (await listTopics(domainCode)).map((topic) => ({ id: topic.id, name: topic.name })) : []
+  topicOptions.value = domainCode
+    ? (await listTopics(domainCode)).map((topic) => ({
+        id: topic.id,
+        name: topic.name,
+        description: topic.description ?? null
+      }))
+    : []
 }
 
 function onDomainChange() {
@@ -286,6 +294,115 @@ function onDomainChange() {
   item.value.topicId = null
   item.value.note = ''
   void reloadTopics()
+}
+
+/**
+ * AI 定位：领域 + 主题一次返回（各领域覆盖范围与现有主题全量注入模型）。
+ * 现有主题直接选中；没有合适主题时展示新主题名建议，用户点「采纳」才创建落库——
+ * 采纳或改选由人（AI 不直接写库）。
+ */
+async function doLocate() {
+  if (!item.value.title.trim() && !item.value.contentMd.trim()) {
+    ElMessage.warning('先写标题或正文，AI 才能定位领域与主题')
+    return
+  }
+  busy.domain = true
+  newTopicSuggestion.value = ''
+  try {
+    const resp = item.value.sourceId
+      ? await aiLocate(item.value.sourceId)
+      : await aiLocateContent(item.value.title, item.value.contentMd)
+    if (!resp.domainCode) {
+      item.value.note = resp.reason || '未给出定位建议，请人工点选'
+      ElMessage.info(item.value.note)
+      return
+    }
+    // 采纳领域建议：候选随域刷新（与 onDomainChange 同口径，但保留定位理由）
+    item.value.domainCode = resp.domainCode
+    item.value.topicId = null
+    await reloadTopics()
+    // 现有主题直接选中（后端已做闭集校验）
+    if (resp.topicName) {
+      const matched = topicOptions.value.find((topic) => topic.name === resp.topicName)
+      if (matched) {
+        item.value.topicId = matched.id
+        item.value.note = `AI 定位：${domainLabel(resp.domainCode)} / ${resp.topicName}（${resp.reason}）`
+      }
+    } else if (resp.newTopic) {
+      // 新主题建议只展示不落库，用户确认「采纳」才创建
+      newTopicSuggestion.value = resp.newTopic
+      item.value.note = `AI 定位领域：${domainLabel(resp.domainCode)}；建议新主题「${resp.newTopic}」（${resp.reason}）`
+    } else {
+      item.value.note = `AI 定位领域：${domainLabel(resp.domainCode)}（${resp.reason}）；主题请人工确认或新建`
+    }
+  } catch (error) {
+    ElMessage.error(messageOf(error, 'AI 定位失败'))
+  } finally {
+    busy.domain = false
+  }
+}
+
+/** 采纳 AI 的新主题名建议：就地创建并选中（名字已注入弹窗，可再改） */
+function acceptNewTopicSuggestion() {
+  if (!newTopicSuggestion.value) return
+  openNewTopic()
+  newTopicName.value = newTopicSuggestion.value
+}
+
+function domainLabel(code: string): string {
+  return constants.name('domain', code)
+}
+
+/** 领域选项的覆盖范围（tooltip 展示，解决「不知道归哪里」） */
+function domainCoverage(code: string): string {
+  return constants.items('domain').find((option) => option.code === code)?.desc || '该领域未维护覆盖范围说明'
+}
+
+// —— 快速新建主题：候选都不合适时就地创建，免跳知识库管理页（主题名人工定，归属当前领域） ——
+
+const newTopicVisible = ref(false)
+const newTopicName = ref('')
+const newTopicDescription = ref('')
+const newTopicSaving = ref(false)
+/** AI 定位给出的新主题名建议（只展示不落库，采纳才创建） */
+const newTopicSuggestion = ref('')
+
+function openNewTopic() {
+  if (!item.value.domainCode) {
+    ElMessage.warning('先确定领域，新主题将建在该领域下')
+    return
+  }
+  newTopicName.value = ''
+  newTopicDescription.value = ''
+  newTopicSuggestion.value = ''
+  newTopicVisible.value = true
+}
+
+async function saveNewTopic() {
+  const name = newTopicName.value.trim()
+  if (!name) {
+    ElMessage.warning('主题名不能为空')
+    return
+  }
+  if (topicOptions.value.some((topic) => topic.name === name)) {
+    ElMessage.warning('该领域下已存在同名主题，直接在下方选中即可')
+    return
+  }
+  newTopicSaving.value = true
+  try {
+    const created = await createTopic(item.value.domainCode, name, newTopicDescription.value)
+    topicOptions.value = [
+      ...topicOptions.value,
+      { id: created.id, name: created.name, description: created.description }
+    ]
+    item.value.topicId = created.id
+    newTopicVisible.value = false
+    ElMessage.success(`主题「${created.name}」已创建并选中`)
+  } catch (error) {
+    ElMessage.error(messageOf(error, '创建主题失败'))
+  } finally {
+    newTopicSaving.value = false
+  }
 }
 
 async function doSummary() {
@@ -322,10 +439,10 @@ async function doClassify() {
   }
   busy.classify = true
   try {
-    const topics = topicOptions.value.map((topic) => topic.name)
+    // 主题候选（含覆盖范围描述）由后端自取，前端只带领域
     const resp = item.value.sourceId
-      ? await aiClassify(item.value.sourceId, item.value.domainCode, topics)
-      : await aiClassifyContent(item.value.contentMd, item.value.domainCode, topics)
+      ? await aiClassify(item.value.sourceId, item.value.domainCode)
+      : await aiClassifyContent(item.value.contentMd, item.value.domainCode)
     if (!resp.topicName) {
       ElMessage.info(resp.reason || '未给出建议')
       return
@@ -600,17 +717,61 @@ const topicName = (topicId: number | null) =>
             </el-radio-group>
             <div class="meta-card-head head-gap">
               <span class="meta-card-title">领域</span>
+              <el-button class="btn-ai" size="small" :icon="MagicStick" :loading="busy.domain" @click="doLocate">
+                AI 定位（领域+主题）
+              </el-button>
             </div>
             <el-select v-model="item.domainCode" placeholder="人工点选领域" @change="onDomainChange">
-              <el-option v-for="option in domainOptions" :key="option.code" :label="option.name" :value="option.code" />
+              <el-option
+                v-for="option in domainOptions"
+                :key="option.code"
+                :label="option.name"
+                :value="option.code"
+              >
+                <el-tooltip
+                  :content="domainCoverage(option.code)"
+                  placement="right"
+                  :show-after="200"
+                  :hide-after="0"
+                  raw-content
+                >
+                  <div class="domain-option">
+                    <span>{{ option.name }}</span>
+                    <span class="domain-option-hint">覆盖范围</span>
+                  </div>
+                </el-tooltip>
+              </el-option>
             </el-select>
             <div class="meta-card-head head-gap">
               <span class="meta-card-title">主题</span>
-              <el-button class="btn-ai" :icon="MagicStick" :loading="busy.classify" :disabled="!item.domainCode" @click="doClassify">AI 分类建议</el-button>
+              <div class="followup-head-actions">
+                <el-button class="btn-ai" size="small" :icon="MagicStick" :loading="busy.classify" :disabled="!item.domainCode" @click="doClassify">
+                  AI 分类建议
+                </el-button>
+                <el-button size="small" :icon="Plus" :disabled="!item.domainCode" @click="openNewTopic">新主题</el-button>
+              </div>
             </div>
             <el-select v-model="item.topicId" placeholder="确认主题位置" :disabled="!item.domainCode">
-              <el-option v-for="topic in topicOptions" :key="topic.id" :label="topic.name" :value="topic.id" />
+              <el-option v-for="topic in topicOptions" :key="topic.id" :label="topic.name" :value="topic.id">
+                <el-tooltip
+                  v-if="topic.description"
+                  :content="topic.description"
+                  placement="right"
+                  :show-after="200"
+                  :hide-after="0"
+                >
+                  <div class="domain-option">
+                    <span>{{ topic.name }}</span>
+                    <span class="domain-option-hint">覆盖范围</span>
+                  </div>
+                </el-tooltip>
+              </el-option>
             </el-select>
+            <div v-if="newTopicSuggestion" class="new-topic-suggest">
+              <span class="new-topic-suggest-text">AI 建议新主题「{{ newTopicSuggestion }}」</span>
+              <el-button size="small" type="primary" plain @click="acceptNewTopicSuggestion">采纳</el-button>
+              <el-button size="small" text @click="newTopicSuggestion = ''">忽略</el-button>
+            </div>
             <p v-if="item.note" class="suggestion-note">{{ item.note }}</p>
           </div>
         </div>
@@ -700,6 +861,39 @@ const topicName = (topicId: number | null) =>
         </template>
       </el-result>
     </section>
+
+    <!-- 快速新建主题：候选都不合适时就地创建（嵌套弹窗，append-to-body 避免被外层遮罩盖住） -->
+    <el-dialog
+      v-model="newTopicVisible"
+      title="新建主题"
+      width="420px"
+      append-to-body
+      :close-on-click-modal="false"
+    >
+      <p class="new-topic-hint">
+        将创建在「{{ domainLabel(item.domainCode) }}」领域下；主题只承载名字与位置，内容归知识点或资料讲解。
+      </p>
+      <el-input
+        v-model="newTopicName"
+        maxlength="60"
+        show-word-limit
+        placeholder="主题名（如：JVM、消息队列、分布式事务）"
+        @keyup.enter="saveNewTopic"
+      />
+      <el-input
+        v-model="newTopicDescription"
+        type="textarea"
+        :rows="3"
+        maxlength="200"
+        show-word-limit
+        class="new-topic-desc"
+        placeholder="覆盖范围（可选，如「数据结构与底层实现、缓存策略、分布式锁」）——选主题时悬停可见，也是 AI 定位的依据"
+      />
+      <template #footer>
+        <el-button @click="newTopicVisible = false">取消</el-button>
+        <el-button type="primary" :loading="newTopicSaving" @click="saveNewTopic">创建并选中</el-button>
+      </template>
+    </el-dialog>
 
     <template #footer>
       <template v-if="!loading && !submitted">
@@ -1161,6 +1355,49 @@ const topicName = (topicId: number | null) =>
 
 .meta-card .suggestion-note {
   margin: auto 0 0;
+}
+
+/* 领域下拉选项：名称 + 覆盖范围提示（tooltip 展示完整说明） */
+.domain-option {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  width: 100%;
+}
+
+.domain-option-hint {
+  font-size: 11px;
+  color: var(--zj-ink-400);
+}
+
+/* 快速新建主题弹窗说明 */
+.new-topic-hint {
+  margin: 0 0 12px;
+  font-size: 12px;
+  color: var(--zj-ink-500);
+}
+
+.new-topic-desc {
+  margin-top: 10px;
+}
+
+/* AI 新主题建议条：建议只展示不落库，采纳/忽略由人 */
+.new-topic-suggest {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-top: 8px;
+  padding: 6px 10px;
+  border: 1px dashed var(--zj-line);
+  border-radius: 6px;
+  background: var(--zj-surface-sunken);
+}
+
+.new-topic-suggest-text {
+  flex: 1 1 0;
+  font-size: 12px;
+  color: var(--zj-ink-700);
 }
 
 .field-with-action {

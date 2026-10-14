@@ -172,6 +172,14 @@ function cellOptions(row: TableRow, col: ConfigFieldDef): ConfigFieldOption[] {
           </el-tag>
           <span v-else-if="col.type === 'TAG'">—</span>
           <el-input
+            v-else-if="col.type === 'TEXTAREA'"
+            size="small"
+            type="textarea"
+            :rows="3"
+            :model-value="textOf(cell(row, col))"
+            @update:model-value="setCell(row, col, $event)"
+          />
+          <el-input
             v-else
             size="small"
             :model-value="textOf(cell(row, col))"

@@ -111,6 +111,7 @@ public class ConfigRegistry implements ApplicationRunner, Ordered {
         value = section.merge(value, snapshot.get(key));
         section.validate(value);
         writeJson(key, value, section.description());
+        value = section.afterSave(value);
         snapshot.put(key, value);
         return viewOf(section);
     }
@@ -119,6 +120,7 @@ public class ConfigRegistry implements ApplicationRunner, Ordered {
     public Object saveTyped(String key, Object value) {
         ConfigSection<Object> section = sectionOf(key);
         writeJson(key, value, section.description());
+        value = section.afterSave(value);
         snapshot.put(key, value);
         return value;
     }

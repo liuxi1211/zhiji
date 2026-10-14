@@ -35,6 +35,7 @@ public enum LlmPurpose implements ConstantItem {
     SOURCE_TITLE("source_title", "标题生成", Side.B, Tier.QUALITY),
     SOURCE_FOLLOWUP("source_followup", "追问链识别", Side.B, Tier.QUALITY),
     SOURCE_SUMMARY("source_summary", "素材概述生成", Side.B, Tier.QUALITY),
+    SOURCE_DOMAIN("source_locate", "领域主题定位", Side.B, Tier.QUALITY),
     SOURCE_CLASSIFY("source_classify", "素材分类建议", Side.B, Tier.QUALITY),
     SOURCE_INFER("source_infer", "素材反推出题", Side.B, Tier.QUALITY),
     SOURCE_DIFFICULTY("source_difficulty", "难度建议", Side.B, Tier.QUALITY),

@@ -125,7 +125,7 @@ class KbFlowTest {
 
     private long freshTopic(String domainCode, String name) {
         try {
-            return topicService.create(domainCode, name).id();
+            return topicService.create(domainCode, name, null).id();
         } catch (BizException e) {
             return topicService.list(domainCode).stream()
                     .filter(t -> name.equals(t.name()))
@@ -155,22 +155,23 @@ class KbFlowTest {
         String run = java.util.UUID.randomUUID().toString().substring(0, 8);
         // KbBootstrap 种子：DomainTopic 常量组已落表
         assertThat(topicService.list("java").stream().anyMatch(t -> "JVM".equals(t.name()))).isTrue();
-        long topicA = topicService.create("java", "目录主题A-" + run).id();
-        KbTopicService.TopicView renamed = topicService.rename(topicA, "目录主题A改名-" + run);
+        long topicA = topicService.create("java", "目录主题A-" + run, null).id();
+        KbTopicService.TopicView renamed = topicService.rename(topicA, "目录主题A改名-" + run, "改后的覆盖范围描述");
         assertThat(renamed.name()).isEqualTo("目录主题A改名-" + run);
-        long duplicate = topicService.create("java", "目录主题B-" + run).id();
-        assertThatThrownBy(() -> topicService.rename(duplicate, "目录主题A改名-" + run))
+        assertThat(renamed.description()).isEqualTo("改后的覆盖范围描述");
+        long duplicate = topicService.create("java", "目录主题B-" + run, null).id();
+        assertThatThrownBy(() -> topicService.rename(duplicate, "目录主题A改名-" + run, null))
                 .isInstanceOf(BizException.class)
                 .hasMessageContaining("同名");
         // 单个内容移动主题（updateKp 的 topicId 稀疏更新）：同领域可移、跨领域拒绝
-        long sourceTopic = topicService.create("java", "迁移源主题-" + run).id();
+        long sourceTopic = topicService.create("java", "迁移源主题-" + run, null).id();
         long migrated = createKp(sourceTopic, "被迁移题-" + run, "摘要");
-        long targetTopic = topicService.create("java", "迁移目标主题-" + run).id();
+        long targetTopic = topicService.create("java", "迁移目标主题-" + run, null).id();
         contentService.updateKp(migrated, new UpdateKpReq(null, null, null, null, null, null, null, null, null,
                 null, null, targetTopic));
         assertThat(contentService.listByTopic(targetTopic, "kp", null))
                 .anyMatch(item -> item.id() == migrated);
-        long crossDomain = topicService.create("database", "跨域主题X-" + run).id();
+        long crossDomain = topicService.create("database", "跨域主题X-" + run, null).id();
         assertThatThrownBy(() -> contentService.updateKp(migrated, new UpdateKpReq(null, null, null, null, null,
                 null, null, null, null, null, null, crossDomain)))
                 .hasMessageContaining("领域");

@@ -240,15 +240,8 @@ export type SourceType = 'manual' | 'import' | 'url' | 'inferred'
 /** 内容难度四档（与职级要求正交，红线 6） */
 export type SourceDifficulty = 'junior' | 'mid' | 'senior' | 'expert'
 
-/** 领域清单（5.3 种子草案；后端常量组 domain 下发） */
-export type DomainCode =
-  | 'java'
-  | 'database'
-  | 'middleware'
-  | 'distributed'
-  | 'cs_basic'
-  | 'go'
-  | 'engineering'
+/** 领域代码：运行时由后端配置域 kb.domains 下发（系统设置页可增删改），此处不再固化字面量 */
+export type DomainCode = string
 
 export interface SourceItemView {
   id: number
@@ -320,6 +313,16 @@ export interface SourceClassifyResp {
   reason: string
 }
 
+/** AI 定位：领域 + 现有主题或新主题名建议，全部经人工确认后生效 */
+export interface SourceLocateResp {
+  domainCode: string
+  /** 现有主题名（该域内真实存在），空表示无现成主题 */
+  topicName: string
+  /** 新主题名建议（不落库，人工确认创建），与 topicName 互斥 */
+  newTopic: string
+  reason: string
+}
+
 /** 反推面试问法：锚点 + 问法 + 难度（初级/中级/高级/资深） */
 export interface SourceInferItem {
   anchor: string
@@ -367,6 +370,8 @@ export interface KbTopicView {
   id: number
   domainCode: string
   name: string
+  /** 覆盖范围描述：目录/下拉的人读提示，同时注入 AI 定位提示词（可空） */
+  description: string | null
   status: 'active' | 'merged'
   mergedIntoId: number | null
   kpCount: number

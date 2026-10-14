@@ -556,7 +556,7 @@ class LearnFlowTest {
     private long ensureTopic(String domain, String run) {
         asStaff();
         try {
-            long id = kbTopicService.create(domain, "学习主题-" + run).id();
+            long id = kbTopicService.create(domain, "学习主题-" + run, null).id();
             asNobody();
             return id;
         } catch (RuntimeException e) {

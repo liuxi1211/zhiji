@@ -36,10 +36,16 @@ public class SourceController {
 
     private final SourceService sourceService;
     private final SourceAiService sourceAiService;
+    private final com.zhiji.common.constant.ConstantRegistry constantRegistry;
+    private final com.zhiji.kb.service.KbTopicService kbTopicService;
 
-    public SourceController(SourceService sourceService, SourceAiService sourceAiService) {
+    public SourceController(SourceService sourceService, SourceAiService sourceAiService,
+            com.zhiji.common.constant.ConstantRegistry constantRegistry,
+            com.zhiji.kb.service.KbTopicService kbTopicService) {
         this.sourceService = sourceService;
         this.sourceAiService = sourceAiService;
+        this.constantRegistry = constantRegistry;
+        this.kbTopicService = kbTopicService;
     }
 
     public record CreateReq(
@@ -142,9 +148,18 @@ public class SourceController {
         return new SourceAiService.SummaryResp(sourceAiService.summarize(sourceService.get(id).contentMd()));
     }
 
+    /** 领域与主题一次定位（向导第 2 步：AI 按覆盖范围与现有主题描述建议，含新主题名建议，人工确认）。 */
+    @PostMapping("/{id}/ai/locate")
+    public SourceAiService.LocateResp locate(@PathVariable long id) {
+        SourceService.SourceItemView item = sourceService.get(id);
+        return sourceAiService.locate(item.title(), item.contentMd(),
+                constantRegistry.items("domain"), kbTopicService::listBriefs);
+    }
+
+    /** 分类建议（单域主题重推：主题候选含覆盖范围描述，由后端自取，前端只带领域）。 */
     @PostMapping("/{id}/ai/classify")
     public SourceAiService.ClassifyResp classify(@PathVariable long id, @RequestBody ClassifyReq req) {
-        List<String> topics = req.topics() == null ? List.of() : req.topics();
+        List<com.zhiji.kb.service.KbTopicService.TopicBrief> topics = kbTopicService.listBriefs(req.domainCode());
         if (topics.isEmpty()) {
             return new SourceAiService.ClassifyResp("", "候选主题为空");
         }
@@ -157,7 +172,7 @@ public class SourceController {
         return sourceAiService.difficulty(sourceService.get(id).contentMd());
     }
 
-    public record ClassifyReq(@NotBlank(message = "领域必须人工点选") String domainCode, List<String> topics) {
+    public record ClassifyReq(@NotBlank(message = "领域必须人工点选") String domainCode) {
     }
 
     public record InferPreviewResp(List<SourceAiService.InferResp> inferences) {

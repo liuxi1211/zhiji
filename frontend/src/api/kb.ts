@@ -24,12 +24,13 @@ export async function listTopics(domainCode?: string): Promise<KbTopicView[]> {
   return (await request.get<KbTopicView[]>('/admin/kb/topics', { params })).data
 }
 
-export async function createTopic(domainCode: string, name: string): Promise<KbTopicView> {
-  return (await request.post<KbTopicView>('/admin/kb/topics', { domainCode, name })).data
+export async function createTopic(domainCode: string, name: string, description?: string): Promise<KbTopicView> {
+  return (await request.post<KbTopicView>('/admin/kb/topics', { domainCode, name, description: description ?? null }))
+    .data
 }
 
-export async function renameTopic(id: number, name: string): Promise<KbTopicView> {
-  return (await request.put<KbTopicView>(`/admin/kb/topics/${id}`, { name })).data
+export async function renameTopic(id: number, name: string, description?: string): Promise<KbTopicView> {
+  return (await request.put<KbTopicView>(`/admin/kb/topics/${id}`, { name, description: description ?? null })).data
 }
 
 export async function moveTopic(id: number, domainCode: string): Promise<KbTopicView> {
@@ -149,13 +150,23 @@ export async function aiSummaryContent(contentMd: string): Promise<string> {
   return resp.summary
 }
 
-export async function aiClassifyContent(
-  contentMd: string,
-  domainCode: string,
-  topics: string[]
-): Promise<SourceClassifyResp> {
+/** 领域与主题一次定位（直达模式与素材模式同一套能力；标题参与判断，可空） */
+export async function aiLocateContent(
+  title: string,
+  contentMd: string
+): Promise<{ domainCode: string; topicName: string; newTopic: string; reason: string }> {
   return (
-    await request.post<SourceClassifyResp>('/admin/kb/ai/classify', { contentMd, domainCode, topics }, { timeout: 120000 })
+    await request.post<{ domainCode: string; topicName: string; newTopic: string; reason: string }>(
+      '/admin/kb/ai/locate',
+      { title, contentMd },
+      { timeout: 120000 }
+    )
+  ).data
+}
+
+export async function aiClassifyContent(contentMd: string, domainCode: string): Promise<SourceClassifyResp> {
+  return (
+    await request.post<SourceClassifyResp>('/admin/kb/ai/classify', { contentMd, domainCode }, { timeout: 120000 })
   ).data
 }
 

@@ -103,6 +103,7 @@ CREATE TABLE IF NOT EXISTS kb_topic (
     id             INTEGER PRIMARY KEY AUTOINCREMENT,
     domain_code    TEXT NOT NULL,                 -- 领域（常量组 domain，人工维护边界，5.3）
     name           TEXT NOT NULL,                 -- 主题名：前端可见、可人工改名（5.2 组织结构可改）
+    description    TEXT,                          -- 覆盖范围描述：人读（目录/下拉提示）与 AI 定位共用，可空
     status         TEXT NOT NULL DEFAULT 'active' CHECK (status IN ('active','merged')),
     merged_into_id INTEGER,                       -- 主题合并指向的目标主题
     created_at     TEXT NOT NULL DEFAULT (datetime('now')),

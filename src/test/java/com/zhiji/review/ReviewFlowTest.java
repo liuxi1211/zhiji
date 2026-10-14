@@ -451,7 +451,7 @@ class ReviewFlowTest {
         asStaff();
         long topicId;
         try {
-            topicId = kbTopicService.create(domain, "复习主题-" + UUID.randomUUID().toString().substring(0, 8)).id();
+            topicId = kbTopicService.create(domain, "复习主题-" + UUID.randomUUID().toString().substring(0, 8), null).id();
         } finally {
             asNobody();
         }

@@ -41,13 +41,16 @@ public class KbAdminController {
     private final KbContentService contentService;
     private final KbMergeService mergeService;
     private final SourceAiService sourceAiService;
+    private final com.zhiji.common.constant.ConstantRegistry constantRegistry;
 
     public KbAdminController(KbTopicService topicService, KbContentService contentService,
-            KbMergeService mergeService, SourceAiService sourceAiService) {
+            KbMergeService mergeService, SourceAiService sourceAiService,
+            com.zhiji.common.constant.ConstantRegistry constantRegistry) {
         this.topicService = topicService;
         this.contentService = contentService;
         this.mergeService = mergeService;
         this.sourceAiService = sourceAiService;
+        this.constantRegistry = constantRegistry;
     }
 
     // —— 主题（组织结构：名字用户可见、可改名；调整即时生效于目录视图） ——
@@ -58,21 +61,22 @@ public class KbAdminController {
     }
 
     public record CreateTopicReq(@NotBlank(message = "领域必须人工点选") String domainCode,
-            @NotBlank(message = "主题名不能为空") @Size(max = 60, message = "主题名长度 60 以内") String name) {
+            @NotBlank(message = "主题名不能为空") @Size(max = 60, message = "主题名长度 60 以内") String name,
+            @Size(max = 200, message = "主题描述长度 200 以内") String description) {
     }
 
     @PostMapping("/topics")
     public TopicView createTopic(@Validated @RequestBody CreateTopicReq req) {
-        return topicService.create(req.domainCode(), req.name());
+        return topicService.create(req.domainCode(), req.name(), req.description());
     }
 
     public record RenameTopicReq(@NotBlank(message = "主题名不能为空") @Size(max = 60, message = "主题名长度 60 以内")
-    String name) {
+    String name, @Size(max = 200, message = "主题描述长度 200 以内") String description) {
     }
 
     @PutMapping("/topics/{id}")
     public TopicView renameTopic(@PathVariable long id, @Validated @RequestBody RenameTopicReq req) {
-        return topicService.rename(id, req.name());
+        return topicService.rename(id, req.name(), req.description());
     }
 
     public record MoveTopicReq(@NotBlank(message = "领域必须人工点选") String domainCode) {
@@ -206,8 +210,11 @@ public class KbAdminController {
     public record AiContentReq(String contentMd, String mode, String instruction) {
     }
 
-    public record AiClassifyReq(String contentMd, @NotBlank(message = "领域必须人工点选") String domainCode,
-            List<String> topics) {
+    /** 直达模式领域建议请求：标题可空（写作中途可能尚未起题），标题正文均为空时后端拒绝。 */
+    public record AiDomainReq(String title, String contentMd) {
+    }
+
+    public record AiClassifyReq(String contentMd, @NotBlank(message = "领域必须人工点选") String domainCode) {
     }
 
     /** 直达模式流式改写（SSE）：不绑定素材行，mode 由前端带当前定类（kp/doc，未定走通用整理），
@@ -235,9 +242,17 @@ public class KbAdminController {
         return new SourceAiService.SummaryResp(sourceAiService.summarize(req.contentMd()));
     }
 
+    /** 领域与主题一次定位（直达模式与素材模式同一套能力：AI 按覆盖范围与现有主题描述建议，人工确认）。 */
+    @PostMapping("/ai/locate")
+    public SourceAiService.LocateResp aiLocate(@RequestBody AiDomainReq req) {
+        return sourceAiService.locate(req.title(), req.contentMd(),
+                constantRegistry.items("domain"), topicService::listBriefs);
+    }
+
+    /** 分类建议（单域主题重推：主题候选含覆盖范围描述，由后端自取，前端只带领域）。 */
     @PostMapping("/ai/classify")
     public SourceAiService.ClassifyResp aiClassify(@RequestBody AiClassifyReq req) {
-        List<String> topics = req.topics() == null ? List.of() : req.topics();
+        List<KbTopicService.TopicBrief> topics = topicService.listBriefs(req.domainCode());
         if (topics.isEmpty()) {
             return new SourceAiService.ClassifyResp("", "候选主题为空");
         }

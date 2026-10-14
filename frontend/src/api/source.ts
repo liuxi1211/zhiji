@@ -74,9 +74,20 @@ export async function aiSummary(id: number): Promise<string> {
   return resp.summary
 }
 
-export async function aiClassify(id: number, domainCode: string, topics: string[]): Promise<SourceClassifyResp> {
+/** 领域与主题一次定位：AI 按覆盖范围与现有主题建议（含新主题名建议），人工确认 */
+export async function aiLocate(id: number): Promise<{ domainCode: string; topicName: string; newTopic: string; reason: string }> {
   return (
-    await request.post<SourceClassifyResp>(`/admin/sources/${id}/ai/classify`, { domainCode, topics }, { timeout: 120000 })
+    await request.post<{ domainCode: string; topicName: string; newTopic: string; reason: string }>(
+      `/admin/sources/${id}/ai/locate`,
+      null,
+      { timeout: 120000 }
+    )
+  ).data
+}
+
+export async function aiClassify(id: number, domainCode: string): Promise<SourceClassifyResp> {
+  return (
+    await request.post<SourceClassifyResp>(`/admin/sources/${id}/ai/classify`, { domainCode }, { timeout: 120000 })
   ).data
 }
 

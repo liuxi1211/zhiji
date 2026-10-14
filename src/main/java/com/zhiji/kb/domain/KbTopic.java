@@ -20,6 +20,9 @@ public class KbTopic {
 
     private String name;
 
+    /** 覆盖范围描述：目录/下拉的人读提示，同时注入 AI 定位提示词（可空） */
+    private String description;
+
     /** active / merged（合并后不再直接承接内容，目录树隐藏） */
     private String status;
 
@@ -52,6 +55,14 @@ public class KbTopic {
 
     public void setName(String name) {
         this.name = name;
+    }
+
+    public String getDescription() {
+        return description;
+    }
+
+    public void setDescription(String description) {
+        this.description = description;
     }
 
     public String getStatus() {

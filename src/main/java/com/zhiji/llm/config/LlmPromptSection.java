@@ -42,6 +42,7 @@ public class LlmPromptSection implements ConfigSection<LlmPromptConfig> {
             Map.entry("source_followup", "素材追问"),
             Map.entry("source_summary", "素材摘要"),
             Map.entry("source_classify", "素材分类"),
+            Map.entry("source_locate", "领域主题定位"),
             Map.entry("source_infer", "素材推断"),
             Map.entry("source_difficulty", "难度标定"));
 

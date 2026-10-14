@@ -6,14 +6,18 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.boot.ApplicationArguments;
 import org.springframework.boot.ApplicationRunner;
+import org.springframework.core.Ordered;
+import org.springframework.core.annotation.Order;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.stereotype.Component;
 
 /**
  * 素材库存量库补列（SQLite 无独立迁移工具，schema.sql 的 CREATE TABLE IF NOT EXISTS 改不了既有表）：
  * 启动时按 PRAGMA table_info 检查 src_item.content_type，缺失则 ALTER TABLE 补上——幂等，新库命中 schema.sql 后此处空转。
+ * 最高优先级：补列必须先于业务 runner 执行（与 SchemaPatcher 同约定）。
  */
 @Component
+@Order(Ordered.HIGHEST_PRECEDENCE)
 public class SourceSchemaPatch implements ApplicationRunner {
 
     private static final Logger log = LoggerFactory.getLogger(SourceSchemaPatch.class);

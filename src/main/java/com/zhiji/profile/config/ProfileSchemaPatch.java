@@ -6,6 +6,8 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.boot.ApplicationArguments;
 import org.springframework.boot.ApplicationRunner;
+import org.springframework.core.Ordered;
+import org.springframework.core.annotation.Order;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.stereotype.Component;
 
@@ -13,8 +15,10 @@ import org.springframework.stereotype.Component;
  * 技能条表补列（SQLite 无独立迁移工具，schema.sql 的 CREATE TABLE IF NOT EXISTS 改不了既有表）：
  * 对话流改造（PRD v2）为 prf_claim 增加 title 与 anchor_status，存量库按 PRAGMA 检查后 ALTER 补列，
  * 幂等——新库命中 schema.sql 后此处空转。
+ * 最高优先级：补列必须先于业务 runner 执行（与 SchemaPatcher 同约定）。
  */
 @Component
+@Order(Ordered.HIGHEST_PRECEDENCE)
 public class ProfileSchemaPatch implements ApplicationRunner {
 
     private static final Logger log = LoggerFactory.getLogger(ProfileSchemaPatch.class);

@@ -1,6 +1,8 @@
 package com.zhiji.source.service;
 
+import com.zhiji.common.constant.ConstantRegistry;
 import com.zhiji.common.exception.BizException;
+import com.zhiji.kb.service.KbTopicService;
 import com.zhiji.llm.api.LlmClient;
 import com.zhiji.llm.api.LlmPurpose;
 import com.zhiji.llm.api.LlmRequest;
@@ -39,11 +41,13 @@ public class SourceAiService {
 
     private final LlmClient llmClient;
     private final PromptStore promptStore;
+    private final ConstantRegistry constantRegistry;
     private final JsonMapper jsonMapper = new JsonMapper();
 
-    public SourceAiService(LlmClient llmClient, PromptStore promptStore) {
+    public SourceAiService(LlmClient llmClient, PromptStore promptStore, ConstantRegistry constantRegistry) {
         this.llmClient = llmClient;
         this.promptStore = promptStore;
+        this.constantRegistry = constantRegistry;
     }
 
     /** 标题生成产物（题面/文章题名，生成后可再改）。 */
@@ -144,17 +148,102 @@ public class SourceAiService {
         return summary;
     }
 
-    public ClassifyResp classify(String content, String domain, List<String> topics) {
+    /** 领域定位产物：领域 + 现有主题名或新主题名建议，全部经人工确认后生效。 */
+    public record LocateResp(String domainCode, String topicName, String newTopic, String reason) {
+    }
+
+    /**
+     * 领域与主题一次定位：各领域（code/中文名/覆盖范围）及其现有主题（名字+描述）全量注入提示词，
+     * 模型读标题与正文推荐唯一领域 + 主题；现有主题都不合适时给新主题名建议（不落库，人工确认创建）。
+     * 越界降级：领域不在清单 → 整体不采纳；主题不在该域内 → 主题清空转 newTopic 通道（���发明）。
+     * title 参与判断：标题往往直接点明主体（如「Redis 分布式锁的实现」），比正文信号更强。
+     */
+    public LocateResp locate(String title, String content, List<ConstantRegistry.Item> domains,
+            java.util.function.Function<String, List<KbTopicService.TopicBrief>> topicsOf) {
+        if (domains == null || domains.isEmpty()) {
+            return new LocateResp("", "", "", "领域清单未配置");
+        }
+        String text = composeContent(title, content);
+        StringBuilder catalog = new StringBuilder();
+        for (ConstantRegistry.Item domain : domains) {
+            catalog.append("- ").append(domain.code()).append("（").append(domain.name()).append("）");
+            if (domain.desc() != null && !domain.desc().isBlank()) {
+                catalog.append("：").append(domain.desc());
+            }
+            List<KbTopicService.TopicBrief> topics = topicsOf.apply(domain.code());
+            if (topics.isEmpty()) {
+                catalog.append("\n  现有主题：（暂无）\n");
+                continue;
+            }
+            catalog.append('\n');
+            for (KbTopicService.TopicBrief topic : topics) {
+                catalog.append("  · ").append(topic.name());
+                if (!topic.description().isEmpty()) {
+                    catalog.append("：").append(topic.description());
+                }
+                catalog.append('\n');
+            }
+        }
+        LocateResp resp = llmClient.completeJson(LlmRequest.admin(LlmPurpose.SOURCE_DOMAIN,
+                prompt("source_locate",
+                        Map.of("domains", catalog.toString(), "content", text.substring(0, Math.min(3000, text.length())))))
+                .timeoutSeconds(JSON_TASK_TIMEOUT_SECONDS)
+                .build(), LocateResp.class);
+        String code = resp.domainCode() == null ? "" : resp.domainCode().strip();
+        String topic = resp.topicName() == null ? "" : resp.topicName().strip();
+        String newTopic = resp.newTopic() == null ? "" : resp.newTopic().strip();
+        String reason = resp.reason() == null ? "" : resp.reason().strip();
+        // 只在领域清单内采纳：模型发明领域时整体降级为「不采纳」（建议仅供采纳或无视）
+        if (!code.isEmpty() && domains.stream().noneMatch(d -> d.code().equals(code))) {
+            log.info("领域定位越出清单（{}），不采纳", code);
+            return new LocateResp("", "", "", "建议不在领域清单内");
+        }
+        // 主题闭集校验：建议主题必须真实存在于该域，越界即转新主题建议通道（防发明主题）
+        final String suggested = topic;
+        if (!suggested.isEmpty() && topicsOf.apply(code).stream().noneMatch(t -> t.name().equals(suggested))) {
+            log.info("主题建议越出领域 {} 现有主题（{}），转新主题通道", code, suggested);
+            if (newTopic.isEmpty()) {
+                newTopic = suggested;
+            }
+            topic = "";
+        }
+        // 新旧两个通道互斥：有现有主题就不需要新主题建议，避免界面同时亮两个选项
+        if (!topic.isEmpty()) {
+            newTopic = "";
+        }
+        return new LocateResp(code, topic, newTopic, reason);
+    }
+
+    public ClassifyResp classify(String content, String domain, List<KbTopicService.TopicBrief> topics) {
         String text = requireContent(content);
-        String joined = String.join("、", topics);
+        // 主题候选带覆盖范围描述注入（名字对模型语义不够时描述补位），拼装为「名字：描述」行
+        StringBuilder topicsText = new StringBuilder();
+        for (KbTopicService.TopicBrief topic : topics) {
+            topicsText.append(topicsText.isEmpty() ? "" : "\n").append("· ").append(topic.name());
+            if (!topic.description().isEmpty()) {
+                topicsText.append("：").append(topic.description());
+            }
+        }
+        // 领域传「中文名 + 覆盖范围」而非 code：code（如 cs_basic）对模型语义弱，覆盖范围帮模型理解域内边界
+        String domainHint = domain;
+        List<ConstantRegistry.Item> domains = constantRegistry.items("domain");
+        if (domains != null) {
+            for (ConstantRegistry.Item item : domains) {
+                if (item.code().equals(domain)) {
+                    domainHint = item.desc() == null || item.desc().isBlank()
+                            ? item.name() : item.name() + "：" + item.desc();
+                    break;
+                }
+            }
+        }
         ClassifyResp resp = llmClient.completeJson(LlmRequest.admin(LlmPurpose.SOURCE_CLASSIFY,
                 prompt("source_classify",
-                        Map.of("domain", domain, "topics", joined, "content", text.substring(0, Math.min(3000, text.length())))))
+                        Map.of("domain", domainHint, "topics", topicsText.toString(), "content", text.substring(0, Math.min(3000, text.length())))))
                 .timeoutSeconds(JSON_TASK_TIMEOUT_SECONDS)
                 .build(), ClassifyResp.class);
         String topic = resp.topicName() == null ? "" : resp.topicName().strip();
         // 只在候选主题内采纳：模型越界发明主题时降级为「采纳失败」，建议仅供采纳或无视
-        if (!topic.isEmpty() && topics.stream().noneMatch(t -> t.equals(topic))) {
+        if (!topic.isEmpty() && topics.stream().noneMatch(t -> t.name().equals(topic))) {
             log.info("分类建议越出候选清单（{}），不采纳", topic);
             return new ClassifyResp("", "建议不在候选主题内");
         }
@@ -219,6 +308,21 @@ public class SourceAiService {
         String text = content.strip();
         // 超长素材截断：AI 只做组织与起草，尾部截断不阻断人工流程（产物仍回人手里）
         return text.length() > MAX_CONTENT_CHARS ? text.substring(0, MAX_CONTENT_CHARS) + "\n\n（超长截断）" : text;
+    }
+
+    /**
+     * 标题 + 正文拼装为建议类任务的输入：标题是主体信号（往往直接点名讲什么），
+     * 正文为空时仅凭标题也能建议；两者都空才视为无内容。
+     */
+    private String composeContent(String title, String content) {
+        String head = title == null || title.isBlank() ? "" : "标题：" + title.strip() + "\n\n";
+        if (content == null || content.isBlank()) {
+            if (head.isEmpty()) {
+                throw BizException.validation("素材标题与正文均为空，无法执行 AI 操作");
+            }
+            return head.strip();
+        }
+        return head + content.strip();
     }
 
     private String prompt(String code, Map<String, ?> vars) {

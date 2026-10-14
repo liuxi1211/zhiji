@@ -66,6 +66,10 @@ async function save(section: ConfigSectionView) {
       sections.value[index] = saved
     }
     drafts[saved.key] = cloneDraft(saved.value)
+    // 领域清单保存后即时重拉常量组，全局下拉/展示无需刷新页面
+    if (saved.key === 'kb.domains') {
+      await constants.reload()
+    }
     ElMessage.success(`${saved.title}已保存，改动即生效`)
   } catch (error) {
     ElMessage.error(messageOf(error, '保存失败'))

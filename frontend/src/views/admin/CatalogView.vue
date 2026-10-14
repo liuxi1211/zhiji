@@ -170,7 +170,13 @@ function onPageSizeChange() {
 
 // —— 组织结构调整（只动位置，不动内容本身） ——
 
-const topicDialog = reactive({ visible: false, mode: 'create' as 'create' | 'rename' | 'move', name: '', domainCode: '' })
+const topicDialog = reactive({
+  visible: false,
+  mode: 'create' as 'create' | 'rename' | 'move',
+  name: '',
+  description: '',
+  domainCode: ''
+})
 
 function openTopicDialog(mode: 'create' | 'rename' | 'move') {
   if (mode !== 'create' && !currentTopic.value) {
@@ -179,6 +185,7 @@ function openTopicDialog(mode: 'create' | 'rename' | 'move') {
   }
   topicDialog.mode = mode
   topicDialog.name = mode === 'rename' ? (currentTopic.value?.name ?? '') : ''
+  topicDialog.description = mode === 'rename' ? (currentTopic.value?.description ?? '') : ''
   topicDialog.domainCode = mode === 'move' ? (currentTopic.value?.domainCode ?? '') : currentDomain.value || 'java'
   topicDialog.visible = true
 }
@@ -190,12 +197,12 @@ const topicDialogTitle = computed(
 async function confirmTopicDialog() {
   try {
     if (topicDialog.mode === 'create') {
-      await createTopic(topicDialog.domainCode, topicDialog.name)
+      await createTopic(topicDialog.domainCode, topicDialog.name, topicDialog.description)
       currentDomain.value = topicDialog.domainCode
       ElMessage.success('主题已创建')
     } else if (topicDialog.mode === 'rename') {
-      await renameTopic(currentTopicId.value!, topicDialog.name)
-      ElMessage.success('主题已改名（调整即时生效于目录视图）')
+      await renameTopic(currentTopicId.value!, topicDialog.name, topicDialog.description)
+      ElMessage.success('主题已更新（调整即时生效于目录视图）')
     } else {
       await moveTopic(currentTopicId.value!, topicDialog.domainCode)
       currentDomain.value = topicDialog.domainCode
@@ -599,6 +606,16 @@ function statusTagType(status: KbStatus): 'primary' | 'success' | 'info' | 'warn
         </el-form-item>
         <el-form-item v-if="topicDialog.mode === 'create' || topicDialog.mode === 'rename'" label="主题名">
           <el-input v-model="topicDialog.name" maxlength="60" placeholder="面向用户的主题名称" />
+        </el-form-item>
+        <el-form-item v-if="topicDialog.mode === 'create' || topicDialog.mode === 'rename'" label="覆盖范围">
+          <el-input
+            v-model="topicDialog.description"
+            type="textarea"
+            :rows="3"
+            maxlength="200"
+            show-word-limit
+            placeholder="这个主题收哪些内容（如「索引与 B+ 树、事务与 MVCC、锁、日志体系、SQL 调优」）——选主题时悬停可见，也是 AI 定位的依据"
+          />
         </el-form-item>
       </el-form>
       <template #footer>

@@ -49,6 +49,14 @@ public interface ConfigSection<T> {
     }
 
     /**
+     * 保存后钩子（HTTP 与 saveTyped 双路径）：落库与快照刷新完成后调用，返回值回写快照。
+     * 典型用途：kb.domains 保存后向 ConstantRegistry 发布常量组。默认原样返回。
+     */
+    default Object afterSave(Object value) {
+        return value;
+    }
+
+    /**
      * GET 下发前的值变换（敏感字段脱敏）：仅影响 HTTP 展示视图，不进快照、不落库。
      * 典型用途：llm.channel 的 apiKey 掩码化。默认原样返回。
      */
