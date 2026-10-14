@@ -14,9 +14,7 @@ import com.zhiji.llm.api.LlmClient;
 import com.zhiji.llm.api.LlmPurpose;
 import com.zhiji.llm.api.LlmRequest;
 import com.zhiji.llm.api.PromptTemplate;
-import java.io.IOException;
-import java.io.InputStream;
-import java.nio.charset.StandardCharsets;
+import com.zhiji.llm.service.PromptStore;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
@@ -43,10 +41,12 @@ public class KbMergeService {
 
     private final KbContentService contentService;
     private final LlmClient llmClient;
+    private final PromptStore promptStore;
 
-    public KbMergeService(KbContentService contentService, LlmClient llmClient) {
+    public KbMergeService(KbContentService contentService, LlmClient llmClient, PromptStore promptStore) {
         this.contentService = contentService;
         this.llmClient = llmClient;
+        this.promptStore = promptStore;
     }
 
     /** AI 合并产物（不落库，回人手里）：追问层/评分要点由服务端在提交时分配稳定 id。 */
@@ -83,7 +83,7 @@ public class KbMergeService {
         requireMergeable(contentType, distinct);
         requireSameTopic(contentType, distinct);
         String corpus = buildCorpus(contentType, distinct);
-        String prompt = PromptTemplate.render(readTemplate("prompts/kb_merge.txt"),
+        String prompt = PromptTemplate.render(promptStore.get("kb_merge"),
                 Map.of("contentType", contentType, "corpus", corpus));
         // 多份语料合并输出全结构产物，分钟级任务：超时放宽，走请求级覆盖（timeoutSeconds）。
         // 输出预算同款坑：思考模型推理 token 计入输出预算，路由默认 4096 会被思考耗尽 → 正文零输出，
@@ -242,16 +242,5 @@ public class KbMergeService {
         return trimmed.length() > MAX_CONTENT_CHARS
                 ? trimmed.substring(0, MAX_CONTENT_CHARS) + "\n（超长截断）"
                 : trimmed;
-    }
-
-    private String readTemplate(String path) {
-        try (InputStream in = getClass().getClassLoader().getResourceAsStream(path)) {
-            if (in == null) {
-                throw new IllegalStateException("缺少 prompt 模板: " + path);
-            }
-            return new String(in.readAllBytes(), StandardCharsets.UTF_8);
-        } catch (IOException e) {
-            throw new IllegalStateException("读取 prompt 模板失败: " + path, e);
-        }
     }
 }

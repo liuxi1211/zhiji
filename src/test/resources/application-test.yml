@@ -6,6 +6,15 @@ zhiji:
   llm:
     timeout-seconds: 15
     providers:
+      jlc:
+        protocol: anthropic
+        base-url: https://jlc.example.invalid/api
+        api-key: test-key
+        default-model: deepseek-v4.1-flash
+        models:
+          - glm-5.3-flash
+          - deepseek-v4.1-flash
+          - doubao-seed-2.1-turbo
       ark:
         base-url: https://ark.example.invalid/api/coding/v3
         api-key: test-key

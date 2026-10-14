@@ -44,12 +44,13 @@ zhiji:
     captcha-enabled: true
   llm:
     timeout-seconds: 15
-    # provider 连接信息：base-url 是"部署形态"在此统一维护，api-key 绝不入库、绝不进设置页。
-    # 真实密钥写在运行目录的 config/application-local.properties（复制 .example 模板，不入库，见该模板头部说明），
-    # 或用环境变量（ZHIJI_LLM_ARK_KEY 等）；两者同时存在时本地文件优先。
-    # 三家都提供 OpenAI 兼容端点，加 provider 只加一条配置，不改业务代码。
-    # models：该 provider 的 key 实际支持的模型清单（设置页下拉数据源）；
-    # default-model：该 provider 的默认模型（种子路由与存量路由归一化的取值来源，模型下线时改这里即可全量切换）。
+    # providers 仅作「首次启动种子」：空库首启时由 LlmChannelSection 原样种入 sys_config 的 llm.channel，
+    # 之后运行时事实源是渠道库（管理台「LLM 管理」页可改，保存即生效）——改此处的 yml 不再影响已初始化的系统。
+    # 首启种子读取时 api-key 仍从环境变量（ZHIJI_LLM_ARK_KEY 等）或本地 config/application-local.properties 解析，
+    # 解析后的真实密钥随种子入库；此后密钥变更在 LLM 管理页渠道卡完成（脱敏显示，留空保持不变）。
+    # protocol 不写默认 openai（OpenAI 兼容）；anthropic 为公司代理渠道（jlc，messages 协议，无 embedding）。
+    # models：该渠道的 key 实际支持的模型清单（种子入库后作为路由校验与下拉事实源）；
+    # default-model：该渠道的默认模型（种子路由与存量路由归一化的取值来源）。
     providers:
       ark:
         base-url: https://ark.cn-beijing.volces.com/api/coding/v3
@@ -69,6 +70,15 @@ zhiji:
           - kimi-k2.7-code
           - kimi-k2.8-preview
           - kimi-k3
+      jlc:
+        protocol: anthropic
+        base-url: https://claude.jlcops.com/api
+        api-key: ${ZHIJI_LLM_JLC_KEY:}
+        default-model: deepseek-v4.1-flash
+        models:
+          - glm-5.3-flash
+          - deepseek-v4.1-flash
+          - doubao-seed-2.1-turbo
       deepseek:
         base-url: https://api.deepseek.com/v1
         api-key: ${ZHIJI_LLM_DEEPSEEK_KEY:}

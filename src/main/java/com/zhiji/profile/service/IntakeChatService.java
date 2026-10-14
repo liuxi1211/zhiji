@@ -9,9 +9,6 @@ import com.zhiji.llm.api.PromptTemplate;
 import com.zhiji.profile.domain.PrfIntakeMsg;
 import com.zhiji.profile.domain.PrfProfile;
 import com.zhiji.profile.repo.PrfIntakeMsgMapper;
-import java.io.IOException;
-import java.io.InputStream;
-import java.nio.charset.StandardCharsets;
 import java.time.LocalDateTime;
 import java.time.format.DateTimeFormatter;
 import java.util.ArrayList;
@@ -61,13 +58,15 @@ public class IntakeChatService {
     private final PrfIntakeMsgMapper msgMapper;
     private final LlmClient llmClient;
     private final ReferencePoolService referencePoolService;
+    private final com.zhiji.llm.service.PromptStore promptStore;
     private final JsonMapper jsonMapper = new JsonMapper();
 
     public IntakeChatService(PrfIntakeMsgMapper msgMapper, LlmClient llmClient,
-            ReferencePoolService referencePoolService) {
+            ReferencePoolService referencePoolService, com.zhiji.llm.service.PromptStore promptStore) {
         this.msgMapper = msgMapper;
         this.llmClient = llmClient;
         this.referencePoolService = referencePoolService;
+        this.promptStore = promptStore;
     }
 
     // —— 视图契约 ——
@@ -116,7 +115,7 @@ public class IntakeChatService {
             throw BizException.of(400, "PRF_INTAKE_NOT_READY", "请先在基础信息中填写工作年限与技术栈，再开始对话");
         }
         String system = renderSystem(profile);
-        String user = renderTemplate("prompts/intake_first.txt",
+        String user = renderTemplate("intake_first",
                 Map.of("userInfo", userInfo(profile)));
         store(profile, "user", "请根据我的基础信息生成第一版技能条", null);
         return callAndStore(profile, system, user);
@@ -278,7 +277,7 @@ public class IntakeChatService {
     }
 
     private String renderSystem(PrfProfile profile) {
-        return renderTemplate("prompts/intake_system.txt", Map.of(
+        return renderTemplate("intake_system", Map.of(
                 "referencePool", referencePoolService.renderBars(),
                 "sectionExemplars", referencePoolService.renderSections(profile)));
     }
@@ -334,19 +333,7 @@ public class IntakeChatService {
         return value == null ? "" : value.strip();
     }
 
-    private String renderTemplate(String path, Map<String, ?> vars) {
-        String template = readTemplate(path);
-        return PromptTemplate.render(template, vars);
-    }
-
-    private String readTemplate(String path) {
-        try (InputStream in = getClass().getClassLoader().getResourceAsStream(path)) {
-            if (in == null) {
-                throw new IllegalStateException("缺少 prompt 模板: " + path);
-            }
-            return new String(in.readAllBytes(), StandardCharsets.UTF_8);
-        } catch (IOException e) {
-            throw new IllegalStateException("读取 prompt 模板失败: " + path, e);
-        }
+    private String renderTemplate(String code, Map<String, ?> vars) {
+        return PromptTemplate.render(promptStore.get(code), vars);
     }
 }

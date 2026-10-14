@@ -4,7 +4,6 @@ import com.zhiji.common.exception.BizException;
 import com.zhiji.llm.api.LlmClient;
 import com.zhiji.llm.api.LlmPurpose;
 import com.zhiji.llm.api.LlmRequest;
-import com.zhiji.llm.config.LlmProperties;
 import com.zhiji.llm.domain.LlmRouteConfig.RouteTarget;
 import java.util.List;
 import java.util.function.Consumer;
@@ -17,7 +16,7 @@ import tools.jackson.databind.json.JsonMapper;
 /**
  * LLM 调用编排（LlmClient 的实现）：路由解析 → 限额守卫（按侧别分策略）→ 参数合并 →
  * 网络调用 → JSON 校验与重试 → 计数落库。
- * 业务模块只依赖 LlmClient，不感知 provider、模型名与重试细节；
+ * 业务模块只依赖 LlmClient，不感知渠道、模型名与重试细节；
  * 请求级覆盖（模型/温度/token/思考/超时）只影响单次调用，不写回路由配置。
  */
 @Service
@@ -26,16 +25,16 @@ public class LlmGatewayService implements LlmClient {
     private static final Logger log = LoggerFactory.getLogger(LlmGatewayService.class);
 
     private final LlmConfigService configService;
-    private final LlmProperties properties;
+    private final LlmChannelService channels;
     private final LlmRateGuard rateGuard;
     private final LlmUsageService usageService;
     private final LlmTransport transport;
     private final JsonMapper jsonMapper = new JsonMapper();
 
-    public LlmGatewayService(LlmConfigService configService, LlmProperties properties, LlmRateGuard rateGuard,
+    public LlmGatewayService(LlmConfigService configService, LlmChannelService channels, LlmRateGuard rateGuard,
             LlmUsageService usageService, LlmTransport transport) {
         this.configService = configService;
-        this.properties = properties;
+        this.channels = channels;
         this.rateGuard = rateGuard;
         this.usageService = usageService;
         this.transport = transport;
@@ -47,10 +46,10 @@ public class LlmGatewayService implements LlmClient {
         rateGuard.check(request.purpose(), request.profileKey());
         try {
             String text = transport.call(spec, request.systemPrompt(), request.userPrompt());
-            usageService.recordCall(request.purpose().getCode(), request.profileKey());
+            usageService.recordCall(request.purpose(), request.profileKey());
             return text;
         } catch (RuntimeException e) {
-            usageService.recordFail(request.purpose().getCode(), request.profileKey());
+            usageService.recordFail(request.purpose(), request.profileKey());
             throw providerError(e);
         }
     }
@@ -61,10 +60,10 @@ public class LlmGatewayService implements LlmClient {
         rateGuard.check(request.purpose(), request.profileKey());
         try {
             String text = transport.stream(spec, request.systemPrompt(), request.userPrompt(), onDelta);
-            usageService.recordCall(request.purpose().getCode(), request.profileKey());
+            usageService.recordCall(request.purpose(), request.profileKey());
             return text;
         } catch (RuntimeException e) {
-            usageService.recordFail(request.purpose().getCode(), request.profileKey());
+            usageService.recordFail(request.purpose(), request.profileKey());
             throw providerError(e);
         }
     }
@@ -79,7 +78,7 @@ public class LlmGatewayService implements LlmClient {
             String raw = null;
             try {
                 raw = transport.call(spec, request.systemPrompt(), request.userPrompt());
-                usageService.recordCall(request.purpose().getCode(), request.profileKey());
+                usageService.recordCall(request.purpose(), request.profileKey());
                 return parseJson(raw, type);
             } catch (JacksonException e) {
                 last = providerError(e);
@@ -90,7 +89,7 @@ public class LlmGatewayService implements LlmClient {
             }
         }
         // 同一逻辑请求两次尝试都失败只记一次失败：call 计两次、fail 计一次，用量视图按此口径读
-        usageService.recordFail(request.purpose().getCode(), request.profileKey());
+        usageService.recordFail(request.purpose(), request.profileKey());
         throw last != null ? last
                 : BizException.of(502, "SYS_PROVIDER_ERROR", "模型返回内容无法解析");
     }
@@ -105,10 +104,10 @@ public class LlmGatewayService implements LlmClient {
         rateGuard.check(purpose, profileKey);
         try {
             List<float[]> vectors = transport.embed(target.provider(), target.model(), texts);
-            usageService.recordCall(purpose.getCode(), profileKey);
+            usageService.recordCall(purpose, profileKey);
             return vectors;
         } catch (RuntimeException e) {
-            usageService.recordFail(purpose.getCode(), profileKey);
+            usageService.recordFail(purpose, profileKey);
             throw providerError(e);
         }
     }
@@ -118,15 +117,16 @@ public class LlmGatewayService implements LlmClient {
         if (target == null || target.provider() == null || target.provider().isBlank()) {
             throw BizException.of(500, "SYS_PROVIDER_ERROR", "入口未配置模型路由: " + purpose.getCode());
         }
-        if (!properties.getProviders().containsKey(target.provider())) {
+        if (channels.channel(target.provider()) == null) {
             throw BizException.of(500, "SYS_PROVIDER_ERROR",
-                    "路由指向未配置的 provider: " + target.provider());
+                    "路由指向未配置的渠道: " + target.provider());
         }
         return target;
     }
 
     /**
-     * 路由配置 + 请求级覆盖合并为 LlmCallSpec：请求值优先，请求未给的用路由值。
+     * 路由目标 + 请求级覆盖合并为 LlmCallSpec：请求值优先。
+     * 路由不再管理温度与输出预算——请求未覆盖时直接传 null（不设参数 = 用模型默认值）；
      * 超时：请求级显式值 > 全局 zhiji.llm.timeout-seconds（spec.of 内处理 null 回落）。
      */
     private LlmCallSpec requireSpec(LlmRequest request) {
@@ -134,8 +134,8 @@ public class LlmGatewayService implements LlmClient {
         return LlmCallSpec.of(
                 target.provider(),
                 request.model() != null && !request.model().isBlank() ? request.model() : target.model(),
-                request.temperature() != null ? request.temperature() : target.temperature(),
-                request.maxTokens() != null ? request.maxTokens() : target.maxTokens(),
+                request.temperature(),
+                request.maxTokens(),
                 request.thinking() != null ? request.thinking() : target.thinking(),
                 request.timeoutSeconds() != null && request.timeoutSeconds() > 0
                         ? request.timeoutSeconds()

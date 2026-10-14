@@ -11,8 +11,9 @@ import tools.jackson.databind.JsonNode;
 import tools.jackson.databind.json.JsonMapper;
 
 /**
- * 配置域「限额与熔断」（llm.limits）：四个每日阈值，前端渲染为数字表单。
- * judgeDaily 为软上限（超限不阻断，仅告警）；其余为硬熔断（超限抛业务异常，由业务层降级）。
+ * 配置域「限流与熔断」（llm.limits，2026-10 统一规划）：
+ * C 端每账号日/周/月总量、B 端全站日/周/月总量、全站日熔断兜底——三窗口均硬限。
+ * 前端渲染为数字表单（通用渲染器）。窗口口径：自然日 / 自然周（周一起） / 自然月（1 号起）。
  */
 @Component
 public class LlmLimitsSection implements ConfigSection<LlmLimits> {
@@ -28,12 +29,12 @@ public class LlmLimitsSection implements ConfigSection<LlmLimits> {
 
     @Override
     public String title() {
-        return "限额与熔断";
+        return "限流与熔断";
     }
 
     @Override
     public String description() {
-        return "判定为软上限，超限仅告警；其余为硬熔断";
+        return "C 端按账号、B 端按全站，均为日/周/月硬限；全站熔断为 C+B 合计的日红线";
     }
 
     @Override
@@ -44,14 +45,20 @@ public class LlmLimitsSection implements ConfigSection<LlmLimits> {
     @Override
     public List<FieldDef> fields() {
         return List.of(
-                FieldDef.of("judgeDaily", "判定类（练习 / 抽卡，次/档案/天）", FieldType.NUMBER)
-                        .min(0).help("软上限，超限仅告警").build(),
-                FieldDef.of("variantRewriteDaily", "变体现场改写（次/档案/天）", FieldType.NUMBER)
-                        .min(0).build(),
-                FieldDef.of("perProfileDailyTotal", "单档案每日合计（硬熔断）", FieldType.NUMBER)
-                        .min(0).build(),
-                FieldDef.of("siteDailyTotal", "全站每日总熔断", FieldType.NUMBER)
-                        .min(0).build());
+                FieldDef.of("customerDaily", "C 端 · 每账号每日", FieldType.NUMBER)
+                        .min(0).help("学习端每个账号当天可触发的调用总量").build(),
+                FieldDef.of("customerWeekly", "C 端 · 每账号每周", FieldType.NUMBER)
+                        .min(0).help("自然周（周一起）").build(),
+                FieldDef.of("customerMonthly", "C 端 · 每账号每月", FieldType.NUMBER)
+                        .min(0).help("自然月（1 号起）").build(),
+                FieldDef.of("staffDaily", "B 端 · 全站每日", FieldType.NUMBER)
+                        .min(0).help("管理台全部入口共享的当日总额度").build(),
+                FieldDef.of("staffWeekly", "B 端 · 全站每周", FieldType.NUMBER)
+                        .min(0).help("自然周（周一起）").build(),
+                FieldDef.of("staffMonthly", "B 端 · 全站每月", FieldType.NUMBER)
+                        .min(0).help("自然月（1 号起）").build(),
+                FieldDef.of("siteDailyTotal", "全站日熔断（C+B）", FieldType.NUMBER)
+                        .min(0).help("兜底红线：全部调用当日合计达到即熔断，防异常刷量").build());
     }
 
     @Override
@@ -66,17 +73,10 @@ public class LlmLimitsSection implements ConfigSection<LlmLimits> {
 
     @Override
     public void validate(LlmLimits value) {
-        if (value.judgeDaily() < 0) {
-            throw BizException.validation("判定限额不能为负");
-        }
-        if (value.variantRewriteDaily() < 0) {
-            throw BizException.validation("变体改写限额不能为负");
-        }
-        if (value.perProfileDailyTotal() < 0) {
-            throw BizException.validation("单档案合计限额不能为负");
-        }
-        if (value.siteDailyTotal() < 0) {
-            throw BizException.validation("全站熔断阈值不能为负");
+        if (value.customerDaily() < 0 || value.customerWeekly() < 0 || value.customerMonthly() < 0
+                || value.staffDaily() < 0 || value.staffWeekly() < 0 || value.staffMonthly() < 0
+                || value.siteDailyTotal() < 0) {
+            throw BizException.validation("限额与熔断阈值不能为负");
         }
     }
 }

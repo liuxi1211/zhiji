@@ -27,7 +27,8 @@ const MENU_ICONS: Record<string, string> = {
   production: '<path d="M4 5.5h16M4 12h16M4 18.5h16"/><rect x="6.5" y="3.8" width="3" height="3.4" rx="0.6"/><rect x="12" y="10.3" width="3" height="3.4" rx="0.6"/><rect x="9" y="16.8" width="3" height="3.4" rx="0.6"/>',
   judge: '<circle cx="12" cy="12" r="8.5"/><path d="M12 7.5v4.5l3 2"/>',
   accounts: '<circle cx="9" cy="8" r="3.2"/><path d="M3.5 20a5.5 5.5 0 0 1 11 0"/><path d="M15.5 5.5a3.2 3.2 0 0 1 0 5"/><path d="M17 14.8a5.5 5.5 0 0 1 3.5 5.2"/>',
-  settings: '<path d="M4 7h16M4 12h16M4 17h16"/><circle cx="9" cy="7" r="1.8"/><circle cx="15" cy="12" r="1.8"/><circle cx="8" cy="17" r="1.8"/>'
+  settings: '<path d="M4 7h16M4 12h16M4 17h16"/><circle cx="9" cy="7" r="1.8"/><circle cx="15" cy="12" r="1.8"/><circle cx="8" cy="17" r="1.8"/>',
+  llm: '<rect x="6.5" y="6.5" width="11" height="11" rx="1.8"/><rect x="10" y="10" width="4" height="4" rx="0.8"/><path d="M9.5 3.5v3M14.5 3.5v3M9.5 17.5v3M14.5 17.5v3M3.5 9.5h3M3.5 14.5h3M17.5 9.5h3M17.5 14.5h3"/>'
 }
 
 // B 端菜单注册表：严格对齐新版《核心模块定义》的内容维护者工作台——
@@ -54,6 +55,7 @@ const menuGroups: AdminMenuGroup[] = [
     roles: ['admin'],
     items: [
       { path: '/admin/accounts', label: '账号管理', icon: 'accounts' },
+      { path: '/admin/llm', label: 'LLM 管理', icon: 'llm' },
       { path: '/admin/settings', label: '系统配置', icon: 'settings' }
     ]
   }

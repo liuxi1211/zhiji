@@ -17,10 +17,14 @@
 # 优先级：本文件 > 环境变量（application.yml 里 ${VAR:} 占位）> application.yml 默认值。
 # ============================================================================
 
-# ---------- 1. LLM provider 密钥（核心模块定义 4.2：密钥不进库、不进设置页） ----------
+# ---------- 1. LLM 渠道密钥（仅首启种子用：解析后随 yml providers 一起种入 sys_config 的 llm.channel） ----------
+# 2026-10 起密钥随渠道入库（页面脱敏显示），日常换 key 在管理台「LLM 管理」页完成，无需动本文件；
+# 本文件只影响「尚未初始化渠道库的新环境」的首次启动种子。存量系统改这里无效。
 # 火山方舟（OpenAI 兼容端点 …/api/coding/v3，coding plan 额度）
 # 模板默认让位给环境变量 ZHIJI_LLM_ARK_KEY；直接写明文密钥也可以（本文件不入库）
 zhiji.llm.providers.ark.api-key=${ZHIJI_LLM_ARK_KEY:}
+# 公司代理渠道 jlc（Anthropic messages 协议 …/api，当前主力文本模型）
+zhiji.llm.providers.jlc.api-key=${ZHIJI_LLM_JLC_KEY:}
 # DeepSeek（…/v1）
 zhiji.llm.providers.deepseek.api-key=${ZHIJI_LLM_DEEPSEEK_KEY:}
 # 智谱 GLM（…/api/paas/v4）

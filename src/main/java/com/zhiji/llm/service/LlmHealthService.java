@@ -2,7 +2,7 @@ package com.zhiji.llm.service;
 
 import com.zhiji.llm.api.LlmConnectivityReport;
 import com.zhiji.llm.api.LlmConnectivityReport.Item;
-import com.zhiji.llm.config.LlmProperties;
+import com.zhiji.llm.domain.LlmChannelConfig.Channel;
 import com.zhiji.llm.domain.LlmRouteConfig;
 import com.zhiji.llm.domain.LlmRouteConfig.RouteTarget;
 import java.util.ArrayList;
@@ -20,12 +20,12 @@ import org.springframework.stereotype.Service;
 public class LlmHealthService {
 
     private final LlmConfigService configService;
-    private final LlmProperties properties;
+    private final LlmChannelService channels;
     private final LlmTransport transport;
 
-    public LlmHealthService(LlmConfigService configService, LlmProperties properties, LlmTransport transport) {
+    public LlmHealthService(LlmConfigService configService, LlmChannelService channels, LlmTransport transport) {
         this.configService = configService;
-        this.properties = properties;
+        this.channels = channels;
         this.transport = transport;
     }
 
@@ -46,14 +46,14 @@ public class LlmHealthService {
     }
 
     private Item probe(String purposeCode, RouteTarget target) {
-        if (!properties.getProviders().containsKey(target.provider())) {
+        Channel channel = channels.channel(target.provider());
+        if (channel == null) {
             return new Item(purposeCode, target.provider(), target.model(), target.embedding(), false,
-                    "未配置的 provider（检查 zhiji.llm.providers）");
+                    "未配置的渠道（检查 LLM 管理页「渠道与模型」）");
         }
-        LlmProperties.Provider provider = properties.getProviders().get(target.provider());
-        if (!provider.configured()) {
+        if (!channel.configured()) {
             return new Item(purposeCode, target.provider(), target.model(), target.embedding(), false,
-                    "API Key 未配置（设置环境变量或 application.yml）");
+                    "API Key 未配置（LLM 管理页渠道卡填写后保存）");
         }
         if (target.embedding() && (target.model() == null || target.model().isBlank())) {
             return new Item(purposeCode, target.provider(), target.model(), true, false,
@@ -73,8 +73,44 @@ public class LlmHealthService {
         }
     }
 
-    /** 路由中出现的 provider 名集合（设置页展示 provider 下拉用）。 */
+    /** 路由中出现的渠道名集合（LLM 管理页展示渠道下拉用）。 */
     public List<String> knownProviders() {
-        return new ArrayList<>(properties.getProviders().keySet());
+        return new ArrayList<>(channels.all().channels().keySet());
+    }
+
+    /** 单渠道探测结果：模型取该渠道已保存配置的默认模型（兜底首个模型）。 */
+    public record ChannelProbe(boolean ok, String detail, long latencyMs, String model) {
+    }
+
+    /**
+     * 渠道级连通测试（LLM 管理页渠道卡「测试连通」按钮）：对该渠道发起一次最小真实请求。
+     * 只测已保存配置（模型用 default-model，兜底 models 首个），测试的是库内现值而非页面未保存草稿。
+     */
+    public ChannelProbe probeChannel(String name) {
+        Channel channel = channels.channel(name);
+        if (channel == null) {
+            return new ChannelProbe(false, "未配置的渠道", 0, null);
+        }
+        if (!channel.configured()) {
+            return new ChannelProbe(false, "Base URL 或 API Key 未配置", 0, null);
+        }
+        String model = channel.defaultModel() != null && !channel.defaultModel().isBlank()
+                ? channel.defaultModel()
+                : channel.models().isEmpty() ? null : channel.models().get(0);
+        if (model == null) {
+            return new ChannelProbe(false, "该渠道未配置任何模型", 0, null);
+        }
+        long start = System.nanoTime();
+        try {
+            // thinking 显式关闭：探测只验连通，不消耗思考预算（对齐上方路由探测口径）
+            transport.call(LlmCallSpec.of(name, model, 0.0, 8, false, null), null, "ping");
+            return new ChannelProbe(true, "连通正常", elapsedMs(start), model);
+        } catch (RuntimeException e) {
+            return new ChannelProbe(false, "调用失败：" + e.getMessage(), elapsedMs(start), model);
+        }
+    }
+
+    private long elapsedMs(long startNanos) {
+        return (System.nanoTime() - startNanos) / 1_000_000;
     }
 }

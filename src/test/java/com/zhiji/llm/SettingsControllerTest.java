@@ -9,7 +9,6 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
 import com.zhiji.llm.api.LlmPurpose;
-import com.zhiji.llm.domain.LlmLimits;
 import com.zhiji.llm.service.LlmConfigService;
 import com.zhiji.llm.service.LlmUsageService;
 import java.nio.charset.StandardCharsets;
@@ -23,6 +22,7 @@ import org.springframework.boot.test.context.TestConfiguration;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Primary;
 import org.springframework.http.MediaType;
+import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.test.context.ActiveProfiles;
 import org.springframework.test.web.servlet.MockMvc;
 import org.springframework.test.web.servlet.MvcResult;
@@ -31,8 +31,8 @@ import org.springframework.web.context.WebApplicationContext;
 
 /**
  * 通用配置接口与 LLM 运维接口：/api/admin/configs 仅 admin 可访问（editor 403）、
- * 配置域读写落库刷新快照、连通性自检按目标去重、用量对照按单档案峰值比较、
- * 路由域非法输入被挡在落库前。
+ * 配置域读写落库刷新快照、密钥脱敏下发、连通性自检按目标去重、
+ * 用量按账号（C 端）/入口（B 端）聚合、路由域非法输入被挡在落库前。
  */
 @SpringBootTest
 @ActiveProfiles("test")
@@ -59,6 +59,9 @@ class SettingsControllerTest {
     @Autowired
     LlmUsageService usageService;
 
+    @Autowired
+    JdbcTemplate jdbcTemplate;
+
     MockMvc mvc;
 
     @BeforeEach
@@ -84,32 +87,35 @@ class SettingsControllerTest {
     @Test
     void adminCanReadAndUpdateLimits() throws Exception {
         String adminToken = login("admin", "admin123");
+        // 域按 order 排序：llm.channel(0) / llm.route(1) / llm.limits(2) / llm.prompt(3)
         mvc.perform(get("/api/admin/configs").header("Authorization", "Bearer " + adminToken))
                 .andExpect(status().isOk())
-                .andExpect(jsonPath("$[0].key").value("llm.route"))
-                .andExpect(jsonPath("$[1].value.judgeDaily").isNumber());
+                .andExpect(jsonPath("$[0].key").value("llm.channel"))
+                // 渠道密钥脱敏下发：掩码 **** 开头，真实密钥不出后端
+                .andExpect(jsonPath("$[0].value.channels.ark.apiKey").value(org.hamcrest.Matchers.startsWith("****")))
+                .andExpect(jsonPath("$[2].value.customerDaily").isNumber());
 
         mvc.perform(put("/api/admin/configs/llm.limits").header("Authorization", "Bearer " + adminToken)
                         .contentType(MediaType.APPLICATION_JSON)
-                        .content("{\"judgeDaily\":150,\"variantRewriteDaily\":10,"
-                                + "\"perProfileDailyTotal\":250,\"siteDailyTotal\":900}"))
+                        .content("{\"customerDaily\":150,\"customerWeekly\":700,\"customerMonthly\":1800,"
+                                + "\"staffDaily\":250,\"staffWeekly\":1000,\"staffMonthly\":3500,"
+                                + "\"siteDailyTotal\":900}"))
                 .andExpect(status().isOk())
-                .andExpect(jsonPath("$.value.judgeDaily").value(150));
+                .andExpect(jsonPath("$.value.customerDaily").value(150));
 
         mvc.perform(get("/api/admin/configs").header("Authorization", "Bearer " + adminToken))
                 .andExpect(status().isOk())
-                .andExpect(jsonPath("$[1].value.judgeDaily").value(150));
+                .andExpect(jsonPath("$[2].value.customerDaily").value(150));
     }
 
     @Test
     void adminCanUpdateRoutes() throws Exception {
         String adminToken = login("admin", "admin123");
-        // 模型名必须取自 provider 的 models 清单（yml 事实源），用清单内的 deepseek-v4.1-flash
+        // 模型名必须取自渠道的 models 清单（渠道卡事实源），用清单内的 deepseek-v4.1-flash
         mvc.perform(put("/api/admin/configs/llm.route").header("Authorization", "Bearer " + adminToken)
                         .contentType(MediaType.APPLICATION_JSON)
                         .content("{\"purposes\":{\"judge_practice\":{\"provider\":\"ark\","
-                                + "\"model\":\"deepseek-v4.1-flash\",\"temperature\":0.0,"
-                                + "\"maxTokens\":1024,\"embedding\":false}}}"))
+                                + "\"model\":\"deepseek-v4.1-flash\",\"embedding\":false}}}"))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.value.purposes.judge_practice.model").value("deepseek-v4.1-flash"));
         configService.saveRouteConfig(configService.defaultRouteConfig());
@@ -134,8 +140,7 @@ class SettingsControllerTest {
         mvc.perform(put("/api/admin/configs/llm.route").header("Authorization", "Bearer " + adminToken)
                         .contentType(MediaType.APPLICATION_JSON)
                         .content("{\"purposes\":{\"judge_unknown\":{\"provider\":\"ark\","
-                                + "\"model\":\"doubao-seed-2-0-lite-260428\",\"temperature\":0.0,"
-                                + "\"maxTokens\":1024,\"embedding\":false}}}"))
+                                + "\"model\":\"doubao-seed-2-0-lite-260428\",\"embedding\":false}}}"))
                 .andExpect(status().isBadRequest())
                 .andExpect(jsonPath("$.message").value(containsString("judge_unknown")));
     }
@@ -146,15 +151,13 @@ class SettingsControllerTest {
         mvc.perform(put("/api/admin/configs/llm.route").header("Authorization", "Bearer " + adminToken)
                         .contentType(MediaType.APPLICATION_JSON)
                         .content("{\"purposes\":{\"judge_practice\":{\"provider\":\"openai\","
-                                + "\"model\":\"gpt-4o\",\"temperature\":0.0,"
-                                + "\"maxTokens\":1024,\"embedding\":false}}}"))
+                                + "\"model\":\"gpt-4o\",\"embedding\":false}}}"))
                 .andExpect(status().isBadRequest())
-                .andExpect(jsonPath("$.message").value(containsString("provider")));
+                .andExpect(jsonPath("$.message").value(containsString("渠道")));
         mvc.perform(put("/api/admin/configs/llm.route").header("Authorization", "Bearer " + adminToken)
                         .contentType(MediaType.APPLICATION_JSON)
                         .content("{\"purposes\":{\"judge_practice\":{\"provider\":\"ark\","
-                                + "\"model\":\"  \",\"temperature\":0.0,"
-                                + "\"maxTokens\":1024,\"embedding\":false}}}"))
+                                + "\"model\":\"  \",\"embedding\":false}}}"))
                 .andExpect(status().isBadRequest())
                 .andExpect(jsonPath("$.message").value(containsString("模型名")));
         configService.saveRouteConfig(configService.defaultRouteConfig());
@@ -175,29 +178,44 @@ class SettingsControllerTest {
         String adminToken = login("admin", "admin123");
         mvc.perform(get("/api/admin/settings/usage").header("Authorization", "Bearer " + adminToken))
                 .andExpect(status().isOk())
-                .andExpect(jsonPath("$.purposes").isArray())
-                .andExpect(jsonPath("$.siteDailyTotal").isNumber())
-                .andExpect(jsonPath("$.perProfileDailyTotal").isNumber())
-                .andExpect(jsonPath("$.peakProfileTotal").isNumber());
+                .andExpect(jsonPath("$.customers").isArray())
+                .andExpect(jsonPath("$.staff").isArray())
+                .andExpect(jsonPath("$.customerDailyLimit").isNumber())
+                .andExpect(jsonPath("$.staffDaily").isNumber())
+                .andExpect(jsonPath("$.todayTotal").isNumber())
+                .andExpect(jsonPath("$.siteDailyTotal").isNumber());
     }
 
     @Test
-    void usageViewCountsJudgeAgainstPeakProfileNotSiteTotal() throws Exception {
+    void usageViewAggregatesCustomerByAccount() throws Exception {
         usageService.deleteByDate(usageService.today());
-        for (int i = 0; i < 3; i++) {
-            usageService.recordCall(LlmPurpose.JUDGE_PRACTICE.getCode(), 101L);
+        jdbcTemplate.update("INSERT INTO sys_customer (username, password_hash) VALUES (?, 'x')",
+                "usageview-" + System.nanoTime());
+        long customerId = jdbcTemplate.queryForObject(
+                "SELECT id FROM sys_customer WHERE username LIKE 'usageview-%' ORDER BY id DESC LIMIT 1", Long.class);
+        jdbcTemplate.update("INSERT INTO prf_profile (customer_id, name) VALUES (?, '用量测试档案')", customerId);
+        long profileId = jdbcTemplate.queryForObject(
+                "SELECT id FROM prf_profile WHERE customer_id = ? ORDER BY id DESC LIMIT 1", Long.class, customerId);
+        try {
+            // 同账号三入口合计进同一个账号的日窗口
+            for (int i = 0; i < 2; i++) {
+                usageService.recordCall(LlmPurpose.JUDGE_PRACTICE, profileId);
+            }
+            usageService.recordCall(LlmPurpose.EXAM_SUMMARY, profileId);
+            usageService.recordCall(LlmPurpose.SOURCE_REWRITE, 0L);
+            String adminToken = login("admin", "admin123");
+            mvc.perform(get("/api/admin/settings/usage").header("Authorization", "Bearer " + adminToken))
+                    .andExpect(status().isOk())
+                    .andExpect(jsonPath("$.customers[0].daily").value(3))
+                    .andExpect(jsonPath("$.customers[0].monthly").value(3))
+                    .andExpect(jsonPath("$.customers[0].username").value(
+                            org.hamcrest.Matchers.startsWith("usageview-")))
+                    .andExpect(jsonPath("$.staff[?(@.purpose == 'source_rewrite')].today").value(1));
+        } finally {
+            usageService.deleteByDate(usageService.today());
+            jdbcTemplate.update("DELETE FROM prf_profile WHERE id = ?", profileId);
+            jdbcTemplate.update("DELETE FROM sys_customer WHERE id = ?", customerId);
         }
-        usageService.recordCall(LlmPurpose.JUDGE_PRACTICE.getCode(), 102L);
-        configService.saveLimits(new LlmLimits(3, 20, 300, 1000));
-        String adminToken = login("admin", "admin123");
-        mvc.perform(get("/api/admin/settings/usage").header("Authorization", "Bearer " + adminToken))
-                .andExpect(status().isOk())
-                .andExpect(jsonPath("$.purposes[0].callCount").value(4))
-                .andExpect(jsonPath("$.purposes[0].peakProfileCount").value(3))
-                .andExpect(jsonPath("$.purposes[0].soft").value(true))
-                .andExpect(jsonPath("$.purposes[0].exceeded").value(true));
-        configService.saveLimits(LlmLimits.defaults());
-        usageService.deleteByDate(usageService.today());
     }
 
     private String createAndLoginEditor() throws Exception {

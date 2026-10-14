@@ -22,10 +22,11 @@ const learnRoutes: RouteRecordRaw[] = [
         meta: { title: '学习地图' }
       },
       {
+        // 今日复习（核心模块定义 4.3；路由 /gacha 保留，页内文案按 6.5 命名表）
         path: 'gacha',
         name: 'gacha',
         component: () => import('@/views/learn/GachaView.vue'),
-        meta: { title: '抽卡' }
+        meta: { title: '今日复习' }
       },
       {
         path: 'exam',
@@ -107,6 +108,12 @@ const adminRoutes: RouteRecordRaw[] = [
         name: 'admin-accounts',
         component: () => import('@/views/admin/AccountsView.vue'),
         meta: { title: '账号管理' }
+      },
+      {
+        path: 'llm',
+        name: 'admin-llm',
+        component: () => import('@/views/admin/LlmView.vue'),
+        meta: { title: 'LLM 管理' }
       },
       {
         path: 'settings',

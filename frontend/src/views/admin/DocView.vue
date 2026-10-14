@@ -368,7 +368,7 @@ async function remove(item: SourceItemView) {
 </script>
 
 <template>
-  <div class="sources" v-loading="loading">
+  <div class="sources">
     <!-- 页头：标题与收料动作同区，页面级动作不上卡片 -->
     <header class="zj-page-head doc-head">
       <div class="doc-head-text">
@@ -435,7 +435,8 @@ async function remove(item: SourceItemView) {
         @change="onImportFile"
       />
 
-      <el-table :data="items" height="100%">
+      <!-- loading 遮罩只盖表体：翻页/筛选时页头、筛选区与分页不闪动（数据是局部替换，视觉上也是局部刷新） -->
+      <el-table v-loading="loading" :data="items" height="100%">
         <el-table-column label="标题" min-width="240">
           <template #default="{ row }">
             <div class="title-cell">
@@ -474,7 +475,7 @@ async function remove(item: SourceItemView) {
         <el-table-column label="更新时间" min-width="140">
           <template #default="{ row }"><span class="zj-num">{{ row.updatedAt }}</span></template>
         </el-table-column>
-        <el-table-column label="操作" width="210" fixed="right">
+        <el-table-column label="操作" width="240" fixed="right">
           <template #default="{ row }">
             <template v-if="row.status === 'pending'">
               <el-button size="small" text type="primary" :icon="Edit" @click="openEditor(row.id)">编辑</el-button>
@@ -494,7 +495,9 @@ async function remove(item: SourceItemView) {
               <el-button size="small" text type="danger" :icon="Delete" @click="remove(row)">删除</el-button>
             </template>
             <template v-else>
-              <span class="dim">已转入标准库维护</span>
+              <!-- 已入库素材可再引导：聚合内容拆分场景——在编辑中删减出本次要入库的部分，再走一次向导 -->
+              <el-button size="small" text type="primary" :icon="Edit" @click="openEditor(row.id)">编辑</el-button>
+              <el-button size="small" text type="primary" :icon="Position" @click="goWizard(row)">再次引导</el-button>
             </template>
           </template>
         </el-table-column>
@@ -563,13 +566,13 @@ async function remove(item: SourceItemView) {
       </template>
     </el-dialog>
 
-    <!-- 轻量整理：编辑 + AI 改写；宽度封顶 880 —— Markdown 行太宽反而难读。
+    <!-- 轻量整理：编辑 + AI 改写；左右分栏（左正文右图片），宽度对齐新增向导 960。
       * 高度固定：顶部到视口 24px、底部到屏幕下边缘 24px（见 .editor-dialog），正文区吃满剩余高度
       * （概述 / 难度 / 分类 / 入库走新增向导 5.2；多主题长文可在此复制删减成多条素材分别入库） -->
     <el-dialog
       v-model="editorVisible"
       class="editor-dialog"
-      width="min(880px, 92vw)"
+      width="min(960px, 94vw)"
       destroy-on-close
     >
       <template #header>
@@ -589,61 +592,62 @@ async function remove(item: SourceItemView) {
           <el-form-item label="标题" required>
             <el-input v-model="form.title" maxlength="120" />
           </el-form-item>
-          <el-form-item class="editor-content-item">
-            <template #label>
-              <div class="label-row">
-                <el-radio-group v-model="editorTab" size="small">
-                  <el-radio-button value="edit">编辑</el-radio-button>
-                  <el-radio-button value="preview">预览</el-radio-button>
-                </el-radio-group>
-                <div class="label-row-right">
-                  <!-- 类型即 AI 改写的成稿模式：初始导入无法判定可留空，AI 改写后可采纳建议 -->
-                  <el-tooltip
-                    placement="top"
-                    content="类型决定 AI 改写的成稿模式：知识点按参考答案式组织，资料讲解按讲解文章式组织。初始导入无法判定可留空，AI 改写后可采纳建议。"
-                  >
-                    <el-select
-                      v-model="form.contentType"
-                      size="small"
-                      class="type-select"
-                      placeholder="类型：未定"
-                      clearable
-                      value-on-clear=""
-                    >
-                      <el-option label="知识点（面试题线）" value="kp" />
-                      <el-option label="资料讲解（文章线）" value="doc" />
-                    </el-select>
-                  </el-tooltip>
-                  <span class="word-count zj-num">{{ wordCount }} 字</span>
-                  <el-button
-                    v-if="!rewriting && preRewrite"
+          <!-- 左右分栏（对齐新增向导第 1 步）：标签行只占左列，图片护栏顶边与正文区上缘对齐 -->
+          <div class="editor-grid">
+            <div class="label-row editor-label-row">
+              <el-radio-group v-model="editorTab" size="small">
+                <el-radio-button value="edit">编辑</el-radio-button>
+                <el-radio-button value="preview">预览</el-radio-button>
+              </el-radio-group>
+              <div class="label-row-right">
+                <!-- 类型即 AI 改写的成稿模式：初始导入无法判定可留空，AI 改写后可采纳建议 -->
+                <el-tooltip
+                  placement="top"
+                  content="类型决定 AI 改写的成稿模式：知识点按参考答案式组织，资料讲解按讲解文章式组织。初始导入无法判定可留空，AI 改写后可采纳建议。"
+                >
+                  <el-select
+                    v-model="form.contentType"
                     size="small"
-                    @click="form.contentMd = preRewrite; preRewrite = ''"
-                  >撤销改写</el-button>
-                  <el-button
-                    size="small"
-                    :type="rewriting ? 'danger' : 'primary'"
-                    :class="{ 'btn-ai': !rewriting }"
-                    plain
-                    :icon="rewriting ? VideoPause : MagicStick"
-                    @click="rewriting ? stopRewrite() : runRewrite()"
+                    class="type-select"
+                    placeholder="类型：未定"
+                    clearable
+                    value-on-clear=""
                   >
-                    {{ rewriting ? '停止' : 'AI 改写' }}
-                  </el-button>
-                </div>
+                    <el-option label="知识点（面试题线）" value="kp" />
+                    <el-option label="资料讲解（文章线）" value="doc" />
+                  </el-select>
+                </el-tooltip>
+                <span class="word-count zj-num">{{ wordCount }} 字</span>
+                <el-button
+                  v-if="!rewriting && preRewrite"
+                  size="small"
+                  @click="form.contentMd = preRewrite; preRewrite = ''"
+                >撤销改写</el-button>
+                <el-button
+                  size="small"
+                  :type="rewriting ? 'danger' : 'primary'"
+                  :class="{ 'btn-ai': !rewriting }"
+                  plain
+                  :icon="rewriting ? VideoPause : MagicStick"
+                  @click="rewriting ? stopRewrite() : runRewrite()"
+                >
+                  {{ rewriting ? '停止' : 'AI 改写' }}
+                </el-button>
               </div>
-            </template>
-            <el-input
-              v-if="editorTab === 'edit'"
-              v-model="form.contentMd"
-              type="textarea"
-              :rows="8"
-              class="content-input"
-            />
-            <div v-else class="preview" v-html="renderMarkdown(form.contentMd)"></div>
-          </el-form-item>
-          <!-- 附件面板：正文图片一览与处理（本地化 / 上传替换 / 删除），与正文双向联动 -->
-          <ImageAttachments v-model="form.contentMd" />
+            </div>
+            <el-form-item class="editor-content-item">
+              <el-input
+                v-if="editorTab === 'edit'"
+                v-model="form.contentMd"
+                type="textarea"
+                :rows="8"
+                class="content-input"
+              />
+              <div v-else class="preview" v-html="renderMarkdown(form.contentMd)"></div>
+            </el-form-item>
+            <!-- 右侧图片护栏：正文图片一览与处理（本地化 / 上传替换 / 删除），与正文双向联动 -->
+            <ImageAttachments v-model="form.contentMd" compact class="editor-rail" />
+          </div>
         </el-form>
         <p class="hint">概述、难度与分类在「进标准库」时由新增向导引导补齐；此处只做轻量整理。</p>
       </div>
@@ -866,10 +870,10 @@ async function remove(item: SourceItemView) {
   flex-direction: column;
 }
 
-/* 正文项吃掉表单剩余高度；底部附件面板与提示行保底不挤压 */
+/* 正文项吃掉标签行以下的全部剩余高度；底部提示行保底不挤压 */
 .editor-content-item {
-  flex: 1 1 0;
   min-height: 0;
+  min-width: 0;
   display: flex;
   flex-direction: column;
   margin-bottom: 0;
@@ -878,12 +882,50 @@ async function remove(item: SourceItemView) {
 .editor-content-item :deep(.el-form-item__content) {
   flex: 1 1 0;
   min-height: 0;
+  /* Element 默认 flex-wrap: wrap 在 column 方向会按 min-content 折列，长 URL 时把预览撑出弹窗 */
   display: flex;
   flex-direction: column;
+  flex-wrap: nowrap;
+  align-items: stretch;
 }
 
-.editor-form :deep(.attach-panel) {
-  flex: none;
+/* 左右分栏（对齐新增向导第 1 步）：标签行只占左列第一行，图片护栏从第二行起、
+ * 顶边与正文区上缘对齐（不与标签行同排） */
+.editor-grid {
+  flex: 1 1 0;
+  min-height: 0;
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 260px;
+  grid-template-rows: auto minmax(0, 1fr);
+  grid-template-areas:
+    'label .'
+    'content rail';
+  gap: 10px 14px;
+}
+
+.editor-label-row {
+  grid-area: label;
+}
+
+.editor-content-item {
+  grid-area: content;
+}
+
+/* 右侧图片护栏：附件面板吃满高度，图少时按钮紧跟图下，图多时网格借满高度再内部滚动 */
+.editor-rail {
+  grid-area: rail;
+  min-height: 0;
+  min-width: 0;
+}
+
+.editor-grid :deep(.attach-panel--open) {
+  flex: 1 1 auto;
+  min-height: 0;
+}
+
+.editor-grid :deep(.attach-grid) {
+  flex: 0 1 auto;
+  max-height: none;
 }
 
 /* 类型下拉：嵌在编辑区标签行内，与 AI 改写同排；宽度收窄避免挤压右侧动作 */
@@ -939,6 +981,10 @@ async function remove(item: SourceItemView) {
 .preview {
   flex: 1 1 0;
   min-height: 0;
+  /* 关键：预览是 flex 子项且无固有宽度，长 URL/宽表格/代码块会把 min-content 撑出弹窗；
+   * 收缩宽度归零 + max-width 兜底，让溢出走内部滚动而不是顶破外框 */
+  min-width: 0;
+  max-width: 100%;
 }
 
 .content-input :deep(.el-textarea) {
@@ -954,7 +1000,7 @@ async function remove(item: SourceItemView) {
 
 .preview {
   /* 与编辑区同高：内容超高走内部滚动，不撑高弹窗 */
-  overflow-y: auto;
+  overflow: auto;
   padding: 12px 16px;
   border: 1px solid var(--zj-line-soft);
   border-radius: 8px;
@@ -965,6 +1011,21 @@ async function remove(item: SourceItemView) {
 
 .preview :deep(img) {
   max-width: 100%;
+}
+
+/* 长外链/连续串不断行撑宽：按容器宽度截断换行，宽内容交给 overflow 滚动 */
+.preview :deep(p),
+.preview :deep(li),
+.preview :deep(td),
+.preview :deep(th) {
+  overflow-wrap: anywhere;
+  word-break: break-word;
+}
+
+.preview :deep(table) {
+  display: block;
+  max-width: 100%;
+  overflow-x: auto;
 }
 
 .preview :deep(pre) {
@@ -988,6 +1049,38 @@ async function remove(item: SourceItemView) {
 
   .row-summary {
     max-width: 240px;
+  }
+
+  /* 窄屏弹窗：分栏收不进去，改纵向堆叠——标签行、正文、图片护栏顺排 */
+  .editor-grid {
+    display: flex;
+    flex-direction: column;
+    overflow-y: auto;
+  }
+
+  .editor-label-row,
+  .editor-content-item,
+  .editor-rail {
+    grid-area: auto;
+  }
+
+  .editor-content-item {
+    flex: none;
+  }
+
+  .editor-grid .content-input,
+  .editor-grid .preview {
+    height: 46vh;
+    flex: none;
+  }
+
+  .editor-rail {
+    flex: none;
+  }
+
+  /* 类型下拉在窄屏标签行会与按钮挤压，允许换行 */
+  .editor-label-row {
+    flex-wrap: wrap;
   }
 }
 

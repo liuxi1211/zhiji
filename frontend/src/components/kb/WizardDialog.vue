@@ -693,7 +693,7 @@ const topicName = (topicId: number | null) =>
 
     <!-- 提交完成 -->
     <section v-else class="done-step">
-      <el-result icon="success" title="已提交进标准库审核队列" sub-title="审核通过才转为可用并对用户可见；可在内容生产台查看进度">
+      <el-result icon="success" title="已提交进标准库审核队列" sub-title="审核通过才转为可用并对用户可见；素材保留在素材库，可再删减正文后再次引导">
         <template #extra>
           <el-button type="primary" @click="goProduction">去审核队列</el-button>
           <el-button @click="close">完成</el-button>

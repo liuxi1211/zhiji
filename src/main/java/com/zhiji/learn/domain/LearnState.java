@@ -35,6 +35,20 @@ public class LearnState {
     /** 达成 quick/pass/weak 的时间（间隔重复起点）；learning/abandoned 为 null */
     private String progressedAt;
 
+    // —— T12 今日复习（4.3）复习参数：复测结果只更新本组参数，不回写 status（五态是学习推进的账） ——
+
+    /** 下次复测到期时间；NULL=未排期（progressed 且 NULL 视为到期，首次复测建立排期） */
+    private String dueAt;
+
+    /** 当前复测间隔（天） */
+    private Integer reviewIntervalDays;
+
+    /** 虚报/失败累积证据（T13 复盘降级建议消费） */
+    private Integer failCount;
+
+    /** 最近一次复习自评时间 */
+    private String lastReviewedAt;
+
     private String createdAt;
 
     private String updatedAt;
@@ -93,6 +107,38 @@ public class LearnState {
 
     public void setProgressedAt(String progressedAt) {
         this.progressedAt = progressedAt;
+    }
+
+    public String getDueAt() {
+        return dueAt;
+    }
+
+    public void setDueAt(String dueAt) {
+        this.dueAt = dueAt;
+    }
+
+    public Integer getReviewIntervalDays() {
+        return reviewIntervalDays;
+    }
+
+    public void setReviewIntervalDays(Integer reviewIntervalDays) {
+        this.reviewIntervalDays = reviewIntervalDays;
+    }
+
+    public Integer getFailCount() {
+        return failCount;
+    }
+
+    public void setFailCount(Integer failCount) {
+        this.failCount = failCount;
+    }
+
+    public String getLastReviewedAt() {
+        return lastReviewedAt;
+    }
+
+    public void setLastReviewedAt(String lastReviewedAt) {
+        this.lastReviewedAt = lastReviewedAt;
     }
 
     public String getCreatedAt() {

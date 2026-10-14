@@ -6,11 +6,11 @@ package com.zhiji.llm.api;
  * 归属与计量：side 由 purpose 决定（C 端按档案限流 / B 端不限流）；profileId 是 C 端档案计量键，
  * 由 llm 内部折算 0 哨兵；B 端人工触发传 null。
  *
- * 可覆盖项（全部可选，null = 回落路由配置 llm.route）：
- *   model            单次调用换模型（如判定入口换更强模型做疑难判定）；
- *   temperature      采样温度；
- *   maxTokens        输出上限；
- *   thinking         思考模式开关：true/false 显式指定，null 跟随路由配置；
+ * 可覆盖项（全部可选，null = 不设参数，用模型默认值）：
+ *   model            单次调用换模型（null = 路由配置的模型名）；
+ *   temperature      采样温度（null = 模型默认）；
+ *   maxTokens        输出上限（null = 模型默认；Anthropic 协议由传输层给协议兜底值）；
+ *   thinking         思考模式开关：true/false 显式指定，null = 跟随路由配置；
  *   timeoutSeconds   请求级超时（长任务放宽），null 回落全局 zhiji.llm.timeout-seconds。
  */
 public class LlmRequest {

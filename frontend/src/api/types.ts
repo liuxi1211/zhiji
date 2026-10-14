@@ -163,21 +163,23 @@ export interface LlmConnectivityReport {
   items: LlmConnectivityItem[]
 }
 
-export interface LlmUsageRow {
+/** C 端账号用量行：日/周/月三窗口计数 + 对应限额的超限标记 */
+export interface LlmCustomerUsageRow {
+  accountId: number
+  username: string
+  daily: number
+  weekly: number
+  monthly: number
+  dailyExceeded: boolean
+  weeklyExceeded: boolean
+  monthlyExceeded: boolean
+}
+
+/** B 端入口用量行：该入口当日计数（入口细分仅用于观测，限流在总体口径） */
+export interface LlmStaffUsageRow {
   purpose: string
   purposeName: string
-  /** 调用侧别：C=用户触发（受档案限额）/ B=员工人工触发（仅计量不限流） */
-  side: 'C' | 'B'
-  /** 该入口全站当日计数（所有档案合计） */
-  callCount: number
-  /** 该入口单档案当日最高计数——单档案限额按此口径比较 */
-  peakProfileCount: number
-  limitKey: 'JUDGE' | 'VARIANT' | 'NONE'
-  /** 单档案限额；无独立限额的入口为 null */
-  limit: number | null
-  /** 软上限（判定类）：超限提示但不阻断 */
-  soft: boolean
-  exceeded: boolean
+  today: number
 }
 
 export interface LlmDailyPoint {
@@ -187,14 +189,20 @@ export interface LlmDailyPoint {
 
 export interface LlmUsageView {
   date: string
-  purposes: LlmUsageRow[]
+  /** C 端按账号聚合（本月窗口） */
+  customers: LlmCustomerUsageRow[]
+  customerDailyLimit: number
+  customerWeeklyLimit: number
+  customerMonthlyLimit: number
+  /** B 端按入口的当日明细 */
+  staff: LlmStaffUsageRow[]
+  staffTodayTotal: number
+  staffDaily: number
+  staffWeekly: number
+  staffMonthly: number
   todayTotal: number
   siteDailyTotal: number
   circuitOpen: boolean
-  /** 单档案当日合计的最高值（对应全局兜底熔断阈值） */
-  peakProfileTotal: number
-  perProfileDailyTotal: number
-  perProfileExceeded: boolean
   recent7d: LlmDailyPoint[]
 }
 
@@ -910,4 +918,57 @@ export interface DocBrief {
   title: string
   summary: string | null
   difficulty: string
+}
+
+// —— 今日复习（核心模块定义 4.3，T12） ——
+
+export type ReviewMode = 'today' | 'draw'
+
+/** 复习卡片信号 tag：到期复测 / 弱点 / 抽查验伪 / 技能条新题 */
+export type ReviewTag = 'due' | 'weak' | 'spot' | 'new' | 'draw'
+
+/** 今日复习 / 随机抽取的题目卡片（题面自测 + 自评后展开三档样例；轻载荷） */
+export interface ReviewItemView {
+  kpId: number
+  title: string
+  difficulty: string
+  state: LearnStatus
+  tags: ReviewTag[]
+  followupLayers: number
+  docCount: number
+  variants: KbVariant[]
+  answerSamples: KbAnswerSample[]
+  dueAt: string | null
+}
+
+/** 今日清单池量统计（空态文案与引导用） */
+export interface ReviewStats {
+  due: number
+  weak: number
+  quick: number
+  newCount: number
+}
+
+/** 今日清单视图 */
+export interface ReviewTodayView {
+  date: string
+  profileName: string
+  targetLevel: string | null
+  items: ReviewItemView[]
+  stats: ReviewStats
+}
+
+/** 自评结果：排期与证据（progressed 行有 dueAt/interval；未学行仅落流水） */
+export interface ReviewResultView {
+  kpId: number
+  state: LearnStatus
+  dueAt: string | null
+  intervalDays: number
+  failCount: number
+}
+
+/** 随机抽取返回（单题 + 池量） */
+export interface DrawResp {
+  item: ReviewItemView
+  poolSize: number
 }

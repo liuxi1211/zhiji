@@ -1,6 +1,7 @@
 package com.zhiji.llm.service;
 
 import com.zhiji.llm.config.LlmProperties;
+import com.zhiji.llm.domain.LlmChannelConfig.Channel;
 import java.time.Duration;
 import java.util.ArrayList;
 import java.util.List;
@@ -19,13 +20,14 @@ import org.springframework.ai.openai.OpenAiChatModel;
 import org.springframework.ai.openai.OpenAiChatOptions;
 import org.springframework.ai.openai.OpenAiEmbeddingModel;
 import org.springframework.ai.openai.OpenAiEmbeddingOptions;
-import org.springframework.stereotype.Component;
 import reactor.core.publisher.Flux;
 
 /**
- * Spring AI 实现：用 OpenAI 兼容适配器对接各 provider（火山方舟 / DeepSeek / GLM 均兼容 OpenAI 协议）。
- * Chat 模型按 provider 缓存（baseUrl/apiKey 决定连接），模型名与采样参数按调用参数传入；
- * Embedding 模型按 provider+model 缓存（模型名在建实例时固定）。
+ * Spring AI 实现：用 OpenAI 兼容适配器对接各渠道（火山方舟 / DeepSeek / GLM 均兼容 OpenAI 协议）。
+ * Chat 模型按「渠道名 + 连接指纹」缓存（baseUrl/apiKey 变更即换新实例 = 渠道热更新，旧实例自然淘汰），
+ * 模型名与采样参数按调用参数传入；Embedding 模型同指纹 + 模型名缓存（模型名在建实例时固定）。
+ *
+ * 非 Spring bean：由 LlmTransportRouter 按渠道协议分发（anthropic 协议走 AnthropicTransport）。
  *
  * 只负责「把一次请求发出去」，不含路由、限额、计数、JSON 解析——那些在 LlmGatewayService。
  *
@@ -34,20 +36,21 @@ import reactor.core.publisher.Flux;
  * 与核心模块定义 4.1 的「15s 超时一次重试后降级」相悖（重试统一由 LlmGatewayService 掌握，SDK 内层重试置 0）。
  * spec.timeout 为 null 时回落全局配置；思考模式经 extraBody 透传（OpenAI 兼容扩展字段）。
  */
-@Component
 public class SpringAiTransport implements LlmTransport {
 
+    private final LlmChannelService channels;
     private final LlmProperties properties;
     private final Map<String, ChatModel> chatModels = new ConcurrentHashMap<>();
     private final Map<String, EmbeddingModel> embeddingModels = new ConcurrentHashMap<>();
 
-    public SpringAiTransport(LlmProperties properties) {
+    public SpringAiTransport(LlmChannelService channels, LlmProperties properties) {
+        this.channels = channels;
         this.properties = properties;
     }
 
     @Override
     public String call(LlmCallSpec spec, String systemPrompt, String userPrompt) {
-        ChatModel chatModel = chatModels.computeIfAbsent(spec.provider(), this::buildChatModel);
+        ChatModel chatModel = chatModelOf(spec.provider());
         ChatResponse response = chatModel.call(new Prompt(messages(systemPrompt, userPrompt), optionsOf(spec)));
         if (response == null || response.getResult() == null || response.getResult().getOutput() == null) {
             return "";
@@ -57,7 +60,7 @@ public class SpringAiTransport implements LlmTransport {
 
     @Override
     public String stream(LlmCallSpec spec, String systemPrompt, String userPrompt, Consumer<String> onDelta) {
-        ChatModel chatModel = chatModels.computeIfAbsent(spec.provider(), this::buildChatModel);
+        ChatModel chatModel = chatModelOf(spec.provider());
         Flux<ChatResponse> flux = chatModel.stream(new Prompt(messages(systemPrompt, userPrompt), optionsOf(spec)));
         StringBuilder full = new StringBuilder();
         // block 住消费流（SSE 端点跑在虚拟线程上，阻塞无碍），逐 delta 回调给上层推给前端
@@ -70,6 +73,13 @@ public class SpringAiTransport implements LlmTransport {
             }
         }).blockLast();
         return full.toString();
+    }
+
+    /** 渠道热更新：连接指纹（渠道名::baseUrl::apiKey）参与缓存 key，指纹变更即建新实例、淘汰同渠道旧实例。 */
+    private ChatModel chatModelOf(String provider) {
+        String key = fingerprint(provider);
+        evictStale(provider, key, chatModels);
+        return chatModels.computeIfAbsent(key, ignored -> buildChatModel(provider));
     }
 
     private List<Message> messages(String systemPrompt, String userPrompt) {
@@ -101,17 +111,19 @@ public class SpringAiTransport implements LlmTransport {
 
     @Override
     public List<float[]> embed(String provider, String model, List<String> texts) {
-        EmbeddingModel embeddingModel = embeddingModels.computeIfAbsent(provider + "::" + model,
-                key -> buildEmbeddingModel(provider, model));
+        String key = fingerprint(provider) + "::" + model;
+        evictStale(provider, key, embeddingModels);
+        EmbeddingModel embeddingModel = embeddingModels.computeIfAbsent(key,
+                ignored -> buildEmbeddingModel(provider, model));
         return embeddingModel.embed(texts);
     }
 
     /** provider 级连接参数：baseUrl/apiKey 决定 HTTP 客户端指向，超时与重试次数在此定死。 */
     OpenAiChatOptions providerOptions(String provider) {
-        LlmProperties.Provider target = requireProvider(provider);
+        Channel target = channels.require(provider);
         return OpenAiChatOptions.builder()
-                .baseUrl(target.getBaseUrl())
-                .apiKey(target.getApiKey())
+                .baseUrl(target.baseUrl())
+                .apiKey(target.apiKey())
                 .timeout(globalTimeout())
                 .maxRetries(0)
                 .build();
@@ -124,11 +136,11 @@ public class SpringAiTransport implements LlmTransport {
     }
 
     private EmbeddingModel buildEmbeddingModel(String provider, String model) {
-        LlmProperties.Provider target = requireProvider(provider);
+        Channel target = channels.require(provider);
         return OpenAiEmbeddingModel.builder()
                 .options(OpenAiEmbeddingOptions.builder()
-                        .baseUrl(target.getBaseUrl())
-                        .apiKey(target.getApiKey())
+                        .baseUrl(target.baseUrl())
+                        .apiKey(target.apiKey())
                         .model(model)
                         .timeout(globalTimeout())
                         .maxRetries(0)
@@ -136,15 +148,18 @@ public class SpringAiTransport implements LlmTransport {
                 .build();
     }
 
-    private Duration globalTimeout() {
-        return Duration.ofSeconds(properties.getTimeoutSeconds());
+    private String fingerprint(String provider) {
+        Channel channel = channels.require(provider);
+        return provider + "::" + channel.baseUrl() + "::" + channel.apiKey();
     }
 
-    private LlmProperties.Provider requireProvider(String provider) {
-        LlmProperties.Provider target = properties.getProviders().get(provider);
-        if (target == null) {
-            throw new IllegalArgumentException("未配置的 LLM provider: " + provider);
-        }
-        return target;
+    /** 淘汰同渠道（同前缀）其他指纹的旧缓存实例，防反复改配置导致缓存无限增长。 */
+    private void evictStale(String provider, String currentKey, Map<String, ?> cache) {
+        String prefix = provider + "::";
+        cache.keySet().removeIf(key -> key.startsWith(prefix) && !key.equals(currentKey));
+    }
+
+    private Duration globalTimeout() {
+        return Duration.ofSeconds(properties.getTimeoutSeconds());
     }
 }

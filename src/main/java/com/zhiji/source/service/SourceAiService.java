@@ -5,9 +5,7 @@ import com.zhiji.llm.api.LlmClient;
 import com.zhiji.llm.api.LlmPurpose;
 import com.zhiji.llm.api.LlmRequest;
 import com.zhiji.llm.api.PromptTemplate;
-import java.io.IOException;
-import java.io.InputStream;
-import java.nio.charset.StandardCharsets;
+import com.zhiji.llm.service.PromptStore;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
@@ -40,10 +38,12 @@ public class SourceAiService {
     private static final int REWRITE_MAX_TOKENS = 16_000;
 
     private final LlmClient llmClient;
+    private final PromptStore promptStore;
     private final JsonMapper jsonMapper = new JsonMapper();
 
-    public SourceAiService(LlmClient llmClient) {
+    public SourceAiService(LlmClient llmClient, PromptStore promptStore) {
         this.llmClient = llmClient;
+        this.promptStore = promptStore;
     }
 
     /** 标题生成产物（题面/文章题名，生成后可再改）。 */
@@ -83,7 +83,7 @@ public class SourceAiService {
             java.util.function.Consumer<String> onDelta) {
         String text = requireContent(content);
         return llmClient.streamComplete(LlmRequest.admin(LlmPurpose.SOURCE_REWRITE,
-                prompt("prompts/source_rewrite.txt",
+                prompt("source_rewrite",
                         Map.of("content", text, "mode", normalizeMode(mode), "instruction", normalizeInstruction(instruction))))
                 .timeoutSeconds(REWRITE_TIMEOUT_SECONDS)
                 .maxTokens(REWRITE_MAX_TOKENS)
@@ -99,7 +99,7 @@ public class SourceAiService {
     public TitleResp title(String content, String mode) {
         String text = requireContent(content);
         String raw = llmClient.complete(LlmRequest.admin(LlmPurpose.SOURCE_TITLE,
-                prompt("prompts/source_title.txt", Map.of("content", text, "mode", normalizeMode(mode))))
+                prompt("source_title", Map.of("content", text, "mode", normalizeMode(mode))))
                 .timeoutSeconds(JSON_TASK_TIMEOUT_SECONDS)
                 .build());
         String title = raw.strip().replaceFirst("^[\"'#]+", "").replaceFirst("[\"']+$", "");
@@ -116,7 +116,7 @@ public class SourceAiService {
     public FollowupsResp followups(String content) {
         String text = requireContent(content);
         FollowupsResp resp = llmClient.completeJson(LlmRequest.admin(LlmPurpose.SOURCE_FOLLOWUP,
-                prompt("prompts/source_followup.txt", Map.of("content", text)))
+                prompt("source_followup", Map.of("content", text)))
                 .timeoutSeconds(JSON_TASK_TIMEOUT_SECONDS)
                 .build(), FollowupsResp.class);
         List<FollowupDraft> drafts = resp.followups() == null ? List.of()
@@ -134,7 +134,7 @@ public class SourceAiService {
     public String summarize(String content) {
         String text = requireContent(content);
         String raw = llmClient.complete(LlmRequest.admin(LlmPurpose.SOURCE_SUMMARY,
-                prompt("prompts/source_summary.txt", Map.of("content", text)))
+                prompt("source_summary", Map.of("content", text)))
                 .timeoutSeconds(JSON_TASK_TIMEOUT_SECONDS)
                 .build());
         String summary = raw.strip();
@@ -148,7 +148,7 @@ public class SourceAiService {
         String text = requireContent(content);
         String joined = String.join("、", topics);
         ClassifyResp resp = llmClient.completeJson(LlmRequest.admin(LlmPurpose.SOURCE_CLASSIFY,
-                prompt("prompts/source_classify.txt",
+                prompt("source_classify",
                         Map.of("domain", domain, "topics", joined, "content", text.substring(0, Math.min(3000, text.length())))))
                 .timeoutSeconds(JSON_TASK_TIMEOUT_SECONDS)
                 .build(), ClassifyResp.class);
@@ -164,7 +164,7 @@ public class SourceAiService {
     public List<InferResp> infer(String content) {
         String text = requireContent(content);
         InferResp[] items = llmClient.completeJson(LlmRequest.admin(LlmPurpose.SOURCE_INFER,
-                prompt("prompts/source_infer.txt", Map.of("content", text)))
+                prompt("source_infer", Map.of("content", text)))
                 .timeoutSeconds(JSON_TASK_TIMEOUT_SECONDS)
                 .build(), InferResp[].class);
         List<InferResp> result = new ArrayList<>();
@@ -186,7 +186,7 @@ public class SourceAiService {
     public DifficultyResp difficulty(String content) {
         String text = requireContent(content);
         DifficultyResp resp = llmClient.completeJson(LlmRequest.admin(LlmPurpose.SOURCE_DIFFICULTY,
-                prompt("prompts/source_difficulty.txt", Map.of("content", text.substring(0, Math.min(6000, text.length())))))
+                prompt("source_difficulty", Map.of("content", text.substring(0, Math.min(6000, text.length())))))
                 .timeoutSeconds(JSON_TASK_TIMEOUT_SECONDS)
                 .build(), DifficultyResp.class);
         String difficulty = resp.difficulty() == null ? "" : resp.difficulty().strip();
@@ -221,19 +221,7 @@ public class SourceAiService {
         return text.length() > MAX_CONTENT_CHARS ? text.substring(0, MAX_CONTENT_CHARS) + "\n\n（超长截断）" : text;
     }
 
-    private String prompt(String path, Map<String, ?> vars) {
-        String template = readTemplate(path);
-        return PromptTemplate.render(template, vars);
-    }
-
-    private String readTemplate(String path) {
-        try (InputStream in = getClass().getClassLoader().getResourceAsStream(path)) {
-            if (in == null) {
-                throw new IllegalStateException("缺少 prompt 模板: " + path);
-            }
-            return new String(in.readAllBytes(), StandardCharsets.UTF_8);
-        } catch (IOException e) {
-            throw new IllegalStateException("读取 prompt 模板失败: " + path, e);
-        }
+    private String prompt(String code, Map<String, ?> vars) {
+        return PromptTemplate.render(promptStore.get(code), vars);
     }
 }

@@ -45,8 +45,10 @@ CREATE TABLE IF NOT EXISTS sys_config (
     updated_at   TEXT    NOT NULL DEFAULT (datetime('now'))
 );
 
--- LLM 调用计数（入口 × 天）。profile_id 用 0 哨兵而非 NULL：
--- SQLite UNIQUE 索引里 NULL 互不相等，用 NULL 会让「同日同入口的无档案计数」产生多行、upsert 失效。
+-- LLM 调用计数（入口 × 天）。profile_id 列为「计数主体键」：C 端 = 账号 id（sys_customer，
+-- 业务层传入的档案 id 在 LlmUsageService 统一映射），B 端/无账号上下文 = 0 哨兵。
+-- 主体用 0 哨兵而非 NULL：SQLite UNIQUE 索引里 NULL 互不相等，用 NULL 会让「同日同入口的无主体计数」
+-- 产生多行、upsert 失效。
 -- purpose 刻意不加 CHECK：入口随业务模块持续增加（T6-T12），而 CREATE TABLE IF NOT EXISTS 改不了既有约束，
 -- 加了 CHECK 会让旧库写入新入口直接失败；取值对齐由 LlmPurpose 枚举与前端 types.ts 保证（附录 A 8.2）。
 CREATE TABLE IF NOT EXISTS llm_usage_daily (
@@ -318,9 +320,28 @@ CREATE TABLE IF NOT EXISTS learn_state (
     session_id     INTEGER REFERENCES judge_session (id),  -- 最近一次练习判定会话
     abandon_reason TEXT,                                   -- 放弃原因（可选填，放弃清单展示）
     progressed_at  TEXT,                                   -- 达成 quick/pass/weak 的时间
+    -- T12 今日复习（4.3）复习参数（6.5：学习状态 = 掌握状态与复习参数，共用数据源）：
+    due_at                TEXT,                             -- 下次复测到期；NULL=未排期（progressed 且 NULL 视为到期）
+    review_interval_days  INTEGER NOT NULL DEFAULT 0,       -- 当前复测间隔（天）
+    fail_count            INTEGER NOT NULL DEFAULT 0,       -- 虚报/失败累积证据（T13 复盘降级建议消费）
+    last_reviewed_at      TEXT,                             -- 最近一次复习自评时间
     created_at     TEXT NOT NULL DEFAULT (datetime('now')),
     updated_at     TEXT NOT NULL DEFAULT (datetime('now')),
     UNIQUE (profile_id, kp_id)
 );
 
 CREATE INDEX IF NOT EXISTS idx_learn_state_profile ON learn_state (profile_id, status);
+
+-- T12 今日复习模块（核心模块定义 4.3）：复习结果流水。间隔重复连对 streak 与连错检测从本表推导；
+-- 虚报/失败证据同时累计在 learn_state.fail_count（快照列）供复盘降级建议（T13）直读。
+-- 复测结果只更新复习参数，不回写 learn_state 五态（4.3"今日复习不回写学习路径"）。
+CREATE TABLE IF NOT EXISTS review_log (
+    id          INTEGER PRIMARY KEY AUTOINCREMENT,
+    profile_id  INTEGER NOT NULL REFERENCES prf_profile (id),
+    kp_id       INTEGER NOT NULL REFERENCES kb_kp (id),
+    known       INTEGER NOT NULL,                 -- 1=自评会 0=自评不会
+    mode        TEXT NOT NULL DEFAULT 'today' CHECK (mode IN ('today','draw')),
+    created_at  TEXT NOT NULL DEFAULT (datetime('now'))
+);
+
+CREATE INDEX IF NOT EXISTS idx_review_log_profile ON review_log (profile_id, kp_id, created_at);

@@ -3,16 +3,19 @@ package com.zhiji.llm.service;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
+import com.zhiji.common.config.ConfigRegistry;
 import com.zhiji.llm.config.LlmProperties;
+import com.zhiji.llm.domain.LlmChannelConfig;
 import java.time.Duration;
-import java.util.LinkedHashMap;
+import java.util.List;
 import java.util.Map;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
+import org.mockito.Mockito;
 import org.springframework.ai.openai.OpenAiChatOptions;
 
 /**
- * provider 参数装配（不触网）：超时与重试次数必须显式落到 options。
+ * 渠道参数装配（不触网）：超时与重试次数必须显式落到 options。
  * Spring AI 默认 60s + 3 次重试，漏设就会推翻核心模块定义 4.1 的降级口径。
  */
 class SpringAiTransportTest {
@@ -23,13 +26,12 @@ class SpringAiTransportTest {
     void setUp() {
         LlmProperties properties = new LlmProperties();
         properties.setTimeoutSeconds(15);
-        LlmProperties.Provider ark = new LlmProperties.Provider();
-        ark.setBaseUrl("https://ark.cn-beijing.volces.com/api/coding/v3");
-        ark.setApiKey("test-key");
-        Map<String, LlmProperties.Provider> providers = new LinkedHashMap<>();
-        providers.put("ark", ark);
-        properties.setProviders(providers);
-        transport = new SpringAiTransport(properties);
+        ConfigRegistry registry = Mockito.mock(ConfigRegistry.class);
+        LlmChannelConfig.Channel ark = new LlmChannelConfig.Channel("openai",
+                "https://ark.cn-beijing.volces.com/api/coding/v3", "test-key", List.of(), "deepseek-v4.1-flash");
+        Mockito.when(registry.get("llm.channel"))
+                .thenReturn(new LlmChannelConfig(Map.of("ark", ark)));
+        transport = new SpringAiTransport(new LlmChannelService(registry, properties), properties);
     }
 
     @Test

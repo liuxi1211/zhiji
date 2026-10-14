@@ -39,10 +39,13 @@ public class ConfigRegistry implements ApplicationRunner, Ordered {
 
     public ConfigRegistry(SysConfigMapper configMapper, List<ConfigSection<?>> declared) {
         this.configMapper = configMapper;
-        this.sections = declared.stream().collect(Collectors.toMap(ConfigSection::key, Function.identity(),
-                (first, second) -> {
-                    throw new IllegalStateException("配置域 key 重复：" + first.key());
-                }, LinkedHashMap::new));
+        // 按 order 排序：viewOf 展示顺序之外，更保证启动种子写入顺序确定（低 order 域先落库，
+        // 供高 order 域的 defaults()/afterLoad 读取，如 llm.channel 先于 llm.route）。
+        this.sections = declared.stream().sorted(Comparator.comparingInt(ConfigSection::order))
+                .collect(Collectors.toMap(ConfigSection::key, Function.identity(),
+                        (first, second) -> {
+                            throw new IllegalStateException("配置域 key 重复：" + first.key());
+                        }, LinkedHashMap::new));
     }
 
     @Override
@@ -104,6 +107,8 @@ public class ConfigRegistry implements ApplicationRunner, Ordered {
             throw BizException.of(400, "SYS_PARAM_INVALID",
                     "配置 " + key + " 结构不合法：" + e.getMessage());
         }
+        // 展示脱敏值还原（如 apiKey 留掩码 = 未修改），合并后才进校验与落库
+        value = section.merge(value, snapshot.get(key));
         section.validate(value);
         writeJson(key, value, section.description());
         snapshot.put(key, value);
@@ -132,8 +137,9 @@ public class ConfigRegistry implements ApplicationRunner, Ordered {
     }
 
     private SectionView viewOf(ConfigSection<?> section) {
+        // masked：敏感字段（如渠道 apiKey）只脱敏下发，快照与落库不受影响
         return new SectionView(section.key(), section.title(), section.description(), section.order(),
-                section.fields(), snapshot.get(section.key()), section.sources());
+                section.fields(), section.masked(snapshot.get(section.key())), section.sources());
     }
 
     private Object readJson(ConfigSection<?> section) {

@@ -412,7 +412,9 @@ public class SourceService {
 
     public SourceItemView update(long id, String title, String contentMd, String summary, String contentType,
             String difficulty, String domainCode, String topicName, String sourceUrl) {
-        SourceItem item = requireEditable(id);
+        // 已入库素材同样允许编辑：进门断联（红线 7）指标准库内容与素材互不影响——改素材不动已成的稿；
+        // 素材本体可继续整理并再次引导入库（聚合内容拆分场景：多次引导、各取一部分成多条标准库文档）
+        SourceItem item = requireItem(id);
         if (title != null) {
             if (title.isBlank()) {
                 throw BizException.validation("标题不能为空");
@@ -459,7 +461,8 @@ public class SourceService {
      * 提交入库（核心模块定义 5.1 → 5.2 的衔接）：概述与难度齐备才可提交（两者都是入库门槛）；
      * 素材在标准库创建 pending 内容并进审核队列（不校不上线），素材标 submitted 长期保留；
      * followups 为向导内确认的追问链草稿（仅面试题线消费，id 已在前端分配）。
-     * 标准库内容与素材进门即断联（红线 7）。
+     * 标准库内容与素材进门即断联（红线 7）；同一素材允许再次引导提交——
+     * 聚合内容拆分场景：每次在素材层删减出一部分正文，引导多次、各成一条标准库文档。
      */
     public List<SourceItemView> submit(long id, String domainCode, Long topicId, String contentType,
             List<com.zhiji.kb.service.KbContentService.Followup> followups) {
@@ -543,14 +546,6 @@ public class SourceService {
         SourceItem item = mapper.selectById(id);
         if (item == null) {
             throw BizException.notFound("素材不存在");
-        }
-        return item;
-    }
-
-    private SourceItem requireEditable(long id) {
-        SourceItem item = requireItem(id);
-        if ("submitted".equals(item.getStatus())) {
-            throw BizException.validation("已入库素材不再编辑：后续修改在标准库内进行（进门即断联）");
         }
         return item;
     }

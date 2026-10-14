@@ -6,6 +6,7 @@ import com.zhiji.learn.domain.LearnStatus;
 import com.zhiji.learn.repo.LearnStateMapper;
 import java.time.LocalDateTime;
 import java.time.format.DateTimeFormatter;
+import java.util.Comparator;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
@@ -182,6 +183,60 @@ public class LearnStateService {
     /** 级联清理（R14）：档案删除时清掉名下全部学习状态。 */
     public void deleteByProfile(long profileId) {
         mapper.delete(new LambdaQueryWrapper<LearnState>().eq(LearnState::getProfileId, profileId));
+    }
+
+    // —— T12 今日复习（4.3）：复习排期读与写（复测只更新复习参数，不动五态） ——
+
+    /** 已推进（quick/pass/weak）的全部行：复习池（随机抽取的复习侧来源）。 */
+    public List<LearnState> progressedRows(long profileId) {
+        return mapper.selectList(new LambdaQueryWrapper<LearnState>()
+                .eq(LearnState::getProfileId, profileId)
+                .in(LearnState::getStatus, List.of(LearnStatus.QUICK.getCode(),
+                        LearnStatus.PASS.getCode(), LearnStatus.WEAK.getCode())));
+    }
+
+    /** 到期行（今日清单·到期复测路）：progressed 且 due_at NULL（未排期）或 ≤ now。 */
+    public List<LearnState> dueRows(long profileId) {
+        String now = now();
+        return progressedRows(profileId).stream()
+                .filter(row -> row.getDueAt() == null || row.getDueAt().compareTo(now) <= 0)
+                .sorted(Comparator.comparing(row -> row.getDueAt() == null ? "" : row.getDueAt()))
+                .toList();
+    }
+
+    /**
+     * 复测结果回写（排期唯一写入口，R3/R4）：known → 连对 streak 映射固定阶梯
+     * [1,2,4,8,15,30][min(streak,5)] 天，due_at = now + interval；!known → interval 归零、
+     * due_at = now（打回复测队列）、fail_count +1（虚报/失败证据）。status 一律不动（R2）。
+     *
+     * @param knownStreak 含本次的连续自评"会"次数（仅 known=true 时消费；null 视为 0）
+     */
+    @Transactional
+    public LearnState recordReviewResult(long profileId, long kpId, boolean known, Integer knownStreak) {
+        LearnState row = requireOrCreate(profileId, kpId);
+        LocalDateTime now = LocalDateTime.now();
+        if (known) {
+            int streak = Math.max(knownStreak == null ? 0 : knownStreak, 0);
+            // streak=1（首次复测通过）→ LADDER[0]=1 天；streak 越大间隔越长，30 天封顶
+            row.setReviewIntervalDays(LADDER[Math.min(Math.max(streak - 1, 0), LADDER.length - 1)]);
+            row.setDueAt(now.plusDays(row.getReviewIntervalDays()).format(TS));
+        } else {
+            row.setReviewIntervalDays(0);
+            row.setDueAt(now.format(TS));
+            row.setFailCount((row.getFailCount() == null ? 0 : row.getFailCount()) + 1);
+        }
+        row.setLastReviewedAt(now.format(TS));
+        row.setUpdatedAt(now.format(TS));
+        mapper.updateById(row);
+        return row;
+    }
+
+    /** 复测间隔阶梯（天，代码写死不进配置）：streak 0 → 1 天起步，30 天封顶。 */
+    public static final int[] LADDER = {1, 2, 4, 8, 15, 30};
+
+    /** 供测试直更行的透传（不走状态机）；生产代码一律用上面的状态机方法。 */
+    public void updateRow(LearnState row) {
+        mapper.updateById(row);
     }
 
     // —— 内部 ——

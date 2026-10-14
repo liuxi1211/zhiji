@@ -322,8 +322,11 @@ class LearnFlowTest {
                 .andReturn();
         assertThat(closed.getResponse().getContentAsString(StandardCharsets.UTF_8)).contains("good");
         assertThat(kpState(pathBody(session), kpId)).isEqualTo("pass");
-        // 限额计量：判定以档案 id 计（profile_id 非零）
-        assertThat(llmUsageService.todayCallCount("judge_practice", profileId)).isGreaterThan(0);
+        // 限额计量：判定按账号计（档案映射到 sys_customer 账号，用量窗口非零）
+        long accountId = llmUsageService.accountIdOf(profileId);
+        assertThat(accountId).isGreaterThan(0);
+        assertThat(llmUsageService.customerWindowCounts().get(accountId)).isNotNull();
+        assertThat(llmUsageService.customerWindowCounts().get(accountId).daily()).isGreaterThan(0);
     }
 
     @Test

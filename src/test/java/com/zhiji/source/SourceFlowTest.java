@@ -156,13 +156,15 @@ class SourceFlowTest {
         // 提交在标准库产生待审核内容（进门先过审核门，不校不上线）
         assertThat(kbReviewService.queue(null, 1, 100).items().stream()
                 .anyMatch(item -> "无概述素材".equals(item.title()))).isTrue();
-        // 已入库素材长期保留：不可编辑、不可删、不可放弃
-        assertThatThrownBy(() -> sourceService.update(submitted.get(0).id(), "改标题", null, null, null, null, null, null, null))
-                .isInstanceOf(BizException.class)
-                .hasMessageContaining("断联");
+        // 已入库素材长期保留：不可删、不可放弃；但允许继续编辑并再次引导（聚合内容拆分场景）
         assertThatThrownBy(() -> sourceService.delete(submitted.get(0).id()))
                 .isInstanceOf(BizException.class)
                 .hasMessageContaining("保留不删");
+        // 再次提交：同一素材可多次引导入库，各成一条标准库文档（进门断联，改素材不动已成的稿）
+        sourceService.update(submitted.get(0).id(), null, null, null, null, null, null, null, null);
+        List<SourceService.SourceItemView> resubmitted = sourceService.submit(submitted.get(0).id(), "java", topicId, "kp", null);
+        assertThat(resubmitted).hasSize(1);
+        assertThat(resubmitted.get(0).status()).isEqualTo("submitted");
     }
 
     @Test

@@ -9,12 +9,10 @@ import com.zhiji.llm.api.LlmClient;
 import com.zhiji.llm.api.LlmPurpose;
 import com.zhiji.llm.api.LlmRequest;
 import com.zhiji.llm.api.PromptTemplate;
+import com.zhiji.llm.service.PromptStore;
 import com.zhiji.profile.domain.PrfClaim;
 import com.zhiji.profile.domain.PrfProfile;
 import com.zhiji.profile.repo.PrfClaimMapper;
-import java.io.IOException;
-import java.io.InputStream;
-import java.nio.charset.StandardCharsets;
 import java.time.LocalDateTime;
 import java.time.format.DateTimeFormatter;
 import java.util.ArrayList;
@@ -53,12 +51,15 @@ public class AnchorMapService {
     private final PrfClaimMapper claimMapper;
     private final KbKpMapper kpMapper;
     private final LlmClient llmClient;
+    private final PromptStore promptStore;
     private final JsonMapper jsonMapper = new JsonMapper();
 
-    public AnchorMapService(PrfClaimMapper claimMapper, KbKpMapper kpMapper, LlmClient llmClient) {
+    public AnchorMapService(PrfClaimMapper claimMapper, KbKpMapper kpMapper, LlmClient llmClient,
+            PromptStore promptStore) {
         this.claimMapper = claimMapper;
         this.kpMapper = kpMapper;
         this.llmClient = llmClient;
+        this.promptStore = promptStore;
     }
 
     // —— 视图契约 ——
@@ -189,18 +190,7 @@ public class AnchorMapService {
             }
             candidateText.append('\n');
         }
-        return PromptTemplate.render(readTemplate("prompts/claim_anchor_map.txt"),
+        return PromptTemplate.render(promptStore.get("claim_anchor_map"),
                 Map.of("kpCandidates", candidateText.toString(), "claims", claimsText.toString()));
-    }
-
-    private String readTemplate(String path) {
-        try (InputStream in = getClass().getClassLoader().getResourceAsStream(path)) {
-            if (in == null) {
-                throw new IllegalStateException("缺少 prompt 模板: " + path);
-            }
-            return new String(in.readAllBytes(), StandardCharsets.UTF_8);
-        } catch (IOException e) {
-            throw new IllegalStateException("读取 prompt 模板失败: " + path, e);
-        }
     }
 }

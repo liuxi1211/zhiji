@@ -7,12 +7,13 @@ import java.util.Map;
 import org.springframework.boot.context.properties.ConfigurationProperties;
 
 /**
- * LLM 连接配置（zhiji.llm）。providers 的 base-url 与 api-key 只来自此处或环境变量，
- * 不进数据库、不进设置页——安全边界（决策 T2-D3）。
+ * LLM 连接配置（zhiji.llm）。2026-10 起 providers 部分降级为「首次启动种子」：
+ * LlmChannelSection 用它把渠道（base-url/api-key/模型清单/默认模型）种入 sys_config 的 llm.channel，
+ * 之后运行时事实源是渠道库（LLM 管理页可改，保存即生效）——改 yml 不再影响已初始化的系统。
+ * timeoutSeconds 仍为部署形态参数（yml/环境变量），不进库。
  *
- * Provider.models：该 provider 的 API key 实际支持的模型清单（部署形态事实，随 yml 维护）；
+ * Provider.models：该 provider 的 API key 实际支持的模型清单（随种子入渠道库）；
  * Provider.defaultModel：该 provider 的默认模型（种子路由与存量路由归一化的取值来源）。
- * 换 provider 或模型上线/下线只改 yml，不改代码、不动 sys_config。
  */
 @ConfigurationProperties(prefix = "zhiji.llm")
 public class LlmProperties {
@@ -39,6 +40,9 @@ public class LlmProperties {
 
     public static class Provider {
 
+        /** API 协议：openai（OpenAI 兼容 /chat/completions，默认）或 anthropic（/v1/messages）。 */
+        private String protocol = "openai";
+
         private String baseUrl;
 
         private String apiKey;
@@ -48,6 +52,14 @@ public class LlmProperties {
 
         /** 该 provider 的默认模型（路由种子与存量路由归一化用）。 */
         private String defaultModel;
+
+        public String getProtocol() {
+            return protocol == null || protocol.isBlank() ? "openai" : protocol;
+        }
+
+        public void setProtocol(String protocol) {
+            this.protocol = protocol;
+        }
 
         public String getBaseUrl() {
             return baseUrl;

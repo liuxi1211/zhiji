@@ -47,4 +47,20 @@ public interface ConfigSection<T> {
     default Map<String, Object> sources() {
         return Map.of();
     }
+
+    /**
+     * GET 下发前的值变换（敏感字段脱敏）：仅影响 HTTP 展示视图，不进快照、不落库。
+     * 典型用途：llm.channel 的 apiKey 掩码化。默认原样返回。
+     */
+    default Object masked(Object value) {
+        return value;
+    }
+
+    /**
+     * HTTP 保存合并：parse 之后、validate 之前调用，把展示脱敏值还原为库内现值。
+     * incoming 为本次请求解析结果，current 为库内现值（快照）；返回值参与校验与落库。默认原样返回入参。
+     */
+    default Object merge(Object incoming, Object current) {
+        return incoming;
+    }
 }

@@ -12,7 +12,7 @@ import tools.jackson.databind.JsonNode;
 /**
  * 通用系统配置接口（/api/admin/configs，仅 admin——权限矩阵见基础架构PRD 3.3）。
  * GET 下发全部域的 schema+值+选项池，PUT 按域整体保存（后端域级校验），前端自渲染零逐域开发。
- * 密钥类信息不在任何配置域暴露面内（只走 yml / 环境变量）。
+ * 含密钥的域（llm.channel）经 ConfigSection.masked 脱敏下发、merge 还原入库——真实密钥不出后端。
  */
 @RestController
 @RequestMapping("/api/admin/configs")

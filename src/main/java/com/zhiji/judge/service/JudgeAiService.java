@@ -6,9 +6,7 @@ import com.zhiji.llm.api.LlmClient;
 import com.zhiji.llm.api.LlmPurpose;
 import com.zhiji.llm.api.LlmRequest;
 import com.zhiji.llm.api.PromptTemplate;
-import java.io.IOException;
-import java.io.InputStream;
-import java.nio.charset.StandardCharsets;
+import com.zhiji.llm.service.PromptStore;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
@@ -49,15 +47,17 @@ public class JudgeAiService {
     }
 
     private final LlmClient llmClient;
+    private final PromptStore promptStore;
     private final JsonMapper jsonMapper = new JsonMapper();
 
-    public JudgeAiService(LlmClient llmClient) {
+    public JudgeAiService(LlmClient llmClient, PromptStore promptStore) {
         this.llmClient = llmClient;
+        this.promptStore = promptStore;
     }
 
     public AlignedJudgment align(String question, String answer, List<PointSpec> specs, Long profileId) {
         String pointsJson = jsonMapper.writeValueAsString(specs);
-        String prompt = PromptTemplate.render(readTemplate("prompts/judge.txt"), Map.of(
+        String prompt = PromptTemplate.render(promptStore.get("judge"), Map.of(
                 "question", question,
                 "answer", answer,
                 "points", pointsJson));
@@ -104,14 +104,4 @@ public class JudgeAiService {
         return !normQuote.isEmpty() && normAnswer.contains(normQuote);
     }
 
-    private String readTemplate(String path) {
-        try (InputStream in = getClass().getClassLoader().getResourceAsStream(path)) {
-            if (in == null) {
-                throw new IllegalStateException("缺少 prompt 模板: " + path);
-            }
-            return new String(in.readAllBytes(), StandardCharsets.UTF_8);
-        } catch (IOException e) {
-            throw new IllegalStateException("读取 prompt 模板失败: " + path, e);
-        }
-    }
 }

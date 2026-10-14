@@ -1,14 +1,18 @@
 package com.zhiji.llm.domain;
 
 /**
- * 限额与熔断配置（存 sys_config 的 llm.limits），默认值见核心模块定义 4.2。
+ * 限流与熔断配置（存 sys_config 的 llm.limits，2026-10 统一规划）：
  *
- * judgeDaily 为软上限（超限不阻断，仅告警）；variantRewriteDaily、perProfileDailyTotal、
- * siteDailyTotal 为硬熔断（超限抛业务异常，由业务层降级）。
+ * - C 端每账号一套日/周/月总量（不再按入口细分，自然周/自然月窗口）；
+ * - B 端全站共享一套日/周/月总量（员工人工触发的总体额度）；
+ * - siteDailyTotal 为全站兜底熔断（C+B 全部调用的账单红线，防异常刷量）。
+ *
+ * 三窗口均为硬限（超限抛 429，业务层按入口走降级路径）。
  */
-public record LlmLimits(int judgeDaily, int variantRewriteDaily, int perProfileDailyTotal, int siteDailyTotal) {
+public record LlmLimits(int customerDaily, int customerWeekly, int customerMonthly,
+        int staffDaily, int staffWeekly, int staffMonthly, int siteDailyTotal) {
 
     public static LlmLimits defaults() {
-        return new LlmLimits(200, 20, 300, 1000);
+        return new LlmLimits(200, 800, 2000, 300, 1200, 4000, 5000);
     }
 }

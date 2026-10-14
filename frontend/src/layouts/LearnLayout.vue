@@ -6,10 +6,11 @@ import ThemeToggle from '@/components/ThemeToggle.vue'
 
 const route = useRoute()
 
-/** C 端主导航：对应核心模块定义第二节的六功能（建档在"我的"内） */
+/** C 端主导航：对应核心模块定义第二节的六功能（建档在"我的"内）；
+ * label 按 6.5 命名表（T12：「抽卡」退役为「今日复习」，路由 /gacha 与组件名保留） */
 const tabs = [
   { name: 'map', path: '/map', label: '地图', icon: 'map' },
-  { name: 'gacha', path: '/gacha', label: '抽卡', icon: 'gacha' },
+  { name: 'gacha', path: '/gacha', label: '今日复习', icon: 'gacha' },
   { name: 'exam', path: '/exam', label: '模拟考', icon: 'exam' },
   { name: 'review', path: '/review', label: '复盘', icon: 'review' },
   { name: 'profile', path: '/profile', label: '我的', icon: 'profile' }
